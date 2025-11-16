@@ -1,35 +1,27 @@
 import sys
-import time
 import os
 import torch
-import pandas as pd
-# from skimage import io, transform
 import numpy as np
-import matplotlib.pyplot as plt
-from torch.utils.data import Dataset, DataLoader
-from torchvision import transforms, utils
-import torch.nn.functional as F
 from tqdm import tqdm
-from scipy import ndimage
-from glob import glob
 import pandas as pd
 from pathlib import Path
 import matplotlib.pyplot as plt
 # Ignore warnings
 import warnings
 warnings.filterwarnings("ignore")
-from random import sample
-import nibabel as nib
 from PIL import Image, ImageSequence
 import shutil
 import json
 import subprocess
 import warnings
 warnings.filterwarnings("ignore", category=UserWarning, module="fft_conv_pytorch")
+os.environ['TORCHINDUCTOR_COMPILE_THREADS'] = "1"
 
-os.environ["nnUNet_raw"] = "/kaggle/ft_nnunet/nnUNet/nnunet/nnUNet_raw_data_base/nnUNet_raw"
-os.environ["nnUNet_preprocessed"] = "/kaggle/ft_nnunet/nnUNet/nnunet/preprocessed"
-os.environ["nnUNet_results"] = "/kaggle/ft_nnunet/nnUNet/nnunet/nnUNet_results"
+sys.path.append('./nnUNet')
+
+os.environ["nnUNet_raw"] = "./nnunet/nnUNet_raw_data_base/nnUNet_raw"
+os.environ["nnUNet_preprocessed"] = "./nnunet/preprocessed"
+os.environ["nnUNet_results"] = "./nnunet/nnUNet_results"
 
 #configs
 plt.ion()   # interactive mode
@@ -84,7 +76,7 @@ def main():
     LBL_DIR = DATA_DIR / "train_labels"
     REPO_DIR = 'nnunet_repo'
     # --- OUTPUT NNUNET DIR ---
-    BASE = Path("./nnUNet_raw_data_base/nnUNet_raw")
+    BASE = Path("./nnunet/nnUNet_raw_data_base/nnUNet_raw")
     task_id = 900
     task_name = "VesuviusScroll"
     task_folder = f"Dataset{task_id:03d}_{task_name}"
@@ -145,23 +137,23 @@ def main():
         "--verify_dataset_integrity"
     ])
 
-    # run_cmd([
-    #     sys.executable,
-    #     "-m", "nnunetv2.run.run_training",
-    #     "552",
-    #     "3d_fullres",
-    #     "0",
-    #     "-num_gpus", "2"
-    # ])
-    #
-    # run_cmd([
-    #     sys.executable,
-    #     "-m", "nnunetv2.run.run_training",
-    #     "552",
-    #     "3d_fullres",
-    #     "1",
-    #     "-num_gpus", "2"
-    # ])
+    run_cmd([
+        sys.executable,
+        "-m", "nnunetv2.run.run_training",
+        "900",
+        "3d_fullres",
+        "0",
+        "-num_gpus", "1",
+    ])
+
+    run_cmd([
+        sys.executable,
+        "-m", "nnunetv2.run.run_training",
+        "900",
+        "3d_fullres",
+        "1",
+        "-num_gpus", "1",
+    ])
 
 
 if __name__ == '__main__':
