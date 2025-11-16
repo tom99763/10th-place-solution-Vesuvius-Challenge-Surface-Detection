@@ -16,6 +16,8 @@ def main():
 
     for _, row in tqdm(meta_data.iterrows(), total=len(meta_data), desc="Processing volumes"):
         image_id = row["id"]
+        if os.path.exists(f"./data/rough_masks/rough_mask_{image_id}.npz"):
+            continue
         filename = f"{image_id}.tif"
         img_path = img_dir / filename
         volume = load_volume(img_path)
