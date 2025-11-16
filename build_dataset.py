@@ -3,7 +3,7 @@ import pandas as pd
 from tqdm import tqdm
 from src.procs.proc_data import *
 
-data_path = ''
+data_path = './data/vesuvius-challenge-surface-detection'
 
 
 def main():
@@ -20,7 +20,7 @@ def main():
         img_path = img_dir / filename
         volume = load_volume(img_path)
         _, rough_mask = smarter_predict(volume)
-        np.savez_compressed(f"'./data/rough_masks/rough_mask_{image_id}.npz", rough_mask=rough_mask)
+        np.savez_compressed(f"./data/rough_masks/rough_mask_{image_id}.npz", rough_mask=rough_mask)
 
 if __name__ == '__main__':
     main()
