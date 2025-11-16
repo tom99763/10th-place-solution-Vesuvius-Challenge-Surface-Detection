@@ -1,6 +1,6 @@
 image_size: ${input_size}
-input_size: [128, 128, 128]
-vol_size: [128, 320, 320]
+input_size: [320, 128, 128]
+vol_size: [320, 320, 320]
 transforms:
   train:
     - EnsureChannelFirstd:

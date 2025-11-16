@@ -2,27 +2,52 @@ from torch.utils.data import Dataset, DataLoader
 import numpy as np
 import torch
 import pytorch_lightning as pl
-import sys
+from ..procs.proc_data import *
+from pathlib import Path
 
 class TomoDataset(Dataset):
-    def __init__(self):
+    def __init__(self, cfg, id_list):
         super().__init__()
+        self.cfg = cfg
+        self.id_list = id_list
+        self.proc_vol_and_mask = generate_transforms(self.cfg.transforms)
 
     def __len__(self):
-        pass
+        return len(self.id_list)
 
     def __getitem__(self, idx):
-        pass
+        id = self.id_list[idx]
+        data_path = Path(self.cfg.data_path)
+
+        vol = load_volume(data_path/f'train_images/{id}.tif')
+
+        if self.cfg.stage == '1':
+            mask = np.load(data_path/f'rough_masks/rough_mask_{id}.npz')
+            mask = mask['rough_mask']
+        elif self.cfg.stage == '2':
+            mask = load_volume(data_path / f'train_labels/{id}.tif')
+        else:
+            raise Exception('Invalid stage')
+
+        transformed = self.proc_vol_and_mask({'Image': vol, 'Mask': mask})
+        return transformed['Image'], transformed['Mask']
 
 
 class TomoDataModule(pl.LightningDataModule):
-    def __init__(self, cfg):
+    def __init__(self, cfg, id_list, train_idx, val_idx):
         super().__init__()
         self.cfg = cfg
+        self.id_list = id_list
+        self.train_idx = train_idx
+        self.val_idx = val_idx
 
     def setup(self, stage: str = None):
-        self.train_dataset = TomoDataset()
-        self.val_dataset = TomoDataset()
+        self.train_dataset = TomoDataset(self.cfg,
+                                         self.id_list[self.train_idx],
+                                         )
+        self.val_dataset = TomoDataset(self.cfg,
+                                       self.id_list[self.val_idx],
+                                       )
 
     def train_dataloader(self):
         return DataLoader(

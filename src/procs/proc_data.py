@@ -5,6 +5,11 @@ from skimage.filters import threshold_otsu
 from skimage.morphology import remove_small_objects, remove_small_holes
 from skimage.measure import label
 from scipy import ndimage as ndi
+import logging
+from monai import transforms
+from monai.transforms import Compose
+
+logger = logging.getLogger(__name__)
 
 
 def load_volume(path: Path) -> np.ndarray:
@@ -49,3 +54,22 @@ def smarter_predict(volume: np.ndarray):
     rough_mask = get_rough_mask(final_mask)
 
     return final_mask, rough_mask
+
+
+def generate_transforms(
+    transforms_config: list[dict],
+) -> list[transforms.Transform]:
+    transform_list = []
+    logger.debug(f"Generating {len(transforms_config)} transforms")
+
+    for transform_config in transforms_config:
+        transform_name = next(iter(transform_config))
+        transform_kwargs = transform_config[transform_name]
+        logger.debug(
+            f"Generating transform {transform_name} with kwargs {transform_kwargs}"
+        )
+        transform: transforms.Transform = getattr(transforms, transform_name)(
+            **transform_kwargs
+        )  # type: ignore
+        transform_list.append(transform)
+    return Compose(transform_list)  # type: ignore
