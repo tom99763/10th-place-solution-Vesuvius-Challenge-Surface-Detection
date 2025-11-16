@@ -12,14 +12,15 @@ lightning_trainer:
   log_every_n_steps: 10
 
 lightning_module:
-  _target_: module.PLModule
+  _target_: src.trainers.segTrainer.ScrollSegmentorTrainer
   _partial_: True
   prediction_threshold: 0.5
 
   loss:
     _target_: monai.losses.DiceCELoss
-    softmax: False         # use softmax for multi-class
-    to_onehot_y: True      # convert target mask to one-hot internally
+    sigmoid: True
+    softmax: False
+    to_onehot_y: False
     reduction: "mean"
     squared_pred: True
     lambda_ce: 0.1

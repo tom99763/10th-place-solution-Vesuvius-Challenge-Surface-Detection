@@ -1,6 +1,7 @@
 
 project_name: 'vesurvius-challenge'
 exp_name: 'dynunet'
+data_path: './data/vesuvius-challenge-surface-detection'
 batch_size: 2
 num_workers: 12
 image_size: ${input_size}
