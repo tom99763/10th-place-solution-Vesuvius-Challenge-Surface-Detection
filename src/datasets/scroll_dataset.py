@@ -22,8 +22,7 @@ class TomoDataset(Dataset):
         vol = load_volume(data_path/f'train_images/{id}.tif')
 
         if self.cfg.stage == '1':
-            mask = np.load(data_path/f'rough_masks/rough_mask_{id}.npz')
-            mask = mask['rough_mask']
+            mask = load_volume(data_path/f'rough_masks/rough_mask_{id}.tif')
         elif self.cfg.stage == '2':
             mask = load_volume(data_path / f'train_labels/{id}.tif')
         else:
