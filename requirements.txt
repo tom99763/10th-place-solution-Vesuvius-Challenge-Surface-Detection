@@ -1,0 +1,13 @@
+pandas
+wandb
+scikit-learn
+einops
+torchsummary
+timm
+albumentations
+matplotlib
+nibabel
+imagecodecs 
+gdown
+tqdm
+tifffile
