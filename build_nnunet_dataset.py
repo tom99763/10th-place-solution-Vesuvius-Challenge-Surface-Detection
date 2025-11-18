@@ -1,25 +1,14 @@
 import sys
-import time
 import os
 import torch
-import pandas as pd
-# from skimage import io, transform
 import numpy as np
-import matplotlib.pyplot as plt
-from torch.utils.data import Dataset, DataLoader
-from torchvision import transforms, utils
-import torch.nn.functional as F
 from tqdm import tqdm
-from scipy import ndimage
-from glob import glob
 import pandas as pd
 from pathlib import Path
 import matplotlib.pyplot as plt
 # Ignore warnings
 import warnings
 warnings.filterwarnings("ignore")
-from random import sample
-import nibabel as nib
 from PIL import Image, ImageSequence
 import shutil
 import json
@@ -27,7 +16,7 @@ import subprocess
 import warnings
 warnings.filterwarnings("ignore", category=UserWarning, module="fft_conv_pytorch")
 
-sys.path.append('./nnUNet')
+sys.path.append('./src/nnUNet')
 
 os.environ["nnUNet_raw"] = "./nnunet/nnUNet_raw_data_base/nnUNet_raw"
 os.environ["nnUNet_preprocessed"] = "./nnunet/preprocessed"
@@ -80,7 +69,7 @@ def run_cmd(cmd_list):
 
 def main():
     # --- INPUT DATA ---
-    DATA_DIR = Path("./custom/data/vesuvius-challenge-surface-detection")
+    DATA_DIR = Path("./data/vesuvius-challenge-surface-detection")
     CSV_PATH = DATA_DIR / "train.csv"
     IMG_DIR = DATA_DIR / "train_images"
     LBL_DIR = DATA_DIR / "train_labels"
@@ -147,25 +136,6 @@ def main():
         "-c", "3d_fullres",
         "--verify_dataset_integrity"
     ])
-
-    # run_cmd([
-    #     sys.executable,
-    #     "-m", "nnunetv2.run.run_training",
-    #     "552",
-    #     "3d_fullres",
-    #     "0",
-    #     "-num_gpus", "2"
-    # ])
-    #
-    # run_cmd([
-    #     sys.executable,
-    #     "-m", "nnunetv2.run.run_training",
-    #     "552",
-    #     "3d_fullres",
-    #     "1",
-    #     "-num_gpus", "2"
-    # ])
-
 
 if __name__ == '__main__':
     main()
