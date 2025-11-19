@@ -1,5 +1,5 @@
 lightning_trainer:
-  _target_: lightning.pytorch.trainer.trainer.Trainer
+  _target_: pytorch_lightning.trainer.trainer.Trainer
   default_root_dir: "./models"
   _partial_: True
   val_check_interval: 1000

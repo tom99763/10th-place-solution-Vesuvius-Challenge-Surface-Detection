@@ -1,7 +1,7 @@
 import logging
 from typing import Callable, Optional, Tuple
 
-import lightning as L
+import pytorch_lightning as pl
 import torch
 import torch.nn as nn
 from monai.metrics import DiceMetric
@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 default_loss = nn.BCEWithLogitsLoss()
 
 
-class ScrollSegmentorTrainer25D(L.LightningModule):
+class ScrollSegmentorTrainer25D(pl.LightningModule):
     """
     2.5D segmentation trainer.
     Follows the exact structure and conventions of ScrollSegmentorTrainer (3D),

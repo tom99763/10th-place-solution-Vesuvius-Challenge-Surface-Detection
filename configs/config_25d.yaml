@@ -1,22 +1,69 @@
-project_name: 'vesurvius-challenge-stage-1'
-exp_name: '25d-unet'
-data_path: '../data'
+project_name: vesurvius-challenge-stage-1
+exp_name: 25d-unet
+data_path: ../data
 batch_size: 16
 lr: 1e-3
-input_size : [320,320]
-dataloader:
-  _target_: "torch.utils.data.DataLoader"
-  _partial_: True
-  num_workers: 8
-  prefetch_factor: 3
-  batch_size: ${batch_size}
-  pin_memory: True
-  persistent_workers: True
-  shuffle: True
+input_size: [320, 320]
+offline: true
+fold_id: 0
+devices: [0]
 
 defaults:
   - models: unet25d
   - optimizers: AdamW
-  - trainer: seg25dTrainer
   - data: data_25d
   - _self_
+
+trainer:
+  lightning_trainer:
+    _target_: pytorch_lightning.trainer.trainer.Trainer
+    default_root_dir: "./models"
+    _partial_: True
+    val_check_interval: 1000
+    max_time: "00:12:00:00"
+    max_steps: 46000
+    max_epochs: -1
+    accelerator: gpu
+    enable_checkpointing: True
+    precision: 16-mixed
+    log_every_n_steps: 10
+
+  lightning_module:
+    _target_: src.trainers.seg25dTrainer.ScrollSegmentorTrainer25D
+    prediction_threshold: 0.5
+    _partial_: True
+    batch_size: ${batch_size}
+    input_size: ${input_size}
+
+    loss:
+      _target_: monai.losses.DiceCELoss
+      sigmoid: True
+      softmax: False
+      to_onehot_y: False
+      reduction: mean
+      squared_pred: True
+      lambda_ce: 0.1
+      lambda_dice: 0.9
+
+    optimizer_factory:
+      _target_: torch.optim.AdamW
+      _partial_: True
+      lr: ${lr}
+      weight_decay: 0.1
+      betas: [ 0.9, 0.999 ]
+
+    scheduler_configs:
+      cosine_annealing_few:
+        interval: step
+        frequency: 10
+        scheduler:
+          _target_: torch.optim.lr_scheduler.CosineAnnealingLR
+          _partial_: True
+          T_max: 1000
+          eta_min: 0.0000001
+          last_epoch: -1
+
+      linear_warmup: null
+      cosine_annealing: null
+
+

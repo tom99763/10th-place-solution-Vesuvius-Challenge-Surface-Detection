@@ -3,12 +3,9 @@ import os
 import sys
 from pathlib import Path
 import logging
-
-
 import hydra
 from omegaconf import DictConfig, OmegaConf
-import lightning as L
-from lightning.pytorch.loggers import TensorBoardLogger
+import pytorch_lightning as pl
 
 from hydra.utils import instantiate
 
@@ -19,9 +16,11 @@ PROJECT_ROOT = 'C:/Users/tom99/PycharmProjects/Vesuvius-challenge-Codebase'
 sys.path.append(str(PROJECT_ROOT))
 
 # Import your custom dataset + trainer
-from src.datasets.scroll_dataset_25d import ScrollDataset25D
-from src.trainers.seg25dTrainer import ScrollSegmentorTrainer25D
-
+from src.datasets.scroll_dataset_25d import *
+from src.trainers.seg25dTrainer import *
+import torch
+from lightning.pytorch.loggers import WandbLogger
+torch.set_float32_matmul_precision('medium')
 
 logger = logging.getLogger(__name__)
 
@@ -35,93 +34,60 @@ def main(cfg: DictConfig):
     print("\n====== CONFIG ======")
     print(OmegaConf.to_yaml(cfg))
 
-    # -----------------------------------------------------
-    # 1) Build model from Hydra config
-    # -----------------------------------------------------
-    logger.info("Instantiating model...")
-    model = instantiate(cfg.models)
-    # This resolves _target_: "monai.networks.nets.DynUNet"
-    # and loads all arguments from your YAML.
-
-    # -----------------------------------------------------
-    # 2) Optimizer factory
-    # -----------------------------------------------------
-    logger.info("Setting up optimizer...")
-    optimizer_factory = instantiate(cfg.optimizers, _partial_=True)
-
-    # -----------------------------------------------------
-    # 3) Trainer LightningModule
-    # -----------------------------------------------------
+    wnb_logger = WandbLogger(
+        project=cfg.project_name,
+        name=cfg.exp_name,
+        config=OmegaConf.to_container(cfg),
+        offline=cfg.offline,
+    )
     logger.info("Building ScrollSegmentorTrainer25D...")
 
-    lit_model = ScrollSegmentorTrainer25D(
-        model=model,
-        optimizer_factory=optimizer_factory,
-        scheduler_configs=cfg.get("schedulers", None),
-        dataset_name=cfg.get("project_name", "unknown"),
-        prediction_threshold=cfg.get("prediction_threshold", 0.5),
-        batch_size=cfg.batch_size,
-        input_size=cfg.input_size,
-    )
-
-    # -----------------------------------------------------
-    # 4) Build dataset IDs + train/val split
-    # -----------------------------------------------------
     data_path = Path(cfg.data_path)
-
-    # Load list of training volume IDs
-    # Example: ["scroll_001", "scroll_002", ...]
     id_list = sorted([p.stem for p in (data_path / "train_images_25d_1").glob("*.npy")])
-
-    # Simple split — adjust as needed
     val_fraction = 0.1
     n_val = int(len(id_list) * val_fraction)
 
     train_ids = id_list[:-n_val]
     val_ids = id_list[-n_val:]
-
-    # -----------------------------------------------------
-    # 5) Build datasets
-    # -----------------------------------------------------
     logger.info("Loading 2.5D datasets...")
 
-    train_dataset = ScrollDataset25D(
-        cfg=cfg.data,
-        id_list=train_ids,
-        
+    datamodule = ScrollDataModule25D(
+        cfg=cfg,
+        id_list = id_list,
+        train_idx = train_ids,
+        val_idx = val_ids
     )
 
-    val_dataset = ScrollDataset25D(
-        cfg=cfg.data,
-        id_list=val_ids,
-        
+    ckpt_callback = pl.callbacks.ModelCheckpoint(
+        monitor="val_dice"
+        , mode="max"
+        , dirpath="./models"
+        , filename=f'{cfg.exp_name}' + '-{epoch:02d}-{val_loss:.4f}-{"val_dice:.4f}'+ \
+                   f"fold_id={cfg.fold_id}"
+        , save_top_k=1
+        , save_last=True
     )
 
-    # -----------------------------------------------------
-    # 6) DataLoaders (from Hydra dataloader config)
-    # -----------------------------------------------------
-    train_loader = instantiate(cfg.dataloader, dataset=train_dataset)
-    val_loader = instantiate(cfg.dataloader, dataset=val_dataset, shuffle=False)
+    lr_monitor = pl.callbacks.LearningRateMonitor(logging_interval='epoch')
 
     # -----------------------------------------------------
     # 7) Lightning Trainer
     # -----------------------------------------------------
     logger.info("Creating Lightning Trainer and Module...")
-
-    tb_logger = TensorBoardLogger("tb_logs", name=cfg.exp_name)
-
-    # Instantiate the lightning module
     model = instantiate(cfg.models)
-    lit_model = instantiate(cfg.trainer.lightning_module,model=model)
+    lit_model = instantiate(cfg.trainer.lightning_module)(model=model)
 
-    # Instantiate the trainer
-    trainer = instantiate(cfg.trainer.lightning_trainer, logger=tb_logger)
+    trainer = hydra.utils.instantiate(cfg.trainer.lightning_trainer)
+    trainer_additional_kwargs = {
+        "logger": wnb_logger,
+        "callbacks": [lr_monitor, ckpt_callback],
+        "devices": cfg.devices
+    }
+    trainer = trainer(**trainer_additional_kwargs)
 
-    # -----------------------------------------------------
-    # 8) Train
-    # -----------------------------------------------------
+    wnb_logger.watch(model, log="all", log_freq=20)
     logger.info("🔵 Starting training...")
-    trainer.fit(lit_model, train_loader, val_loader)
+    trainer.fit(lit_model, datamodule=datamodule)
     logger.info("🏁 Training complete.")
 
 

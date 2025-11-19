@@ -1,26 +1,26 @@
 lightning_trainer:
-  _target_: lightning.pytorch.trainer.trainer.Trainer
-  default_root_dir: "./models"
-  
-  val_check_interval: 1000
-  max_time: "00:12:00:00"
-  max_steps: 46000
-  max_epochs: -1
+  _target_: pytorch_lightning.trainer.trainer.Trainer
+  max_epochs: 100
   accelerator: gpu
-  enable_checkpointing: True
+  devices: 1
   precision: 32
-  log_every_n_steps: 10
+  check_val_every_n_epoch: 1
+  strategy: auto
 
 lightning_module:
   _target_: src.trainers.seg25dTrainer.ScrollSegmentorTrainer25D
   prediction_threshold: 0.5
-
+  _partial_: True
+  prediction_threshold: 0.62
+  batch_size: ${batch_size}
+  input_size: ${input_size}
+  
   loss:
     _target_: monai.losses.DiceCELoss
     sigmoid: True
     softmax: False
     to_onehot_y: False
-    reduction: "mean"
+    reduction: mean
     squared_pred: True
     lambda_ce: 0.1
     lambda_dice: 0.9
@@ -45,3 +45,5 @@ lightning_module:
 
     linear_warmup: null
     cosine_annealing: null
+
+
