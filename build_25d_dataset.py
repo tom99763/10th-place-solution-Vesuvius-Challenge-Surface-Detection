@@ -6,7 +6,7 @@ import tifffile
 from src.procs.proc_data import *
 from tqdm import tqdm
 
-data_path = '/kaggle/data/'
+data_path = './data/vesuvius-challenge-surface-detection/'
 neighb_width = 1
 
 def main():

@@ -4,9 +4,6 @@ data_path : ${data_path}
 vol_size: [320, 320]
 transforms:
   train:
-    - EnsureChannelFirstd:
-        keys: ["Image", "Mask"]
-        channel_dim: "no_channel"
     - EnsureTyped:
         keys: ["Image", "Mask"]
     - Resized:
@@ -21,9 +18,6 @@ transforms:
         keys: ["Image", "Mask"]
 
   val:
-    - EnsureChannelFirstd:
-        keys: ["Image", "Mask"]
-        channel_dim: "no_channel"
     - EnsureTyped:
         keys: ["Image", "Mask"]
     - Resized:

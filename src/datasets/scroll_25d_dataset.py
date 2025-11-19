@@ -67,10 +67,10 @@ class ScrollDataModule25D(pl.LightningDataModule):
 
     def setup(self, stage=None):
         self.train_dataset = ScrollDataset25D(
-            self.cfg, self.id_list[self.train_idx]
+            self.cfg.data, self.id_list[self.train_idx]
         )
         self.val_dataset = ScrollDataset25D(
-            self.cfg, self.id_list[self.val_idx]
+            self.cfg.data, self.id_list[self.val_idx]
         )
 
     def train_dataloader(self):
