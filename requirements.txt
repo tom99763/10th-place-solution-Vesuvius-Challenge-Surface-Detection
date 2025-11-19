@@ -11,3 +11,5 @@ imagecodecs
 gdown
 tqdm
 tifffile
+lightning
+hydra-core
