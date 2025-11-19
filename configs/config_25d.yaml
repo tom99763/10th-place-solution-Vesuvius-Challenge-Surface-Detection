@@ -1,12 +1,13 @@
 project_name: 'vesurvius-challenge-stage-1'
 exp_name: '25d-unet'
-data_path: './data/vesuvius-challenge-surface-detection/data'
-batch_size: 2
-
+data_path: './data'
+batch_size: 16
+lr: 1e-3
+input_size : [320,320]
 dataloader:
   _target_: "torch.utils.data.DataLoader"
   _partial_: True
-  num_workers: 12
+  num_workers: 8
   prefetch_factor: 3
   batch_size: ${batch_size}
   pin_memory: True
@@ -17,5 +18,5 @@ defaults:
   - models: unet25d
   - optimizers: AdamW
   - trainer: seg25dTrainer
-  - data: data
+  - data: data_25d
   - _self_
