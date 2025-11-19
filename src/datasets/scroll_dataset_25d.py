@@ -22,35 +22,31 @@ class ScrollDataset25D(Dataset):
         "video_002/slice_020.npy"
     """
 
-    def __init__(self, cfg,id_list,  mode="train"):
+    def __init__(self, cfg, id_list, mode="train"):
         super().__init__()
         self.cfg = cfg
         self.id_list = id_list
         self.data_path = Path(self.cfg.data_path)
         self.mode=mode
-        # ---- FIX: resolve ${vol_size} and others BEFORE use ----
-        tf_list = OmegaConf.to_container(cfg.transforms.train, resolve=True)
-        self.proc_vol_and_mask = generate_transforms(tf_list)
-        # self.proc_vol_and_mask = generate_transforms(self.cfg.transforms)
+        if mode == 'train':
+            self.proc_vol_and_mask = generate_transforms(cfg.data.transforms.train)
+        else:
+            self.proc_vol_and_mask = generate_transforms(cfg.data.transforms.val)
 
     def __len__(self):
         return len(self.id_list)
 
     def __getitem__(self, idx):
-        slice_id = self.id_list[idx]  
+        slice_path = self.id_list[idx]
         # example: "video_001/slice_010.npy"
-
-        img_path = self.data_path / "train_images_25d_1" / slice_id
-        mask_path_root = (
-            "train_labels_25d_1" if self.cfg.stage == "2" else "train_labels_25d_1"
-        )
-        mask_path = self.data_path / mask_path_root / slice_id
 
         # -----------------------------
         # Load NPY (3,H,W) and (H,W) or (1,H,W)
         # -----------------------------
-        vol = np.load(img_path).astype(np.float32)
-        mask = np.load(mask_path).astype(np.float32)
+        vol = np.load(slice_path, mmap_mode='r').astype(np.float32)
+        mask_path = Path(str(slice_path).replace("train_images_25d_1", "train_labels_25d_1"))
+        mask_path = Path(str(mask_path).replace("img", "mask"))
+        mask = np.load(mask_path, mmap_mode='r').astype(np.float32)
 
         # Ensure mask has channel dimension (1,H,W)
         if mask.ndim == 2:
@@ -67,19 +63,18 @@ class ScrollDataset25D(Dataset):
 
 
 class ScrollDataModule25D(pl.LightningDataModule):
-    def __init__(self, cfg, id_list, train_idx, val_idx):
+    def __init__(self, cfg, train_ids, val_ids):
         super().__init__()
         self.cfg = cfg
-        self.id_list = id_list
-        self.train_idx = train_idx
-        self.val_idx = val_idx
+        self.train_ids = train_ids
+        self.val_ids = val_ids
 
     def setup(self, stage=None):
         self.train_dataset = ScrollDataset25D(
-            self.cfg, [self.id_list[i] for i in self.train_idx] ,mode="train"
+            self.cfg, self.train_ids ,mode="train"
         )
         self.val_dataset = ScrollDataset25D(
-            self.cfg, [self.id_list[i] for i in self.val_idx], mode="val" )
+            self.cfg, self.val_ids, mode="val" )
 
     def train_dataloader(self):
         return DataLoader(

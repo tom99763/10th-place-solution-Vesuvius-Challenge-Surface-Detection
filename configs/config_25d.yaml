@@ -1,7 +1,9 @@
 project_name: vesurvius-challenge-stage-1
 exp_name: 25d-unet
-data_path: ../data
+data_path: ../../../data
 batch_size: 16
+num_workers: 4
+val_ratio: 0.1
 lr: 1e-3
 input_size: [320, 320]
 offline: true

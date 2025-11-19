@@ -43,9 +43,8 @@ def main(cfg: DictConfig):
     logger.info("Building ScrollSegmentorTrainer25D...")
 
     data_path = Path(cfg.data_path)
-    id_list = sorted([p.stem for p in (data_path / "train_images_25d_1").glob("*.npy")])
-    val_fraction = 0.1
-    n_val = int(len(id_list) * val_fraction)
+    id_list = list((data_path / "train_images_25d_1").glob("*/*.npy"))
+    n_val = int(len(id_list) * cfg.val_ratio)
 
     train_ids = id_list[:-n_val]
     val_ids = id_list[-n_val:]
@@ -53,9 +52,8 @@ def main(cfg: DictConfig):
 
     datamodule = ScrollDataModule25D(
         cfg=cfg,
-        id_list = id_list,
-        train_idx = train_ids,
-        val_idx = val_ids
+        train_ids = train_ids,
+        val_ids = val_ids
     )
 
     ckpt_callback = pl.callbacks.ModelCheckpoint(

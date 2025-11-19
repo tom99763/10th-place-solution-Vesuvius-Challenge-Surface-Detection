@@ -98,7 +98,7 @@ class ScrollSegmentorTrainer25D(pl.LightningModule):
         mask = self._ensure_channel_first_mask(mask).float()
 
         # forward
-        pred_logits = self.model(image)  # expect (B,1,H,W)
+        pred_logits = self.model(image)
         loss = self.loss(pred_logits, mask)
 
         # logging
