@@ -4,7 +4,7 @@ import torch
 import pytorch_lightning as pl
 from pathlib import Path
 from omegaconf import DictConfig, OmegaConf
-from ..procs.proc_data import generate_transforms
+from src.procs.proc_data import *
 
 
 

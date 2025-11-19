@@ -175,29 +175,13 @@ class ScrollSegmentorTrainer25D(L.LightningModule):
     # Optimizer / Scheduler
     # -----------------------------------
     def configure_optimizers(self):
-        # -----------------------------
-        # 1) Instantiate optimizer with model parameters
-        # -----------------------------
-        
-        optimizer = instantiate(self.optimizer_factory,params=self.model.parameters())
-
-        # -----------------------------
-        # 2) Instantiate schedulers
-        # -----------------------------
-        schedulers = []
+        optimizer = self.optimizer_factory(self.parameters())
         if self.scheduler_configs:
-            for sched_name, sched_cfg in self.scheduler_configs.items():
-                sched_obj_cfg = sched_cfg.scheduler.copy() if isinstance(sched_cfg.scheduler, dict) else sched_cfg.scheduler
-                # schedulers require optimizer as first argument
-                
-                scheduler_obj = instantiate(sched_obj_cfg, optimizer=optimizer)
-                schedulers.append({
-                    "scheduler": scheduler_obj,
-                    "interval": sched_cfg.get("interval", "step"),
-                    "frequency": sched_cfg.get("frequency", 1),
-                })
-
-        if schedulers:
+            schedulers = []
+            for _, cfg in self.scheduler_configs.items():
+                if cfg is None:
+                    continue
+                cfg["scheduler"] = cfg["scheduler"](optimizer=optimizer)
+                schedulers.append(dict(cfg))
             return [optimizer], schedulers
-        else:
-            return optimizer
+        return optimizer

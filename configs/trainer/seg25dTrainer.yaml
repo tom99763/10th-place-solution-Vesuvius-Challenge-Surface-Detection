@@ -13,7 +13,6 @@ lightning_trainer:
 
 lightning_module:
   _target_: src.trainers.seg25dTrainer.ScrollSegmentorTrainer25D
-  
   prediction_threshold: 0.5
 
   loss:
@@ -28,27 +27,21 @@ lightning_module:
 
   optimizer_factory:
     _target_: torch.optim.AdamW
-    _partial_ : False
+    _partial_: True
     lr: ${lr}
     weight_decay: 0.1
-    betas: [0.9, 0.999]
+    betas: [ 0.9, 0.999 ]
 
   scheduler_configs:
-    linear_warmup:
-      interval: step
-      frequency: 10
-      scheduler:
-        _target_: torch.optim.lr_scheduler.LinearLR
-        _partial_: False 
-        start_factor: 0.01
-        end_factor: 1.0
-        total_iters: 150
-    cosine_annealing:
+    cosine_annealing_few:
       interval: step
       frequency: 10
       scheduler:
         _target_: torch.optim.lr_scheduler.CosineAnnealingLR
-        _partial_: False 
-        T_max: 5000
-        eta_min: 0.0
+        _partial_: True
+        T_max: 1000
+        eta_min: 0.0000001
         last_epoch: -1
+
+    linear_warmup: null
+    cosine_annealing: null

@@ -15,7 +15,7 @@ from hydra.utils import instantiate
 # -------------------------
 # Make project root importable
 # -------------------------
-PROJECT_ROOT = '/kaggle/Vesuvius-challenge-Codebase'
+PROJECT_ROOT = 'C:/Users/tom99/PycharmProjects/Vesuvius-challenge-Codebase'
 sys.path.append(str(PROJECT_ROOT))
 
 # Import your custom dataset + trainer
