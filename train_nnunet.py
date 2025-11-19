@@ -54,7 +54,8 @@ def main():
             "900",
             "3d_fullres",
             str(i),
-            "-num_gpus", "1"
+            "-num_gpus", "1",
+            "-tr", "nnUNetTrainerSkeletonRecall_more_DAv3"
         ])
 
 

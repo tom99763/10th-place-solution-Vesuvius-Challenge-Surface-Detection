@@ -53,7 +53,7 @@ class nnUNetTrainerSkeletonRecall(nnUNetTrainer):
         device: torch.device = torch.device("cuda"),
     ):
         super().__init__(plans, configuration, fold, dataset_json, device)
-        self.weight_srec = 1  # This is the default value, you can change it if you want
+        self.weight_srec = 0.2  # This is the default value, you can change it if you want
         if self.label_manager.has_regions:
             raise NotImplementedError("trainer not implemented for regions")
 
