@@ -84,9 +84,10 @@ def main(cfg: DictConfig):
     trainer = trainer(**trainer_additional_kwargs)
 
     wnb_logger.watch(model, log="all", log_freq=20)
-    logger.info("🔵 Starting training...")
-    trainer.fit(lit_model, datamodule=datamodule)
-    logger.info("🏁 Training complete.")
+    # logger.info("🔵 Starting training...")
+    # trainer.fit(lit_model, datamodule=datamodule)
+    # logger.info("🏁 Training complete.")
+    trainer.validate(lit_model, datamodule=datamodule)
 
 
 if __name__ == "__main__":
