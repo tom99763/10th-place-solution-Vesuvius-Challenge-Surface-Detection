@@ -13,3 +13,5 @@ tqdm
 tifffile
 lightning
 hydra-core
+tensorboard
+kaggle==1.5.16
