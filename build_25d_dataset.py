@@ -72,10 +72,10 @@ def main():
 
         depth = volume.shape[0]
 
-        img25d_dir = out_img_root / image_id
+        img25d_dir = out_img_root / str(image_id)
         img25d_dir.mkdir(parents=True, exist_ok=True)
 
-        mask25d_dir = out_mask_root / image_id
+        mask25d_dir = out_mask_root / str(image_id)
         mask25d_dir.mkdir(parents=True, exist_ok=True)
 
         for i in range(depth):
