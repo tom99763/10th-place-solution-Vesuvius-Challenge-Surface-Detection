@@ -97,9 +97,11 @@ class ScrollSegmentorTrainer25D(pl.LightningModule):
         # ensure mask has channel dim
         mask = self._ensure_channel_first_mask(mask).float()
 
+        valid_mask = mask != 2
+
         # forward
         pred_logits = self.model(image)
-        loss = self.loss(pred_logits, mask)
+        loss = self.loss(pred_logits * valid_mask, mask * valid_mask)
 
         # logging
         self.log(
@@ -116,6 +118,8 @@ class ScrollSegmentorTrainer25D(pl.LightningModule):
         image, mask = batch
         mask = self._ensure_channel_first_mask(mask).float()
 
+        valid_mask = mask != 2
+
         with torch.no_grad():
             pred_logits = self._forward_logits(image)
             loss = self.loss(pred_logits, mask)
@@ -125,7 +129,7 @@ class ScrollSegmentorTrainer25D(pl.LightningModule):
             pred_bin = (pred_prob > self.prediction_threshold).float()
 
             # update dice metric
-            self.dice_metric(y_pred=pred_bin, y=mask)
+            self.dice_metric(y_pred=pred_bin * valid_mask, y=mask * valid_mask)
 
             # log
             self.log(
@@ -151,6 +155,8 @@ class ScrollSegmentorTrainer25D(pl.LightningModule):
         image, mask = batch
         mask = self._ensure_channel_first_mask(mask).float()
 
+        valid_mask = mask != 2
+
         with torch.no_grad():
             pred_logits = self._forward_logits(image)
             loss = self.loss(pred_logits, mask)
@@ -158,7 +164,7 @@ class ScrollSegmentorTrainer25D(pl.LightningModule):
             pred_prob = torch.sigmoid(pred_logits)
             pred_bin = (pred_prob > self.prediction_threshold).float()
 
-            self.dice_metric(y_pred=pred_bin, y=mask)
+            self.dice_metric(y_pred=pred_bin * valid_mask, y=mask * valid_mask)
             self.log("test_loss", loss, prog_bar=True, sync_dist=True)
 
         return {"test_loss": loss.detach()}

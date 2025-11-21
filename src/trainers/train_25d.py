@@ -87,6 +87,7 @@ def main(cfg: DictConfig):
     logger.info("🔵 Starting training...")
     trainer.fit(lit_model, datamodule=datamodule)
     logger.info("🏁 Training complete.")
+    #trainer.validate(lit_model, datamodule=datamodule)
 
 
 if __name__ == "__main__":
