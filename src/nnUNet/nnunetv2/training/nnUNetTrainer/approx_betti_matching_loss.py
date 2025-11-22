@@ -79,7 +79,7 @@ class ApproxBettiMatchingLoss(nn.Module):
 
     def __init__(self, eps=1.0, max_iter=100):
         super().__init__()
-        self.device = "cpu" #torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.euler_curve = WeightedEulerCurve()
         self.wdist = SinkhornDistance(eps=eps, max_iter=max_iter, reduction=None)
 
