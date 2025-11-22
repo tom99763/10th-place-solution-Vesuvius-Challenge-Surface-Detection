@@ -151,12 +151,14 @@ class BettiDicCELosss(nn.Module):
         weight_ce=1,
         weight_dice=1,
         weight_betti=1,
+        ignore_label = None,
         dice_class=MemoryEfficientSoftDiceLoss,
     ):
         super().__init__()
         self.weight_dice = weight_dice
         self.weight_ce = weight_ce
         self.weight_betti = weight_betti
+        self.ignore_label = ignore_label
 
         self.ce = RobustCrossEntropyLoss(**ce_kwargs)
         self.dc = dice_class(apply_nonlin=softmax_helper_dim1, **soft_dice_kwargs)
