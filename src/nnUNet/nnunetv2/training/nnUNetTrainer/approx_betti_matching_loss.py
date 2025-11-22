@@ -6,25 +6,15 @@ from nnunetv2.training.loss.dice import MemoryEfficientSoftDiceLoss
 from nnunetv2.training.loss.robust_ce_loss import RobustCrossEntropyLoss
 from nnunetv2.utilities.helpers import softmax_helper_dim1
 
-# ===========================================================
-# ============== Normalized Sinkhorn Distance ===============
-# ===========================================================
 class SinkhornDistance(nn.Module):
-    """
-    Entropy-regularized OT distance with:
-    - normalized cost
-    - per-point average cost instead of sum
-    - true Wasserstein-2 distance (sqrt)
-    """
 
-    def __init__(self, eps=1.0, max_iter=100, reduction='none'):
+    def __init__(self, eps=0.5, max_iter=100, reduction='none'):
         super().__init__()
         self.eps = eps
         self.max_iter = max_iter
         self.reduction = reduction
 
     def forward(self, x, y):
-        # Cost matrix |x_i - y_j|^2 (but small due to normalization)
         C = self._cost_matrix(x, y)
 
         batch = x.shape[0] if x.dim() == 3 else 1
@@ -38,17 +28,24 @@ class SinkhornDistance(nn.Module):
 
         for _ in range(self.max_iter):
             u_prev = u.clone()
-            u = self.eps * (torch.log(mu + 1e-8) - torch.logsumexp(self.M(C, u, v), dim=-1)) + u
-            v = self.eps * (torch.log(nu + 1e-8) - torch.logsumexp(self.M(C, u, v).transpose(-2, -1), dim=-1)) + v
+            u = self.eps * (torch.log(mu + 1e-8) -
+                            torch.logsumexp(self.M(C, u, v), dim=-1)) + u
+            v = self.eps * (torch.log(nu + 1e-8) -
+                            torch.logsumexp(self.M(C, u, v).transpose(-2, -1), dim=-1)) + v
+
             if (u - u_prev).abs().mean() < 1e-2:
                 break
 
         pi = torch.exp(self.M(C, u, v))
 
-        # -------- Normalized OT cost --------
-        cost = torch.sum(pi * C, dim=(-2, -1))          # sum over all pairs
-        cost = cost / (n * m)                           # normalize per point
-        cost = torch.sqrt(cost + 1e-8)                  # true Wasserstein-2
+        # ======================================================
+        #  Balanced normalization:
+        #    - do NOT divide by n*m (keeps scale meaningful)
+        #    - only divide by (max(n, m))
+        #      → reduces magnitude but preserves relative strength
+        # ======================================================
+        raw_cost = torch.sum(pi * C, dim=(-2, -1))
+        cost = raw_cost / max(n, m)
 
         if self.reduction == 'mean':
             cost = cost.mean()
@@ -62,46 +59,40 @@ class SinkhornDistance(nn.Module):
 
     @staticmethod
     def _cost_matrix(x, y, p=2):
-        x_col = x.unsqueeze(-2)
-        y_lin = y.unsqueeze(-3)
-        return torch.sum((torch.abs(x_col - y_lin)) ** p, dim=-1)
+        return torch.sum((x.unsqueeze(-2) - y.unsqueeze(-3)).abs() ** p, dim=-1)
 
 
-# ===========================================================
-# ========== Approximate Betti Matching Loss ================
-# ===========================================================
 class ApproxBettiMatchingLoss(nn.Module):
-    """
-    Uses:
-    - normalized Euler summaries
-    - normalized Sinkhorn distance
-    """
 
-    def __init__(self, eps=1.0, max_iter=100):
+    def __init__(self, eps=0.5, max_iter=100):
         super().__init__()
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.euler_curve = WeightedEulerCurve()
-        self.wdist = SinkhornDistance(eps=eps, max_iter=max_iter, reduction=None)
+        self.wdist = SinkhornDistance(
+            eps=eps,
+            max_iter=max_iter,
+            reduction=None
+        )
 
     def _compute_summary(self, x):
-        summary = self.euler_curve(x)
-        # ---- normalize Euler summaries to unit sphere ----
-        summary = summary / (summary.norm(p=2, dim=-1, keepdim=True) + 1e-8)
-        return summary
+        # keep raw Euler curves (important!)
+        return self.euler_curve(x)
 
     def forward(self, pred, gt, loss_mask=None):
         B = pred.shape[0]
         if loss_mask is not None:
             pred = pred * loss_mask
-        total_loss = 0.0
+
+        total = 0.0
 
         for b in range(B):
-            sp = self._compute_summary(pred[b])
-            sg = self._compute_summary(gt[b])
-            loss_b, _, _ = self.wdist(sp, sg)
-            total_loss += loss_b
+            s_pred = self._compute_summary(pred[b])
+            s_gt   = self._compute_summary(gt[b])
 
-        return total_loss / B
+            loss_b, _, _ = self.wdist(s_pred, s_gt)
+            total += loss_b
+
+        return total / B
 
 
 
