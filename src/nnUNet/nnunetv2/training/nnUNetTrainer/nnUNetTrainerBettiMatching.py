@@ -20,7 +20,6 @@ class nnUNetTrainerBettiMatching(nnUNetTrainer):
         device: torch.device = torch.device("cuda"),
     ):
         super().__init__(plans, configuration, fold, dataset_json, device)
-        self.weight_betti = 1.0
         if self.label_manager.has_regions:
             raise NotImplementedError("trainer not implemented for regions")
 
@@ -37,13 +36,16 @@ class nnUNetTrainerBettiMatching(nnUNetTrainer):
                 "ddp": self.is_ddp,
             },
             betti_kwargs={
-                "eps":  0.1,
-                "max_iter": 100
+                'eps': 0.05,
+                'resolution': 400,
+                'target_class': 1,
+                'topo_weight': 20.0,
+                'sharpness': 100,  # Threshold sharpness (higher = harder binary)
             },
             ce_kwargs={},
             weight_ce=1,
             weight_dice=1,
-            weight_betti=self.weight_betti,
+            weight_betti=1,
             ignore_label=self.label_manager.ignore_label,
             dice_class=MemoryEfficientSoftDiceLoss,
         )
