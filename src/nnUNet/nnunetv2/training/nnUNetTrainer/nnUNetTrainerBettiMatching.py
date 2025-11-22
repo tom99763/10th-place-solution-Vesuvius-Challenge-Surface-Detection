@@ -36,11 +36,8 @@ class nnUNetTrainerBettiMatching(nnUNetTrainer):
                 "ddp": self.is_ddp,
             },
             betti_kwargs={
-                'eps': 0.05,
-                'resolution': 400,
-                'target_class': 1,
-                'topo_weight': 20.0,
-                'sharpness': 100,  # Threshold sharpness (higher = harder binary)
+                eps: '0.5',
+                max_iter: '100'
             },
             ce_kwargs={},
             weight_ce=1,
