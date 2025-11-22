@@ -147,7 +147,7 @@ class BettiDicCELosss(nn.Module):
         self,
         soft_dice_kwargs,
         betti_kwargs,
-        bce_kwargs,
+        ce_kwargs,
         weight_ce=1,
         weight_dice=1,
         weight_betti=1,
@@ -158,7 +158,7 @@ class BettiDicCELosss(nn.Module):
         self.weight_ce = weight_ce
         self.weight_betti = weight_betti
 
-        self.ce = nn.BCEWithLogitsLoss(**bce_kwargs)
+        self.ce = RobustCrossEntropyLoss(**ce_kwargs)
         self.dc = dice_class(apply_nonlin=softmax_helper_dim1, **soft_dice_kwargs)
         self.betti = ApproxBettiMatchingLoss(**betti_kwargs)
 
