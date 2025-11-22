@@ -1,0 +1,21 @@
+name: topo-metrics-3d
+channels: [conda-forge]
+dependencies:
+  - python=3.11
+  - pip=25.2
+  - scikit-image=0.25.2
+  - cmake=4.1.2
+  - make=4.4.1                # on mac/linux; on Windows use msys2 or VS build tools
+  - compilers=1.11.0           # clang/gcc toolchain (mac/linux)
+  - pybind11=3.0.1
+  - numpy=2.3.4
+  - tqdm=4.67.1
+  - tifffile=2025.10.16
+  - jupyterlab=4.4.10
+  - matplotlib=3.10.7
+  - pytest
+  - pip:
+      - surface-distance==0.1
+      - connected-components-3d==3.26.0
+      - build==1.3.0
+      - napari[all]==0.6.6

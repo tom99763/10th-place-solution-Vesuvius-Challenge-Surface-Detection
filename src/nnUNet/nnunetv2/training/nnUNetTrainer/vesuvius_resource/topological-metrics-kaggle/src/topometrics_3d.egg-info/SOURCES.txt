@@ -1,0 +1,13 @@
+LICENSE
+README.md
+pyproject.toml
+src/topometrics/__init__.py
+src/topometrics/_bm_loader.py
+src/topometrics/leaderboard.py
+src/topometrics/toposcore.py
+src/topometrics/voi.py
+src/topometrics_3d.egg-info/PKG-INFO
+src/topometrics_3d.egg-info/SOURCES.txt
+src/topometrics_3d.egg-info/dependency_links.txt
+src/topometrics_3d.egg-info/requires.txt
+src/topometrics_3d.egg-info/top_level.txt

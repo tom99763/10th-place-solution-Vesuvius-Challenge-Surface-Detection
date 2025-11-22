@@ -1,0 +1,11 @@
+numpy==1.26.4
+scipy==1.15.3
+scikit-image==0.25.2
+tifffile==2025.6.11
+imagecodecs==2025.8.2
+pybind11[global]==2.13.6
+cmake==3.31.6
+surface-distance==0.1
+connected-components-3d==3.26.0
+build==1.2.2.post1
+pytest
