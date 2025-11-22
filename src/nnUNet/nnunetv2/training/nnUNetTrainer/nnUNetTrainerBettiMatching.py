@@ -37,12 +37,14 @@ class nnUNetTrainerBettiMatching(nnUNetTrainer):
             },
             betti_kwargs={
                 'eps': 0.5,
-                'max_iter': 100
+                'max_iter': 100,
+                'euler_steps': 64,
+                'euler_sigma': 1e-2
             },
             ce_kwargs={},
             weight_ce=1,
             weight_dice=1,
-            weight_betti=1,
+            weight_betti=1e-2,
             ignore_label=self.label_manager.ignore_label,
             dice_class=MemoryEfficientSoftDiceLoss,
         )
