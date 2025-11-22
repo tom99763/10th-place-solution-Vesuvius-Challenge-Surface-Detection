@@ -138,7 +138,7 @@ class BettiDicCELosss(nn.Module):
         soft_dice_kwargs,
         betti_kwargs,
         ce_kwargs,
-        weight_ce=1,
+        weight_ce=0.1,
         weight_dice=1,
         weight_betti=1,
         ignore_label=None,

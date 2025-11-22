@@ -146,6 +146,7 @@ nnunetv2/training/lr_scheduler/__init__.py
 nnunetv2/training/lr_scheduler/polylr.py
 nnunetv2/training/lr_scheduler/warmup.py
 nnunetv2/training/nnUNetTrainer/__init__.py
+nnunetv2/training/nnUNetTrainer/approx_betti_matching_loss.py
 nnunetv2/training/nnUNetTrainer/focal_tversky_plusplus_loss.py
 nnunetv2/training/nnUNetTrainer/more_DA.py
 nnunetv2/training/nnUNetTrainer/more_DAv2.py
