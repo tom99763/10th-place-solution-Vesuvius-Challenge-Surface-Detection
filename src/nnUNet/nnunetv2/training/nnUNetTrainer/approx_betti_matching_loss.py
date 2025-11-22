@@ -159,7 +159,7 @@ class BettiDicCELosss(nn.Module):
         self.weight_betti = weight_betti
 
         self.ce = nn.BCEWithLogitsLoss(**bce_kwargs)
-        self.dc = dice_class(apply_nonlin=torch.sigmoid, **soft_dice_kwargs)
+        self.dc = dice_class(apply_nonlin=softmax_helper_dim1, **soft_dice_kwargs)
         self.betti = ApproxBettiMatchingLoss(**betti_kwargs)
 
     def forward(self, net_output: torch.Tensor, target: torch.Tensor):
