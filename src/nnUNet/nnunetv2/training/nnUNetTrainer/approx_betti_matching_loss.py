@@ -240,6 +240,7 @@ class ApproxBettiMatchingLoss(nn.Module):
 
     def forward(self, pred, gt, loss_mask=None):
         B = pred.shape[0]
+        pred = pred.softmax(dim=1)
         if loss_mask is not None:
             pred = pred * loss_mask
         pred = pred[:, 1]
