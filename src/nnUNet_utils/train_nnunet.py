@@ -47,15 +47,27 @@ def run_cmd(cmd_list):
 
 
 def main():
-    fold = "1"
     run_cmd([
-        sys.executable,
-        "-m", "nnunetv2.run.run_training",
-        "900",
-        "3d_fullres",
-        fold,
-        "-num_gpus", "1"
+        "nnUNetv2_plan_experiment",
+        "-d", "900",
+        "-c", "3d_fullres",
+        "-pl", "nnUNetPlannerResEncM",
+        "-gpu_memory_target", "20",
+        "-overwrite_plans_name", "nnUNetResEncUNetMPlans_20G"
+
     ])
+
+
+    for i in range(5):
+        run_cmd([
+            sys.executable,
+            "-m", "nnunetv2.run.run_training",
+            "900",
+            "3d_fullres",
+            str(i),
+            "-num_gpus", "1",
+            "-p", "nnUNetResEncUNetMPlans_20G"
+        ])
 
 
 if __name__ == '__main__':

@@ -69,7 +69,7 @@ def run_cmd(cmd_list):
 
 def main():
     # --- INPUT DATA ---
-    DATA_DIR = Path("./data/vesuvius-challenge-surface-detection")
+    DATA_DIR = Path("../../../data/vesuvius-challenge-surface-detection")
     CSV_PATH = DATA_DIR / "train.csv"
     IMG_DIR = DATA_DIR / "train_images"
     LBL_DIR = DATA_DIR / "train_labels"
@@ -128,6 +128,14 @@ def main():
     print("✔️ dataset.json written to:", base_dir / "dataset.json")
 
     sys.path.append(REPO_DIR)
+
+    run_cmd([
+        sys.executable,
+        "-m", "nnunetv2.experiment_planning.plan_and_preprocess_entrypoints",
+        "-d", "900",
+        "-c", "3d_fullres",
+        "--verify_dataset_integrity"
+    ])
 
 
 
