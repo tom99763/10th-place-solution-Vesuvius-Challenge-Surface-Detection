@@ -52,9 +52,6 @@ def main():
         "-d", "900",
         "-c", "3d_fullres",
         "-pl", "nnUNetPlannerResEncM",
-        "-gpu_memory_target", "20",
-        "-overwrite_plans_name", "nnUNetResEncUNetMPlans"
-
     ])
 
 
@@ -66,7 +63,8 @@ def main():
             "3d_fullres",
             str(i),
             "-num_gpus", "1",
-            "-p", "nnUNetResEncUNetMPlans"
+            "-p", "nnUNetResEncUNetMPlans",
+            '-tr', 'nnUNetTrainerBettiMatching'
         ])
 
 
