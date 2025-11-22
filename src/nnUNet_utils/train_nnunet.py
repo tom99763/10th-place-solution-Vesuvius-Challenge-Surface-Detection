@@ -61,6 +61,18 @@ def main():
         ])
 
 
+    for i in range(5):
+        run_cmd([
+            sys.executable,
+            "-m", "nnunetv2.run.run_training",
+            "900",
+            "3d_fullres",
+            str(i),
+            "-num_gpus", "1",
+            "-p", "nnUNetResEncUNetMPlans"
+        ])
+
+
 if __name__ == '__main__':
     main()
 

@@ -32,3 +32,19 @@ transforms:
         b_max: 1
     - ToTensord:
         keys: ["Image", "Mask"]
+
+  test:
+    - EnsureTyped:
+        keys: [ "Image"]
+    - Resized:
+        keys: [ "Image"]
+        spatial_size: [ 320,320 ]
+        mode: [ "bilinear"]
+    - ScaleIntensityRangePercentilesd:
+        keys: [ "Image" ]
+        lower: 2
+        upper: 98
+        b_min: 0
+        b_max: 1
+    - ToTensord:
+        keys: [ "Image"]
