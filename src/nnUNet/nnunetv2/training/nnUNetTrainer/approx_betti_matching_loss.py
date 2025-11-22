@@ -5,6 +5,7 @@ from nnunetv2.training.loss.dice import MemoryEfficientSoftDiceLoss
 from nnunetv2.training.loss.robust_ce_loss import RobustCrossEntropyLoss
 from nnunetv2.utilities.helpers import softmax_helper_dim1
 
+
 class GPUWeightedEulerCurve(nn.Module):
     def __init__(self, num_steps=64, sigma=1e-2, device=None):
         super().__init__()
@@ -37,8 +38,8 @@ class GPUWeightedEulerCurve(nn.Module):
             # Heuristic: treat common channel counts as channels (1 or 3)
             if C_or_D in (1, 3):
                 # (C,H,W) -> (1,C,H,W) then collapse channels to single scalar
-                x = x.unsqueeze(0)              # (1, C, H, W)
-                x = x.mean(dim=1, keepdim=True) # (1, 1, H, W)
+                x = x.unsqueeze(0)  # (1, C, H, W)
+                x = x.mean(dim=1, keepdim=True)  # (1, 1, H, W)
                 single_sample = True
             else:
                 # treat as (D,H,W) depth volume -> (1,1,D,H,W)
@@ -88,12 +89,12 @@ class GPUWeightedEulerCurve(nn.Module):
         x_spatial = x.squeeze(1)  # (B, H, W) or (B, D, H, W)
         if is_3d:
             # x_spatial: (B, D, H, W)
-            t = thresholds.view(1, T, 1, 1, 1)           # (1,T,1,1,1)
+            t = thresholds.view(1, T, 1, 1, 1)  # (1,T,1,1,1)
             soft = torch.sigmoid((x_spatial.unsqueeze(1) - t) / (self.sigma + 1e-12))
             # soft: (B, T, D, H, W)
         else:
             # x_spatial: (B, H, W)
-            t = thresholds.view(1, T, 1, 1)              # (1,T,1,1)
+            t = thresholds.view(1, T, 1, 1)  # (1,T,1,1)
             soft = torch.sigmoid((x_spatial.unsqueeze(1) - t) / (self.sigma + 1e-12))
             # soft: (B, T, H, W)
 
@@ -109,7 +110,7 @@ class GPUWeightedEulerCurve(nn.Module):
                 if dim == 3:  # H
                     return F.pad(tensor, (0, 0, 0, offset, 0, 0))[:, :, :, :-offset, :]
                 if dim == 2:  # D
-                    return F.pad(tensor, (0,0,0,0,0,offset))[:, :, :-offset, :, :]
+                    return F.pad(tensor, (0, 0, 0, 0, 0, offset))[:, :, :-offset, :, :]
 
             s = soft
             s_d = shift_dim(s, 2, 1)
@@ -121,17 +122,17 @@ class GPUWeightedEulerCurve(nn.Module):
             E_w = (s * s_w).view(B, T, -1).sum(dim=-1)
             E = E_d + E_h + E_w
 
-            s_hw = s * shift_dim(s, 4, 1) * shift_dim(s, 3, 1) * shift_dim(shift_dim(s,3,1), 4, 1)
+            s_hw = s * shift_dim(s, 4, 1) * shift_dim(s, 3, 1) * shift_dim(shift_dim(s, 3, 1), 4, 1)
             F_hw = s_hw.view(B, T, -1).sum(dim=-1)
-            s_dh = s * shift_dim(s, 3, 1) * shift_dim(s, 2, 1) * shift_dim(shift_dim(s,2,1), 3, 1)
+            s_dh = s * shift_dim(s, 3, 1) * shift_dim(s, 2, 1) * shift_dim(shift_dim(s, 2, 1), 3, 1)
             F_dh = s_dh.view(B, T, -1).sum(dim=-1)
-            s_dw = s * shift_dim(s, 4, 1) * shift_dim(s, 2, 1) * shift_dim(shift_dim(s,2,1), 4, 1)
+            s_dw = s * shift_dim(s, 4, 1) * shift_dim(s, 2, 1) * shift_dim(shift_dim(s, 2, 1), 4, 1)
             F_dw = s_dw.view(B, T, -1).sum(dim=-1)
             F_total = F_hw + F_dh + F_dw
 
-            s_c = s * shift_dim(s,4,1) * shift_dim(s,3,1) * shift_dim(shift_dim(s,3,1),4,1) \
-                  * shift_dim(s,2,1) * shift_dim(shift_dim(s,2,1),4,1) * shift_dim(shift_dim(s,2,1),3,1) \
-                  * shift_dim(shift_dim(shift_dim(s,2,1),3,1),4,1)
+            s_c = s * shift_dim(s, 4, 1) * shift_dim(s, 3, 1) * shift_dim(shift_dim(s, 3, 1), 4, 1) \
+                  * shift_dim(s, 2, 1) * shift_dim(shift_dim(s, 2, 1), 4, 1) * shift_dim(shift_dim(s, 2, 1), 3, 1) \
+                  * shift_dim(shift_dim(shift_dim(s, 2, 1), 3, 1), 4, 1)
             C = s_c.view(B, T, -1).sum(dim=-1)
             euler = V - E + F_total - C
 
@@ -152,7 +153,7 @@ class GPUWeightedEulerCurve(nn.Module):
             E_w = (s * s_w).view(B, T, -1).sum(dim=-1)
             E = E_h + E_w
 
-            s_hw = s * shift2d(s, 3, 1) * shift2d(s, 2, 1) * shift2d(shift2d(s,2,1), 3, 1)
+            s_hw = s * shift2d(s, 3, 1) * shift2d(s, 2, 1) * shift2d(shift2d(s, 2, 1), 3, 1)
             F_total = s_hw.view(B, T, -1).sum(dim=-1)
 
             euler = V - E + F_total
@@ -161,7 +162,6 @@ class GPUWeightedEulerCurve(nn.Module):
         if single_sample:
             return euler.squeeze(0)  # (T,)
         return euler  # (B, T)
-
 
 
 class SinkhornDistance(nn.Module):
@@ -220,10 +220,9 @@ class SinkhornDistance(nn.Module):
         return torch.sum((x.unsqueeze(-2) - y.unsqueeze(-3)).abs() ** p, dim=-1)
 
 
-
 class ApproxBettiMatchingLoss(nn.Module):
 
-    def __init__(self, eps=0.5, max_iter=100, euler_steps=64, euler_sigma=1e-2):
+    def __init__(self, eps=0.1, max_iter=50, euler_steps=32, euler_sigma=5e-3):
         super().__init__()
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.euler_curve = GPUWeightedEulerCurve(num_steps=euler_steps, sigma=euler_sigma, device=self.device)
@@ -234,22 +233,25 @@ class ApproxBettiMatchingLoss(nn.Module):
         )
 
     def _compute_summary(self, x):
-        # x is expected on GPU already
-        # If pred is a map (D,H,W) or (H,W) the GPUWeightedEulerCurve outputs (T,)
-        return self.euler_curve(x)
+        s = self.euler_curve(x)  # (T,)
+        # Normalize curve to zero-mean, unit-variance and bounded magnitude
+        s = (s - s.mean()) / (s.std() + 1e-6)
+        return s
 
     def forward(self, pred, gt, loss_mask=None):
         B = pred.shape[0]
         pred = pred.softmax(dim=1)
         if loss_mask is not None:
             pred = pred * loss_mask
+
+        # ignore background
         pred = pred[:, 1]
         gt = gt[:, 0]
 
         total = 0.0
         for b in range(B):
             s_pred = self._compute_summary(pred[b])
-            s_gt   = self._compute_summary(gt[b])
+            s_gt = self._compute_summary(gt[b])
 
             # Ensure shapes (T,) -> (1, T) for Sinkhorn (it expects last two dims as positions)
             # SinkhornDistance._cost_matrix expects x,y of shape (B, n, d) or similar.
@@ -266,14 +268,17 @@ class ApproxBettiMatchingLoss(nn.Module):
             coords = coords.view(-1, 1)  # (T,1)
 
             # create point clouds: (1, T, 2) -> (pos, value)
-            pc_pred = torch.stack([coords.squeeze(-1), s_pred.detach().cpu() if s_pred.device.type=='cpu' else s_pred], dim=1).unsqueeze(0).to(s_pred.device)
-            pc_gt   = torch.stack([coords.squeeze(-1), s_gt.detach().cpu() if s_gt.device.type=='cpu' else s_gt], dim=1).unsqueeze(0).to(s_gt.device)
+            pc_pred = torch.stack(
+                [coords.squeeze(-1), s_pred.detach().cpu() if s_pred.device.type == 'cpu' else s_pred],
+                dim=1).unsqueeze(0).to(s_pred.device)
+            pc_gt = torch.stack([coords.squeeze(-1), s_gt.detach().cpu() if s_gt.device.type == 'cpu' else s_gt],
+                                dim=1).unsqueeze(0).to(s_gt.device)
 
             # call Sinkhorn (it handles batches). returns (batch_costs, pi, C)
             loss_b, _, _ = self.wdist(pc_pred, pc_gt)
             total += loss_b
 
-        return total / B
+        return 100 * total / B
 
 
 

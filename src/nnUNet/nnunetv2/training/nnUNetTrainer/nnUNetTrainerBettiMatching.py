@@ -36,10 +36,10 @@ class nnUNetTrainerBettiMatching(nnUNetTrainer):
                 "ddp": self.is_ddp,
             },
             betti_kwargs={
-                'eps': 0.5,
-                'max_iter': 100,
-                'euler_steps': 64,
-                'euler_sigma': 1e-2
+                'eps': 0.1,
+                'max_iter': 50,
+                'euler_steps': 32,
+                'euler_sigma': 5e03
             },
             ce_kwargs={},
             weight_ce=1,
