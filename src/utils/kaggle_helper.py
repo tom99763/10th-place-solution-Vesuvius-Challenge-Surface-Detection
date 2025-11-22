@@ -111,7 +111,7 @@ def main():
                     help="Folder that contains files to upload")
     up.add_argument("--username", required=True,
                     help="Your Kaggle username")
-    up.add_argument("--dataset-name", required=True,
+    up.add_argument("--dataset_name", required=True,
                     help="Dataset ID name (e.g. my-dataset)")
     up.add_argument("--notes", default="Update",
                     help="Version notes")
@@ -130,7 +130,7 @@ def main():
         download_dataset(api, args.dataset, args.out)
 
     elif args.command == "upload-dataset":
-        upload_dataset(api, args.folder, args.username, args.dataset-name, args.notes)
+        upload_dataset(api, args.folder, args.username, args.dataset_name, args.notes)
 
 
 if __name__ == "__main__":

@@ -48,17 +48,27 @@ def run_cmd(cmd_list):
 
 
 def main():
-    folds = [0,1,2,3,4]
-    for fold in folds:   
-        run_cmd([
-            
-            "nnUNetv2_train",
-            "900",
-            "2d",
-            str(fold),
-            "-num_gpus", "1",
-            "-p" "nnUNetResEncUNetMPlans_30G"
-        ])
+    
+    run_cmd([
+        
+        "nnUNetv2_plan_and_preprocess",
+        "-d","900",
+        "-c","2d",
+        "-pl", "nnUNetPlannerResEncM",
+        "--verify_dataset_integrity"
+        
+    ])
+    # # Only generate plans
+    #    run_cmd([
+        
+    #     "nnUNetv2_plan_experiment",
+    #     "-d","900",
+    #     "-c","2d",
+    #     "-pl", "nnUNetPlannerResEncM",
+    #     "-gpu_memory_target" , "30",
+    #     "-overwrite_plans_name", "nnUNetResEncUNetMPlans_30G"
+        
+    # ])
 
 
 if __name__ == '__main__':
