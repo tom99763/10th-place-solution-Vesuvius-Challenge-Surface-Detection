@@ -34,8 +34,9 @@ python train_nnunet.py
 
 ### Custom Trainer
 
-Go to `src/nnUNet/nnunetv2/training/nnUNetTrainer`, add your own trainer `xxxTrainer` by inheritting `nnUNetTrainer`, overriding 
+Go to `src/nnUNet/nnunetv2/training/nnUNetTrainer`, add your own trainer `xxxTrainer` by inheritting `src/nnUNet/nnunetv2/training/nnUNetTrainer/nnUNetTrainer.py`, overriding 
 your own functions: `_build_loss`, `train_step`, `validation_step`, `get_dataloaders`, `get_training_transforms`, `get_validation_transforms`
+this can refer to `src/nnUNet/nnunetv2/training/nnUNetTrainer/nnUNetTrainerSkeletonRecall.py`
 
 Example of custom trainer and backbone:
 
