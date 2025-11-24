@@ -11,7 +11,7 @@ n_splits: 5
 
 #model config
 max_v: 3.0
-n_steps: 5
+n_steps: 6
 lambda_jac: 1.0
 lambda_smooth: 0.1
 lambda_ce: 0.1
