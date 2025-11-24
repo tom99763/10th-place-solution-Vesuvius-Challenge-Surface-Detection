@@ -24,7 +24,7 @@ class ScrollDiffeoRefineModule(pl.LightningModule):
         self.lambda_smooth = cfg.lambda_smooth
 
         self.seg_loss = DiceCELoss(
-            sigmoid=True,
+            sigmoid=False,
             to_onehot_y=False,
             softmax=False,
             reduction="mean",
