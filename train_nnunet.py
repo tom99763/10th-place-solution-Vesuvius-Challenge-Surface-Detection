@@ -26,6 +26,7 @@ import json
 import subprocess
 import warnings
 warnings.filterwarnings("ignore", category=UserWarning, module="fft_conv_pytorch")
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 
 sys.path.append('./nnUNet')
 
@@ -47,6 +48,17 @@ def run_cmd(cmd_list):
 
 
 def main():
+    run_cmd([
+        "nnUNetv2_plan_experiment",
+        "-d", "900",
+        "-c", "3d_fullres",
+        "-pl", "nnUNetPlannerResEncM",
+        #"-gpu_memory_target", "20",
+        #"-overwrite_plans_name", "nnUNetResEncUNetMPlans"
+
+    ])
+
+
     for i in range(5):
         run_cmd([
             sys.executable,
@@ -55,7 +67,7 @@ def main():
             "3d_fullres",
             str(i),
             "-num_gpus", "1",
-            "-tr", "nnUNetTrainerSkeletonRecall_more_DAv3"
+            "-p", "nnUNetResEncUNetMPlans"
         ])
 
 
