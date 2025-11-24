@@ -1,6 +1,7 @@
 project_name: vesurvius-challenge
 exp_name: deform-dynunet
 data_path: ../../../data
+nnunet_path: ./nnunet
 batch_size: 1
 num_workers: 4
 lr: 1e-3

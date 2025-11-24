@@ -29,8 +29,11 @@ class ScrollDiffeoRefineModule(pl.LightningModule):
             softmax=False,
             reduction="mean",
             squared_pred=True,
-            lambda_ce=0.1,
-            lambda_dice=0.9,
+            lambda_ce=cfg.lambda_ce,
+            lambda_dice=cfg.lambda_dice
+        )
+        self.sliding_window_inferer = SlidingWindowInfererAdapt(
+            roi_size=[-1, 128, 128], sw_batch_size=1, overlap=0.5,
         )
 
     def forward(self, x):
