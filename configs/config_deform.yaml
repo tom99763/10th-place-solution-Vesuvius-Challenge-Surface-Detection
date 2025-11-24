@@ -1,0 +1,22 @@
+project_name: vesurvius-challenge
+exp_name: deform-dynunet
+data_path: ../../../data
+batch_size: 1
+num_workers: 4
+lr: 1e-3
+offline: true
+fold_id: 0
+
+#model config
+max_v: 3.0
+n_steps: 5
+
+
+defaults:
+  - models: deform_dynunet
+  - optimizers: AdamW
+  - data: data_deform
+  - trainer: deformSegTrainer
+  - _self_
+
+
