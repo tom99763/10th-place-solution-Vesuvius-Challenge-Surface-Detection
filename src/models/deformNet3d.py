@@ -53,7 +53,7 @@ class DeformDynUnet(nn.Module):
 
     def forward(self, x, return_params = True):
         #x: (batch, 2, d, h, w)
-        raw_v = self.predictor(x)
+        raw_v = self.predictor(x) #stationary velocity field (SVF)
         v = torch.tanh(raw_v) * self.cfg.max_v
         phi = scaling_and_squaring(v, n_steps=self.cfg.n_steps)
         soft_oof = x[:, 1:2, :, :, :]
