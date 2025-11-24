@@ -31,9 +31,9 @@ def collate_fn(batch):
     """
     batch: list of tuples (Image, Mask, Mask_OOF)
     """
-    images = torch.stack([item[0] for item in batch], dim=0)
-    masks = torch.stack([item[1] for item in batch], dim=0)
-    mask_oof = torch.stack([item[2] for item in batch], dim=0)
+    images = torch.concat([item[0] for item in batch], dim=0) #(batch * num_pos_sample, c, d, h, w)
+    masks = torch.concat([item[1] for item in batch], dim=0)
+    mask_oof = torch.concat([item[2] for item in batch], dim=0)
 
     return {
         "Image": images,
