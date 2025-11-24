@@ -1,15 +1,7 @@
-import logging
-import os
-from typing import Callable, Optional, Tuple
-import monai
-import torch
-import torch.nn as nn
 from monai.inferers.inferer import SlidingWindowInfererAdapt
 from monai.metrics import DiceMetric
-from torch import Tensor
 import pytorch_lightning as pl
 from losses import *
-import torch.nn.functional as F
 from monai.losses import DiceCELoss
 
 # ---------------------
@@ -29,12 +21,19 @@ class ScrollDiffeoRefineModule(pl.LightningModule):
             softmax=False,
             reduction="mean",
             squared_pred=True,
-            lambda_ce=0.1,
-            lambda_dice=0.9,
+            lambda_ce=cfg.lambda_ce,
+            lambda_dice=cfg.lambda_dice
+        )
+        self.sliding_window_inferer = SlidingWindowInfererAdapt(
+            roi_size=[-1, 128, 128], sw_batch_size=1, overlap=0.5,
         )
 
-    def forward(self, x):
-        return self.model(x, return_params=True)
+        self.dice_metric = DiceMetric(include_background=False,
+                                      reduction="mean",
+                                      ignore_empty=True)
+
+    def forward(self, x, return_params=False):
+        return self.model(x, return_params=return_params)
 
     # ----------------------------------------
     # Smoothness: ||∇v||² on the SVF
@@ -50,13 +49,13 @@ class ScrollDiffeoRefineModule(pl.LightningModule):
     # TRAINING STEP
     # ----------------------------------------
     def training_step(self, batch, batch_idx):
-        x = torch.cat([batch["Image"], batch["Mask_OOF"]], dim=1)
-
+        vol, mask, mask_oof = batch['Image'], batch['Mask'], batch['Mask_OOF']
+        x = torch.cat([vol, mask_oof], dim=1)
         pred_warped, v, phi = self(x, return_params=True)
-        gt = batch["Mask"]
+        ignore_mask = mask != 2
 
         # segmentation loss using MONAI DiceCE
-        L_seg = self.seg_loss(pred_warped, gt)
+        L_seg = self.seg_loss(pred_warped * ignore_mask, mask * ignore_mask)
 
         # smoothness regularizer
         L_smooth = self.svf_smoothness(v)
@@ -71,14 +70,22 @@ class ScrollDiffeoRefineModule(pl.LightningModule):
         self.log("seg", L_seg)
         self.log("jac", L_jac)
         self.log("smooth", L_smooth)
-
         return loss
 
     # ----------------------------------------
     # VALIDATION STEP
     # ----------------------------------------
     def validation_step(self, batch, batch_idx):
-        pass
+        vol, mask, mask_oof = batch['Image'], batch['Mask'], batch['Mask_OOF']
+        x = torch.cat([vol, mask_oof], dim=1)
+        ignore_mask = mask != 2
+        pred_logits = self.sliding_window_inferer(x, self.model)
+        self.dice_metric(y_pred=pred_logits * ignore_mask, y = mask * ignore_mask)
+
+    def on_validation_epoch_end(self):
+        dice_score = self.dice_metric.aggregate().mean().item()
+        self.log("val_dice", dice_score, prog_bar=True)
+        self.dice_metric.reset()
 
     # ----------------------------------------
     # Optimizer

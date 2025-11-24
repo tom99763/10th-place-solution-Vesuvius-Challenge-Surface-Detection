@@ -1,4 +1,4 @@
-transforms:
+YAMLtransforms:
   train:
     - EnsureChannelFirstd:
         keys: ["Image", "Mask", "Mask_OOF"]
@@ -6,25 +6,61 @@ transforms:
 
     - EnsureTyped:
         keys: ["Image", "Mask", "Mask_OOF"]
+        dtype: torch.float32
 
-    # ⭐ Positive sampling
+    # === Intensity handling: exactly what nnUNet CTNormalization does ===
+    # 1. Clip to [0.5%, 99.5%] percentile → then z-score using foreground stats
+    - ScaleIntensityRanged:
+        keys: ["Image"]
+        a_min: 0.0          # percentile_00_5
+        a_max: 213.0        # percentile_99_5 → from your JSON!
+        b_min: -5.0
+        b_max: 5.0
+        clip: true
+
+    - NormalizeIntensityd:
+        keys: ["Image"]
+        subtrahend: 89.35718536376953   # exact foreground mean from JSON
+        divisor:    48.180721282958984  # exact foreground std from JSON
+        channel_wise: false
+
+    # === 3D patch extraction: exactly 3d_fullres ===
     - RandCropByPosNegLabeld:
         keys: ["Image", "Mask", "Mask_OOF"]
         label_key: "Mask"
-        spatial_size: [-1, 128, 128]
-        pos: 9
+        spatial_size: [-1, 128, 128]   # ← exact patch_size from 3d_fullres
+        pos: 7
         neg: 3
-        num_samples: 12
-        image_threshold: 0
+        num_samples: 10
+        image_key: "Image"
+        image_threshold: 0.0
 
-    - ScaleIntensityd:
+    # === Optional but highly recommended light 3D augs (nnUNet also uses them) ===
+    - Rand3DElasticd:
+        keys: ["Image", "Mask", "Mask_OOF"]
+        prob: 0.3
+        sigma_range: [15, 25]
+        magnitude_range: [100, 200]
+        spatial_size: [-1, 128, 128]
+        mode: ["bilinear", "nearest", "nearest"]
+        padding_mode: "zeros"
+
+    - RandAffined:
+        keys: ["Image", "Mask", "Mask_OOF"]
+        prob: 0.3
+        rotate_range: [(-0.26, 0.26), (-0.26, 0.26), (-0.05, 0.05)]
+        scale_range: [(-0.15, 0.15), (-0.15, 0.15), (-0.05, 0.05)]
+        mode: ["bilinear", "nearest", "nearest"]
+        spatial_size: [-1, 128, 128]
+
+    - RandGaussianNoised:
         keys: ["Image"]
-        minv: 0
-        maxv: 1
+        prob: 0.15
+        mean: 0.0
+        std: 0.02
 
     - ToTensord:
         keys: ["Image", "Mask", "Mask_OOF"]
-
 
   val:
     - EnsureChannelFirstd:
@@ -33,11 +69,20 @@ transforms:
 
     - EnsureTyped:
         keys: ["Image", "Mask", "Mask_OOF"]
+        dtype: torch.float32
 
-    - ScaleIntensityd:
+    - ScaleIntensityRanged:
         keys: ["Image"]
-        minv: 0
-        maxv: 1
+        a_min: 0.0
+        a_max: 213.0
+        b_min: -5.0
+        b_max: 5.0
+        clip: true
+
+    - NormalizeIntensityd:
+        keys: ["Image"]
+        subtrahend: 89.35718536376953
+        divisor: 48.180721282958984
 
     - ToTensord:
         keys: ["Image", "Mask", "Mask_OOF"]
