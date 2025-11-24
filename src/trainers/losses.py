@@ -1,5 +1,16 @@
 import torch
 
+def jacobian_log_barrier(flow, eps=1e-6):
+    """
+    flow: (B, 3, D, H, W) displacement field u(x)
+    returns: log-barrier jacobian loss
+    """
+    det = jacobian_determinant(flow)
+    # clamp to avoid log(0) or negative numbers
+    det_clamped = torch.clamp(det, min=eps)
+    loss = -torch.log(det_clamped).mean()
+    return loss
+
 # ---------------------
 # Jacobian Determinant
 # ---------------------
