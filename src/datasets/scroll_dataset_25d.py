@@ -1,65 +1,78 @@
-from torch.utils.data import Dataset, DataLoader
 import numpy as np
-import torch
-import pytorch_lightning as pl
 from pathlib import Path
-from omegaconf import DictConfig, OmegaConf
-from src.procs.proc_data import *
+from torch.utils.data import Dataset, DataLoader
+import pytorch_lightning as pl
+from src.procs.proc_data import generate_transforms
+from tqdm import tqdm
 
+# Function to pad channels to 3
+def pad_channels_to_3(arr):
+    c, h, w = arr.shape
+    if c < 3:
+        pad = np.zeros((3 - c, h, w), dtype=arr.dtype)
+        arr = np.concatenate([arr, pad], axis=0)
+    return arr
 
 
 class ScrollDataset25D(Dataset):
     """
-    2.5D dataset for nested structure:
-    
-    data/
-      train_images_25d_1/<video_id>/<slice.npy>
-      train_labels_25d_1/<video_id>/<slice.npy>
-
-    id_list contains items like:
-        "video_001/slice_010.npy"
-        "video_001/slice_011.npy"
-        "video_002/slice_020.npy"
+    2.5D dataset. Supports preloading validation data into RAM for faster validation.
     """
 
-    def __init__(self, cfg, id_list, mode="train"):
+    def __init__(self, cfg, id_list, mode="train", preload=False):
         super().__init__()
         self.cfg = cfg
         self.id_list = id_list
-        self.data_path = Path(self.cfg.data_path)
-        self.mode=mode
+        self.mode = mode
+        self.preload = preload
+
+        # transforms
         if mode == 'train':
             self.proc_vol_and_mask = generate_transforms(cfg.data.transforms.train)
         else:
             self.proc_vol_and_mask = generate_transforms(cfg.data.transforms.val)
 
+        # Preload data into memory if requested
+        if self.preload:
+            self.vols = []
+            self.masks = []
+            print('preload vol and mask...')
+            for slice_path in tqdm(self.id_list):
+                vol, mask = self._load_slice(slice_path)
+                self.vols.append(vol)
+                self.masks.append(mask)
+
     def __len__(self):
         return len(self.id_list)
 
-    def __getitem__(self, idx):
-        slice_path = self.id_list[idx]
-        # example: "video_001/slice_010.npy"
-
-        # -----------------------------
-        # Load NPY (3,H,W) and (H,W) or (1,H,W)
-        # -----------------------------
-        vol = np.load(slice_path, mmap_mode='r').astype(np.float32)
+    def _load_slice(self, slice_path):
+        # Load numpy arrays fully into memory
+        vol = np.load(slice_path).astype(np.float32)
         mask_path = Path(str(slice_path).replace("train_images_25d_1", "train_labels_25d_1"))
         mask_path = Path(str(mask_path).replace("img", "mask"))
-        mask = np.load(mask_path, mmap_mode='r').astype(np.float32)
+        mask = np.load(mask_path).astype(np.float32)
 
-        # Ensure mask has channel dimension (1,H,W)
+        # Ensure channel-first shape
+        if vol.ndim == 2:
+            vol = vol[np.newaxis, ...]
+        vol = pad_channels_to_3(vol)
+
         if mask.ndim == 2:
-            mask = mask[None]
-        elif mask.shape[0] != 1:
-            # allow mask to also be (3,H,W)
-            
-            pass
+            mask = mask[np.newaxis, ...]
+        mask = pad_channels_to_3(mask)
+
+        return vol, mask
+
+    def __getitem__(self, idx):
+        if self.preload:
+            vol = self.vols[idx]
+            mask = self.masks[idx]
+        else:
+            slice_path = self.id_list[idx]
+            vol, mask = self._load_slice(slice_path)
 
         transformed = self.proc_vol_and_mask({"Image": vol, "Mask": mask})
-
         return transformed["Image"], transformed["Mask"]
-
 
 
 class ScrollDataModule25D(pl.LightningDataModule):
@@ -70,11 +83,15 @@ class ScrollDataModule25D(pl.LightningDataModule):
         self.val_ids = val_ids
 
     def setup(self, stage=None):
+        # Train dataset: lazy-loaded
         self.train_dataset = ScrollDataset25D(
-            self.cfg, self.train_ids ,mode="train"
+            self.cfg, self.train_ids, mode="train", preload=False
         )
+
+        # Validation dataset: preload into RAM
         self.val_dataset = ScrollDataset25D(
-            self.cfg, self.val_ids, mode="val" )
+            self.cfg, self.val_ids, mode="val", preload=True
+        )
 
     def train_dataloader(self):
         return DataLoader(

@@ -69,7 +69,7 @@ def run_cmd(cmd_list):
 
 def main():
     # --- INPUT DATA ---
-    DATA_DIR = Path("./data/vesuvius-challenge-surface-detection")
+    DATA_DIR = Path("../../../data/vesuvius-challenge-surface-detection")
     CSV_PATH = DATA_DIR / "train.csv"
     IMG_DIR = DATA_DIR / "train_images"
     LBL_DIR = DATA_DIR / "train_labels"
