@@ -50,7 +50,6 @@ class DeformDynUnet(nn.Module):
         super().__init__()
         self.predictor = instantiate(cfg.models)
         self.cfg = cfg
-        #det = jacobian_determinant(phi)
 
     def forward(self, x, return_params = True):
         #x: (batch, 2, d, h, w)
@@ -65,4 +64,41 @@ class DeformDynUnet(nn.Module):
 
 # Lightweight forward test
 if __name__ == "__main__":
-    pass
+    from omegaconf import OmegaConf
+
+    cfg_model = OmegaConf.create({
+        "_target_": "monai.networks.nets.DynUNet",
+        "in_channels": 2,
+        "out_channels": 3,  # 3 channels because you predict 3D displacement
+        "spatial_dims": 3,
+        "strides": [[1, 1, 1], [2, 2, 2], [2, 2, 2], [2, 2, 2], [2, 2, 2]],
+        "kernel_size": [[3, 3, 3], [3, 3, 3], [3, 3, 3], [3, 3, 3], [3, 3, 3]],
+        "upsample_kernel_size": [[2, 2, 2], [2, 2, 2], [2, 2, 2], [2, 2, 2]],
+        "filters": [32, 64, 128, 256, 320],
+        "res_block": True,
+        "norm_name": "INSTANCE",
+    })
+    cfg = OmegaConf.create({
+        "models": cfg_model,
+        "max_v": 3.0,  # your velocity scaling
+        "n_steps": 6,  # scaling-and-squaring steps
+    })
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    # Instantiate deformable DynUNet
+    model = DeformDynUnet(cfg).to(device)
+    model.eval()
+
+    x = torch.randn(1, 1, 64, 128, 128, device=device)
+    mask = torch.randn(1, 2, 64, 128, 128, device= device).argmax(dim=1, keepdim=True)
+    x = torch.cat([x, mask], dim=1)
+
+    # --- Forward pass ---
+    with torch.no_grad():
+        warped, v, phi = model(x, return_params=True)
+
+    print("input:", x.shape)
+    print("velocity v:", v.shape)
+    print("phi (final displacement):", phi.shape)
+    print("warped output:", warped.shape)
+
