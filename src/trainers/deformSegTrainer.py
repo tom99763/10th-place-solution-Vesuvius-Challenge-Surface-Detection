@@ -14,10 +14,11 @@ class DiffeoRefineModule(pl.LightningModule):
         self.lr = cfg.lr
         self.lambda_jac = cfg.lambda_jac
         self.lambda_smooth = cfg.lambda_smooth
+        self.cfg = cfg
 
         # Loss
         self.seg_loss = DiceCELoss(
-            sigmoid=True,  # ← critical fix
+            sigmoid=False,  # ← critical fix
             to_onehot_y=True,  # because your labels are integer class indices
             softmax=False,
             reduction="mean",
@@ -84,8 +85,8 @@ class DiffeoRefineModule(pl.LightningModule):
         vol, mask, mask_oof = batch['Image'], batch['Mask'], batch['Mask_OOF']
         x = torch.cat([vol, mask_oof], dim=1)
         ignore_mask = mask != 2
-        pred_logits = self.sliding_window_inferer(x, self.model)
-        self.dice_metric(y_pred=(pred_logits * ignore_mask).clamp(min=0.0, max=1.0), y = mask * ignore_mask)
+        pred_warped = self.sliding_window_inferer(x, self.model)
+        self.dice_metric(y_pred=(pred_warped * ignore_mask).clamp(min=0.0, max=1.0) > self.cfg.threshold, y = mask * ignore_mask)
 
     def on_validation_epoch_end(self):
         dice_score = self.dice_metric.aggregate().mean().item()
