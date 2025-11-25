@@ -61,8 +61,9 @@ class ScrollDiffeoRefineModule(pl.LightningModule):
         L_smooth = self.svf_smoothness(v)
 
         # jacobian folding penalty
-        det = jacobian_determinant(phi)
-        L_jac = torch.relu(-det).mean()
+        # det = jacobian_determinant(phi)
+        # L_jac = torch.relu(-det).mean()
+        L_jac = jacobian_log_barrier(phi)
 
         loss = L_seg + self.lambda_smooth * L_smooth + self.lambda_jac * L_jac
 
