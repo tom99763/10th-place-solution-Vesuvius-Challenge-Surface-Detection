@@ -15,22 +15,26 @@ class DiffeoRefineModule(pl.LightningModule):
         self.lambda_jac = cfg.lambda_jac
         self.lambda_smooth = cfg.lambda_smooth
 
+        # Loss
         self.seg_loss = DiceCELoss(
-            sigmoid=False,
-            to_onehot_y=False,
+            sigmoid=True,  # ← critical fix
+            to_onehot_y=True,  # because your labels are integer class indices
             softmax=False,
             reduction="mean",
             squared_pred=True,
             lambda_ce=cfg.lambda_ce,
-            lambda_dice=cfg.lambda_dice
+            lambda_dice=cfg.lambda_dice,
+        )
+
+        # Metric
+        self.dice_metric = DiceMetric(
+            include_background=False,
+            reduction="mean",
+            ignore_empty=True
         )
         self.sliding_window_inferer = SlidingWindowInfererAdapt(
             roi_size=cfg.input_size, sw_batch_size=4, overlap=0, mode="constant"
         )
-
-        self.dice_metric = DiceMetric(include_background=False,
-                                      reduction="mean",
-                                      ignore_empty=True)
 
     def forward(self, x, return_params=False):
         return self.model(x, return_params=return_params)
@@ -81,7 +85,7 @@ class DiffeoRefineModule(pl.LightningModule):
         x = torch.cat([vol, mask_oof], dim=1)
         ignore_mask = mask != 2
         pred_logits = self.sliding_window_inferer(x, self.model)
-        self.dice_metric(y_pred=pred_logits * ignore_mask, y = mask * ignore_mask)
+        self.dice_metric(y_pred=(pred_logits * ignore_mask).clamp(min=0.0, max=1.0), y = mask * ignore_mask)
 
     def on_validation_epoch_end(self):
         dice_score = self.dice_metric.aggregate().mean().item()
