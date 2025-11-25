@@ -29,9 +29,9 @@ transforms:
         keys: ["Image", "Mask", "Mask_OOF"]
         label_key: "Mask"
         spatial_size: ${input_size}   # ← exact patch_size from 3d_fullres
-        pos: 7
-        neg: 3
-        num_samples: 10
+        pos: 1
+        neg: 1
+        num_samples: 2
         image_key: "Image"
         image_threshold: 0.0
 

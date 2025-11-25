@@ -24,7 +24,7 @@ class DeformDataset(Dataset):
         mask = load_volume(self.data_path/'train_labels'/f'{idx}.tif')
         pred_mask = np.load(self.nnunet_path/'nnUNet_results/Dataset900_VesuviusScroll'
                                              '/nnUNetTrainer__nnUNetResEncUNetMPlans__3d_fullres/'
-                                             'oof'/f'{idx}.npz')
+                                             'oof'/f'{idx}.npz', mmap_mode='r')
         pred_mask = pred_mask['probabilities'][1] #(d, h, w)
         raw = {"Image": vol, "Mask": mask, "Mask_OOF": pred_mask}
         data = self.proc_data(raw)

@@ -2,8 +2,6 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import numpy as np
-from typing import Tuple
 from hydra.utils import instantiate
 
 # Diffeo exponentiation and warper (same as before)
