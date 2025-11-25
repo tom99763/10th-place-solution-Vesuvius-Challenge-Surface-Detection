@@ -9,6 +9,7 @@ offline: true
 fold_id: 0
 n_splits: 5
 seed: 42
+input_size: [-1, 128, 128]
 
 #model config
 max_v: 3.0

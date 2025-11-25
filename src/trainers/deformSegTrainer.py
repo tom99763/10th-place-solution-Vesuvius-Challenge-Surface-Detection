@@ -25,7 +25,7 @@ class DiffeoRefineModule(pl.LightningModule):
             lambda_dice=cfg.lambda_dice
         )
         self.sliding_window_inferer = SlidingWindowInfererAdapt(
-            roi_size=[-1, 128, 128], sw_batch_size=1, overlap=0.5,
+            roi_size=cfg.input_size, sw_batch_size=1, overlap=0.5,
         )
 
         self.dice_metric = DiceMetric(include_background=False,

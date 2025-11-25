@@ -28,36 +28,36 @@ transforms:
     - RandCropByPosNegLabeld:
         keys: ["Image", "Mask", "Mask_OOF"]
         label_key: "Mask"
-        spatial_size: [-1, 128, 128]   # ← exact patch_size from 3d_fullres
+        spatial_size: ${input_size}   # ← exact patch_size from 3d_fullres
         pos: 7
         neg: 3
         num_samples: 10
         image_key: "Image"
         image_threshold: 0.0
 
-    # === Optional but highly recommended light 3D augs (nnUNet also uses them) ===
-    - Rand3DElasticd:
-        keys: ["Image", "Mask", "Mask_OOF"]
-        prob: 0.3
-        sigma_range: [15, 25]
-        magnitude_range: [100, 200]
-        spatial_size: [-1, 128, 128]
-        mode: ["bilinear", "nearest", "nearest"]
-        padding_mode: "zeros"
-
-    - RandAffined:
-        keys: ["Image", "Mask", "Mask_OOF"]
-        prob: 0.3
-        rotate_range: [(-0.26, 0.26), (-0.26, 0.26), (-0.05, 0.05)]
-        scale_range: [(-0.15, 0.15), (-0.15, 0.15), (-0.05, 0.05)]
-        mode: ["bilinear", "nearest", "nearest"]
-        spatial_size: [-1, 128, 128]
-
-    - RandGaussianNoised:
-        keys: ["Image"]
-        prob: 0.15
-        mean: 0.0
-        std: 0.02
+#    # === Optional but highly recommended light 3D augs (nnUNet also uses them) ===
+#    - Rand3DElasticd:
+#        keys: ["Image", "Mask", "Mask_OOF"]
+#        prob: 0.3
+#        sigma_range: [15, 25]
+#        magnitude_range: [100, 200]
+#        spatial_size: ${input_size}
+#        mode: ["bilinear", "nearest", "nearest"]
+#        padding_mode: "zeros"
+#
+#    - RandAffined:
+#        keys: ["Image", "Mask", "Mask_OOF"]
+#        prob: 0.3
+#        rotate_range: [(-0.26, 0.26), (-0.26, 0.26), (-0.05, 0.05)]
+#        scale_range: [(-0.15, 0.15), (-0.15, 0.15), (-0.05, 0.05)]
+#        mode: ["bilinear", "nearest", "nearest"]
+#        spatial_size:${input_size}
+#
+#    - RandGaussianNoised:
+#        keys: ["Image"]
+#        prob: 0.15
+#        mean: 0.0
+#        std: 0.02
 
     - ToTensord:
         keys: ["Image", "Mask", "Mask_OOF"]
