@@ -13,6 +13,7 @@ class DeformDataset(Dataset):
         self.proc_data = generate_transforms(self.cfg.data.transforms.train if train else self.cfg.data.transforms.val)
         self.data_path = Path(self.cfg.data_path)
         self.nnunet_path = Path(self.cfg.nnunet_path)
+        self.train = train
 
     def __len__(self):
         return len(self.id_list)
@@ -27,10 +28,31 @@ class DeformDataset(Dataset):
         pred_mask = pred_mask['probabilities'][1] #(d, h, w)
         raw = {"Image": vol, "Mask": mask, "Mask_OOF": pred_mask}
         data = self.proc_data(raw)
-        return data["Image"], data["Mask"], data["Mask_OOF"]
+        if self.train:
+            vol = torch.stack([_data['Image'] for _data in data], dim=0)
+            mask = torch.stack([_data['Mask'] for _data in data], dim=0)
+            mask_oof = torch.stack([_data['Mask_OOF'] for _data in data], dim=0)
+        else:
+            vol, mask, mask_oof = data['Image'], data['Mask'], data['Mask_OOF']
+        return vol, mask, mask_oof
 
 
-def collate_fn(batch):
+def collate_fn_train(batch):
+    """
+    batch: list of tuples (Image, Mask, Mask_OOF)
+    """
+    images = torch.cat([item[0] for item in batch], dim=0)
+    masks = torch.cat([item[1] for item in batch], dim=0)
+    mask_oof = torch.cat([item[2] for item in batch], dim=0)
+
+    return {
+        "Image": images,
+        "Mask": masks,
+        "Mask_OOF": mask_oof
+    }
+
+
+def collate_fn_val(batch):
     """
     batch: list of tuples (Image, Mask, Mask_OOF)
     """
@@ -63,7 +85,7 @@ class TomoDataModule(pl.LightningDataModule):
             shuffle=True,
             num_workers=self.cfg.num_workers,
             pin_memory=True,
-            collate_fn=collate_fn
+            collate_fn=collate_fn_train
         )
 
     def val_dataloader(self):
@@ -73,5 +95,5 @@ class TomoDataModule(pl.LightningDataModule):
             shuffle=False,
             num_workers=self.cfg.num_workers,
             pin_memory=True,
-            collate_fn=collate_fn
+            collate_fn=collate_fn_val
         )

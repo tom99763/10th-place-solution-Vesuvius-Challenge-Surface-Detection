@@ -3,7 +3,7 @@ exp_name: deform-dynunet
 data_path: ./data/vesuvius-challenge-surface-detection
 nnunet_path: ./nnunet
 batch_size: 1
-num_workers: 4
+num_workers: 0
 lr: 1e-3
 offline: true
 fold_id: 0
