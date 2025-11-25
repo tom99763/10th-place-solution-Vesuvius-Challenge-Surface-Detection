@@ -18,12 +18,6 @@ transforms:
         b_max: 5.0
         clip: true
 
-    - NormalizeIntensityd:
-        keys: ["Image"]
-        subtrahend: 89.35718536376953   # exact foreground mean from JSON
-        divisor:    48.180721282958984  # exact foreground std from JSON
-        channel_wise: false
-
     # === 3D patch extraction: exactly 3d_fullres ===
     - RandCropByPosNegLabeld:
         keys: ["Image", "Mask", "Mask_OOF"]
@@ -78,11 +72,6 @@ transforms:
         b_min: -5.0
         b_max: 5.0
         clip: true
-
-    - NormalizeIntensityd:
-        keys: ["Image"]
-        subtrahend: 89.35718536376953
-        divisor: 48.180721282958984
 
     - ToTensord:
         keys: ["Image", "Mask", "Mask_OOF"]

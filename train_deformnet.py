@@ -49,11 +49,11 @@ def run(cfg: DictConfig):
 
         # callbacks
         ckpt_callback = pl.callbacks.ModelCheckpoint(
-            monitor="val_f1",
+            monitor="val_dice",
             mode="max",
             dirpath="./models",
             filename=f"{cfg.exp_name}-fold{i}"
-                     + "-{epoch:02d}-{val_f1:.4f}",
+                     + "-{epoch:02d}-{val_dice:.4f}",
             save_top_k=1
         )
         lr_monitor = pl.callbacks.LearningRateMonitor(logging_interval="epoch")
