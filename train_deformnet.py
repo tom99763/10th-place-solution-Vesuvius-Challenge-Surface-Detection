@@ -1,5 +1,4 @@
 import numpy as np
-import pandas as pd
 from hydra.utils import instantiate
 from lightning.pytorch.loggers import WandbLogger
 from sklearn.model_selection import StratifiedKFold
@@ -32,9 +31,6 @@ def set_seed(seed=42):
 def run(cfg: DictConfig):
     nnunet_path = Path(cfg.nnunet_path)
     with open(nnunet_path/"preprocessed/Dataset900_VesuviusScroll/splits_final.json", "r") as f:
-        val_splits = json.load(f)
-
-    with open("./splits_final.json", "r") as f:
         val_splits = json.load(f)
 
     for i in range(len(val_splits)):
@@ -71,8 +67,8 @@ def run(cfg: DictConfig):
         wnb_logger.watch(model, log="all", log_freq=20)
 
         # training
-        trainer.fit(pl_model, datamodule=datamodule)
-        #trainer.validate(pl_model, datamodule=datamodule)
+        #trainer.fit(pl_model, datamodule=datamodule)
+        trainer.validate(pl_model, datamodule=datamodule)
 
 if __name__ == '__main__':
     run()

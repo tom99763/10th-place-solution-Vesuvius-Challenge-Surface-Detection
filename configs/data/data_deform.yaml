@@ -1,4 +1,4 @@
-YAMLtransforms:
+transforms:
   train:
     - EnsureChannelFirstd:
         keys: ["Image", "Mask", "Mask_OOF"]
@@ -6,7 +6,7 @@ YAMLtransforms:
 
     - EnsureTyped:
         keys: ["Image", "Mask", "Mask_OOF"]
-        dtype: torch.float32
+        dtype: float32
 
     # === Intensity handling: exactly what nnUNet CTNormalization does ===
     # 1. Clip to [0.5%, 99.5%] percentile → then z-score using foreground stats
@@ -69,7 +69,7 @@ YAMLtransforms:
 
     - EnsureTyped:
         keys: ["Image", "Mask", "Mask_OOF"]
-        dtype: torch.float32
+        dtype: float32
 
     - ScaleIntensityRanged:
         keys: ["Image"]

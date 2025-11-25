@@ -51,7 +51,7 @@ class DeformDynUnet(nn.Module):
         self.predictor = instantiate(cfg.models)
         self.cfg = cfg
 
-    def forward(self, x, return_params = True):
+    def forward(self, x, return_params = False):
         #x: (batch, 2, d, h, w)
         raw_v = self.predictor(x) #stationary velocity field (SVF)
         v = torch.tanh(raw_v) * self.cfg.max_v

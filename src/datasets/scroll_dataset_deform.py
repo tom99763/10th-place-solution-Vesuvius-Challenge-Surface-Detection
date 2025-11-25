@@ -6,11 +6,11 @@ from ..procs.proc_data import *
 from pathlib import Path
 
 class DeformDataset(Dataset):
-    def __init__(self, cfg, id_list):
+    def __init__(self, cfg, id_list, train):
         super().__init__()
         self.cfg = cfg
         self.id_list = id_list
-        self.proc_data = generate_transforms(self.cfg.transforms)
+        self.proc_data = generate_transforms(self.cfg.data.transforms.train if train else self.cfg.data.transforms.val)
         self.data_path = Path(self.cfg.data_path)
         self.nnunet_path = Path(self.cfg.nnunet_path)
 
@@ -21,8 +21,11 @@ class DeformDataset(Dataset):
         idx = self.id_list[idx]
         vol = load_volume(self.data_path / 'train_images' / f'{idx}.tif')
         mask = load_volume(self.data_path/'train_labels'/f'{idx}.tif')
-        pred_mask = np.load(self.nnunet_path/f'{idx}.npz')
-        raw = {"Image": vol, "Mask": mask, "Mask_OOF": pred_mask['probabilities']}
+        pred_mask = np.load(self.nnunet_path/'nnUNet_results/Dataset900_VesuviusScroll'
+                                             '/nnUNetTrainer__nnUNetResEncUNetMPlans__3d_fullres/'
+                                             'oof'/f'{idx}.npz')
+        pred_mask = pred_mask['probabilities'][1] #(d, h, w)
+        raw = {"Image": vol, "Mask": mask, "Mask_OOF": pred_mask}
         data = self.proc_data(raw)
         return data["Image"], data["Mask"], data["Mask_OOF"]
 
@@ -31,9 +34,9 @@ def collate_fn(batch):
     """
     batch: list of tuples (Image, Mask, Mask_OOF)
     """
-    images = torch.concat([item[0] for item in batch], dim=0) #(batch * num_pos_sample, c, d, h, w)
-    masks = torch.concat([item[1] for item in batch], dim=0)
-    mask_oof = torch.concat([item[2] for item in batch], dim=0)
+    images = torch.stack([item[0] for item in batch], dim=0)
+    masks = torch.stack([item[1] for item in batch], dim=0)
+    mask_oof = torch.stack([item[2] for item in batch], dim=0)
 
     return {
         "Image": images,
@@ -50,8 +53,8 @@ class TomoDataModule(pl.LightningDataModule):
         self.val_ids = val_ids
 
     def setup(self, stage: str = None):
-        self.train_dataset = DeformDataset(self.cfg, self.train_ids)
-        self.val_dataset = DeformDataset(self.cfg, self.val_ids)
+        self.train_dataset = DeformDataset(self.cfg, self.train_ids, True)
+        self.val_dataset = DeformDataset(self.cfg, self.val_ids, False)
 
     def train_dataloader(self):
         return DataLoader(
