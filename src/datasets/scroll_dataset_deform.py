@@ -22,7 +22,7 @@ class DeformDataset(Dataset):
         vol = load_volume(self.data_path / 'train_images' / f'{idx}.tif')
         mask = load_volume(self.data_path/'train_labels'/f'{idx}.tif')
         pred_mask = np.load(self.nnunet_path/f'{idx}.npz')
-        raw = {"Image": vol, "Mask": mask, "Mask_OOF": pred_mask}
+        raw = {"Image": vol, "Mask": mask, "Mask_OOF": pred_mask['probabilities']}
         data = self.proc_data(raw)
         return data["Image"], data["Mask"], data["Mask_OOF"]
 
@@ -43,20 +43,15 @@ def collate_fn(batch):
 
 
 class TomoDataModule(pl.LightningDataModule):
-    def __init__(self, cfg, id_list, train_idx, val_idx):
+    def __init__(self, cfg, train_ids, val_ids):
         super().__init__()
         self.cfg = cfg
-        self.id_list = id_list
-        self.train_idx = train_idx
-        self.val_idx = val_idx
+        self.train_ids = train_ids
+        self.val_ids = val_ids
 
     def setup(self, stage: str = None):
-        self.train_dataset = DeformDataset(self.cfg,
-                                         self.id_list[self.train_idx],
-                                         )
-        self.val_dataset = DeformDataset(self.cfg,
-                                       self.id_list[self.val_idx],
-                                       )
+        self.train_dataset = DeformDataset(self.cfg, self.train_ids)
+        self.val_dataset = DeformDataset(self.cfg, self.val_ids)
 
     def train_dataloader(self):
         return DataLoader(

@@ -1,13 +1,13 @@
 from monai.inferers.inferer import SlidingWindowInfererAdapt
 from monai.metrics import DiceMetric
 import pytorch_lightning as pl
-from losses import *
+from src.trainers.losses import *
 from monai.losses import DiceCELoss
 
 # ---------------------
 # Lightning Module
 # ---------------------
-class ScrollDiffeoRefineModule(pl.LightningModule):
+class DiffeoRefineModule(pl.LightningModule):
     def __init__(self, model, cfg ):
         super().__init__()
         self.model = model
