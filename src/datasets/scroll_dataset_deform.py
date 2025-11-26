@@ -85,7 +85,8 @@ class TomoDataModule(pl.LightningDataModule):
             shuffle=True,
             num_workers=self.cfg.num_workers,
             pin_memory=True,
-            collate_fn=collate_fn_train
+            collate_fn=collate_fn_train,
+            persistent_workers = True
         )
 
     def val_dataloader(self):
@@ -95,5 +96,6 @@ class TomoDataModule(pl.LightningDataModule):
             shuffle=False,
             num_workers=self.cfg.num_workers,
             pin_memory=True,
-            collate_fn=collate_fn_val
+            collate_fn=collate_fn_val,
+            persistent_workers = True
         )

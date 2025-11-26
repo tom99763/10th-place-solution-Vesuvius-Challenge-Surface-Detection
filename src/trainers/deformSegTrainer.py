@@ -34,8 +34,10 @@ class DiffeoRefineModule(pl.LightningModule):
             ignore_empty=True
         )
         self.sliding_window_inferer = SlidingWindowInfererAdapt(
-            roi_size=cfg.input_size, sw_batch_size=4, overlap=0, mode="constant"
+            roi_size=cfg.input_size, sw_batch_size=2, overlap=0, mode="constant"
         )
+        self.topo_loss = FastClDiceLoss(alpha=0.6)
+        self.surf_loss = SurfaceLoss(tau_vox=2.0)
 
     def forward(self, x, return_params=False):
         return self.model(x, return_params=return_params)
@@ -61,6 +63,8 @@ class DiffeoRefineModule(pl.LightningModule):
 
         # segmentation loss using MONAI DiceCE
         L_seg = self.seg_loss(pred_warped * ignore_mask, mask * ignore_mask)
+        L_topo = self.topo_loss(pred_warped * ignore_mask, mask * ignore_mask)
+        L_surf = self.surf_loss(pred_warped * ignore_mask, mask * ignore_mask)
 
         # smoothness regularizer
         L_smooth = self.svf_smoothness(v)
@@ -70,7 +74,7 @@ class DiffeoRefineModule(pl.LightningModule):
         # L_jac = torch.relu(-det).mean()
         L_jac = jacobian_log_barrier(phi)
 
-        loss = L_seg + self.lambda_smooth * L_smooth + self.lambda_jac * L_jac
+        loss = L_seg + 0.6 * L_topo + 0.7 * L_surf + self.lambda_jac * L_jac + self.lambda_smooth * L_smooth
 
         self.log("loss", loss, prog_bar=True)
         self.log("seg", L_seg)

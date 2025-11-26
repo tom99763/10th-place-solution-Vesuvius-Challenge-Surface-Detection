@@ -15,6 +15,8 @@ from tqdm import tqdm
 import json
 from src.models.deformNet3d import *
 from src.trainers.deformSegTrainer import *
+import torch.multiprocessing as mp
+mp.set_start_method("spawn", force=True)
 
 
 def set_seed(seed=42):
@@ -30,7 +32,7 @@ def set_seed(seed=42):
 @hydra.main(config_path="./configs", config_name="config_deform", version_base=None)
 def run(cfg: DictConfig):
     nnunet_path = Path(cfg.nnunet_path)
-    with open(nnunet_path/"preprocessed/Dataset900_VesuviusScroll/splits_final.json", "r") as f:
+    with open("./splits_final.json", "r") as f:
         val_splits = json.load(f)
 
     for i in range(len(val_splits)):
@@ -40,12 +42,12 @@ def run(cfg: DictConfig):
         datamodule = TomoDataModule(cfg, train_ids, val_ids)
         model = DeformDynUnet(cfg)
         pl_model = DiffeoRefineModule(model, cfg)
-        wnb_logger = WandbLogger(
-            project=cfg.project_name,
-            name=cfg.exp_name,
-            config=OmegaConf.to_container(cfg),
-            offline=False,
-        )
+        # wnb_logger = WandbLogger(
+        #     project=cfg.project_name,
+        #     name=cfg.exp_name,
+        #     config=OmegaConf.to_container(cfg),
+        #     offline=False,
+        # )
 
         # callbacks
         ckpt_callback = pl.callbacks.ModelCheckpoint(
@@ -61,10 +63,10 @@ def run(cfg: DictConfig):
         # trainer
         trainer = pl.Trainer(
             **cfg.trainer,
-            logger=wnb_logger,
+            #logger=wnb_logger,
             callbacks=[lr_monitor, ckpt_callback],
         )
-        wnb_logger.watch(model, log="all", log_freq=20)
+        #wnb_logger.watch(model, log="all", log_freq=20)
 
         # training
         trainer.fit(pl_model, datamodule=datamodule)
