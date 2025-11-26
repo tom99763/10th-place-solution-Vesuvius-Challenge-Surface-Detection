@@ -75,7 +75,7 @@ class DiffeoRefineModule(pl.LightningModule):
         # L_jac = torch.relu(-det).mean()
         L_jac = jacobian_log_barrier(phi)
 
-        loss = L_seg + 0.6 * L_topo + 0.7 * L_surf + self.lambda_smooth * L_smooth + self.lambda_jac * L_jac
+        loss = L_seg + 1 * L_topo + 1 * L_surf + self.lambda_smooth * L_smooth + self.lambda_jac * L_jac
 
         self.log("loss", loss, prog_bar=True)
         self.log("seg", L_seg, prog_bar=True)

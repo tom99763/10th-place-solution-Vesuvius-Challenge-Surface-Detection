@@ -2,6 +2,6 @@ max_epochs: 600
 accelerator: gpu
 devices: [0]
 precision: "bf16-mixed"
-check_val_every_n_epoch: 1
+check_val_every_n_epoch: 5
 strategy: auto
 deterministic: false
