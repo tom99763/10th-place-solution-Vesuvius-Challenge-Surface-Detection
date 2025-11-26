@@ -8,15 +8,29 @@ from monai.losses import DiceCELoss
 # Lightning Module
 # ---------------------
 class DiffeoRefineModule(pl.LightningModule):
-    def __init__(self, model, cfg):
+    def __init__(self, model, cfg ):
         super().__init__()
         self.model = model
+        self.lr = cfg.lr
+        self.lambda_jac = cfg.lambda_jac
+        self.lambda_smooth = cfg.lambda_smooth
         self.cfg = cfg
-        self.automatic_optimization = True
-        self.seg_loss = DiceCELoss(sigmoid=False, to_onehot_y=True, softmax=False,
-                                   lambda_ce=cfg.lambda_ce, lambda_dice=cfg.lambda_dice)
-        self.topo_loss = FastClDiceLoss(alpha=0.6)
-        self.surf_loss = SurfaceLoss(tau_vox=2.0)
+
+        # Loss
+        self.seg_loss = DiceCELoss(
+            sigmoid=False,  # ← critical fix
+            to_onehot_y=True,  # because your labels are integer class indices
+            softmax=False,
+            reduction="mean",
+            squared_pred=True,
+            lambda_ce=cfg.lambda_ce,
+            lambda_dice=cfg.lambda_dice,
+        )
+        self.sliding_window_inferer = SlidingWindowInfererAdapt(
+            roi_size=cfg.input_size, sw_batch_size=2, overlap=0, mode="constant"
+        )
+        self.topo_loss = FastClDiceLoss(alpha=0.6)  # ← main topology driver
+        self.surf_loss = SurfaceLoss(tau_vox=2.0)  # ← main SurfaceDice driver
 
         # Validation accumulators (scalar averages)
         self.val_topo_losses = []
@@ -26,13 +40,56 @@ class DiffeoRefineModule(pl.LightningModule):
         # For proper epoch-level averaging
         self.val_num_samples = 0
 
+    def forward(self, x, return_params=False):
+        return self.model(x, return_params=return_params)
+
+    # ----------------------------------------
+    # Smoothness: ||∇v||² on the SVF
+    # ----------------------------------------
+    def svf_smoothness(self, v):
+        return (
+            (v[:,:,1:] - v[:,:,:-1]).pow(2).mean() +
+            (v[:,:,:,1:] - v[:,:,:,:-1]).pow(2).mean() +
+            (v[:,:,:,:,1:] - v[:,:,:,:,:-1]).pow(2).mean()
+        ) / 3.0
+
+    # ----------------------------------------
+    # TRAINING STEP
+    # ----------------------------------------
+    def training_step(self, batch, batch_idx):
+        vol, mask, mask_oof = batch['Image'], batch['Mask'], batch['Mask_OOF']
+        x = torch.cat([vol, mask_oof], dim=1)
+        pred_warped, v, phi = self(x, return_params=True)
+        ignore_mask = mask != 2
+
+        # segmentation loss using MONAI DiceCE
+        L_seg = self.seg_loss(pred_warped * ignore_mask, mask * ignore_mask)
+        L_topo = self.topo_loss(pred_warped * ignore_mask, mask * ignore_mask)
+        L_surf = self.surf_loss(pred_warped * ignore_mask, mask * ignore_mask)
+
+        # smoothness regularizer
+        L_smooth = self.svf_smoothness(v)
+
+        # jacobian folding penalty
+        # det = jacobian_determinant(phi)
+        # L_jac = torch.relu(-det).mean()
+        L_jac = jacobian_log_barrier(phi)
+
+        loss = L_seg + 0.6 * L_topo + 0.7 * L_surf + self.lambda_smooth * L_smooth + self.lambda_jac * L_jac
+
+        self.log("loss", loss, prog_bar=True)
+        self.log("seg", L_seg, prog_bar=True)
+        self.log("jac", L_jac, prog_bar=True)
+        self.log("smooth", L_smooth, prog_bar=True)
+        return loss
+
     def validation_step(self, batch, batch_idx):
         vol, mask, mask_oof = batch['Image'], batch['Mask'], batch['Mask_OOF']
         x = torch.cat([vol, mask_oof], dim=1)
 
         # Replace this with real inference when ready
         pred_warped = self.sliding_window_inferer(x, self.model)
-        #pred_warped = mask_oof  # ← your current baseline (OOF mask)
+        # pred_warped = mask_oof  # ← your current baseline (OOF mask)
 
         ignore_mask = (mask != 2).float()
         target_mask = (mask > 0).float() * ignore_mask  # binary foreground
