@@ -57,8 +57,7 @@ class SurfaceLoss(nn.Module):
         super().__init__()
         self.tau = tau_vox
 
-    def forward(self, pred_logits: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
-        pred = torch.sigmoid(pred_logits)
+    def forward(self, pred, target: torch.Tensor) -> torch.Tensor:
         pred_bin = (pred > 0.5).float()
         target = target.float()
 
@@ -95,12 +94,12 @@ class FastClDiceLoss(nn.Module):
         self.alpha = alpha
         self.smooth = smooth
 
-    def forward(self, pred_logits: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
+    def forward(self, pred: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
         """
-        pred_logits: (B,1,D,H,W) raw logits
+        pred: (B,1,D,H,W) raw logits
         target:      (B,1,D,H,W) binary foreground mask (0 or 1)
         """
-        pred = torch.sigmoid(pred_logits).clamp(0.0, 1.0)
+        pred = pred.clamp(0.0, 1.0)
         target = target.float()
 
         # === Fast "skeleton-like" weighting using local contrast (no iterations!) ===
