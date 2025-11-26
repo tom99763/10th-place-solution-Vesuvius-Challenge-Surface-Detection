@@ -36,8 +36,8 @@ class DiffeoRefineModule(pl.LightningModule):
         self.sliding_window_inferer = SlidingWindowInfererAdapt(
             roi_size=cfg.input_size, sw_batch_size=2, overlap=0, mode="constant"
         )
-        self.topo_loss = FastClDiceLoss(alpha=0.6)
-        self.surf_loss = SurfaceLoss(tau_vox=2.0)
+        self.topo_loss = FastClDiceLoss(alpha=0.6)  # ← main topology driver
+        self.surf_loss = SurfaceLoss(tau_vox=2.0)  # ← main SurfaceDice driver
 
     def forward(self, x, return_params=False):
         return self.model(x, return_params=return_params)
@@ -74,12 +74,12 @@ class DiffeoRefineModule(pl.LightningModule):
         # L_jac = torch.relu(-det).mean()
         L_jac = jacobian_log_barrier(phi)
 
-        loss = L_seg + 0.6 * L_topo + 0.7 * L_surf + self.lambda_jac * L_jac + self.lambda_smooth * L_smooth
+        loss = L_seg + 0.6 * L_topo + 0.7 * L_surf + self.lambda_smooth * L_smooth + self.lambda_jac * L_jac
 
         self.log("loss", loss, prog_bar=True)
-        self.log("seg", L_seg)
-        self.log("jac", L_jac)
-        self.log("smooth", L_smooth)
+        self.log("seg", L_seg, prog_bar=True)
+        self.log("jac", L_jac, prog_bar=True)
+        self.log("smooth", L_smooth, prog_bar=True)
         return loss
 
     # ----------------------------------------
@@ -90,7 +90,14 @@ class DiffeoRefineModule(pl.LightningModule):
         x = torch.cat([vol, mask_oof], dim=1)
         ignore_mask = mask != 2
         pred_warped = self.sliding_window_inferer(x, self.model)
-        self.dice_metric(y_pred=(pred_warped * ignore_mask).clamp(min=0.0, max=1.0) > self.cfg.threshold, y = mask * ignore_mask)
+        pred = (pred_warped * ignore_mask).clamp(min=0.0, max=1.0) > self.cfg.threshold
+        mask =  mask * ignore_mask
+
+        self.dice_metric(y_pred=pred, y = mask)
+        topo_est = 1.0 - self.topo_loss(pred_warped * ignore_mask, mask  * ignore_mask)
+        surf_est = 1.0 - self.surf_loss(pred_warped * ignore_mask, mask  * ignore_mask)
+        est_score = 0.30 * topo_est + 0.35 * surf_est + 0.35 * self.dice_metric.aggregate().mean()
+        self.log("val_comp_metric", est_score, prog_bar=True)
 
     def on_validation_epoch_end(self):
         dice_score = self.dice_metric.aggregate().mean().item()
@@ -101,4 +108,4 @@ class DiffeoRefineModule(pl.LightningModule):
     # Optimizer
     # ----------------------------------------
     def configure_optimizers(self):
-        return torch.optim.Adam(self.parameters(), lr=self.lr)
+        return torch.optim.AdamW(self.parameters(), lr=self.cfg.lr, weight_decay=1e-5)
