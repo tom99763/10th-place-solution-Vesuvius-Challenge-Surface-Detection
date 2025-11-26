@@ -31,8 +31,8 @@ class DiffeoRefineModule(pl.LightningModule):
         x = torch.cat([vol, mask_oof], dim=1)
 
         # Replace this with real inference when ready
-        # pred_warped = self.sliding_window_inferer(x, self.model)
-        pred_warped = mask_oof  # ← your current baseline (OOF mask)
+        pred_warped = self.sliding_window_inferer(x, self.model)
+        #pred_warped = mask_oof  # ← your current baseline (OOF mask)
 
         ignore_mask = (mask != 2).float()
         target_mask = (mask > 0).float() * ignore_mask  # binary foreground
