@@ -89,9 +89,8 @@ class FastClDiceLoss(nn.Module):
     Ultra-fast clDice replacement used by all top-3 teams in 2024–2025 topology challenges.
     ~10× less VRAM, 5× faster, better TopoScore/VOI than original soft skeleton.
     """
-    def __init__(self, alpha: float = 0.6, smooth: float = 1e-5):
+    def __init__(self, smooth: float = 1e-5):
         super().__init__()
-        self.alpha = alpha
         self.smooth = smooth
 
     def forward(self, pred: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
@@ -118,8 +117,4 @@ class FastClDiceLoss(nn.Module):
         tsens = (weight_true * pred).sum() / (weight_true.sum() + self.smooth)
         cldice = 1.0 - 2.0 * tprec * tsens / (tprec + tsens + self.smooth)
 
-        # Standard Dice
-        intersection = (pred * target).sum()
-        dice = (2.0 * intersection + self.smooth) / (pred.sum() + target.sum() + self.smooth)
-
-        return (1 - self.alpha) * (1.0 - dice) + self.alpha * cldice
+        return cldice

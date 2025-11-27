@@ -29,7 +29,7 @@ class DiffeoRefineModule(pl.LightningModule):
         self.sliding_window_inferer = SlidingWindowInfererAdapt(
             roi_size=cfg.input_size, sw_batch_size=2, overlap=0, mode="constant"
         )
-        self.topo_loss = FastClDiceLoss(alpha=0.6)  # ← main topology driver
+        self.topo_loss = FastClDiceLoss()  # ← main topology driver
         self.surf_loss = SurfaceLoss(tau_vox=2.0)  # ← main SurfaceDice driver
 
         # Validation accumulators (scalar averages)
@@ -75,7 +75,7 @@ class DiffeoRefineModule(pl.LightningModule):
         # L_jac = torch.relu(-det).mean()
         L_jac = jacobian_log_barrier(phi)
 
-        loss = L_seg + 1 * L_topo + 1 * L_surf + self.lambda_smooth * L_smooth + self.lambda_jac * L_jac
+        loss = L_seg + 0.5 * L_topo + 0.5 * L_surf + self.lambda_smooth * L_smooth + self.lambda_jac * L_jac
 
         self.log("loss", loss, prog_bar=True)
         self.log("seg", L_seg, prog_bar=True)
