@@ -41,7 +41,15 @@ def run(cfg: DictConfig):
         val_ids = val_splits[i]['val']
         datamodule = TomoDataModule(cfg, train_ids, val_ids)
         model = DeformDynUnet(cfg)
-        pl_model = DiffeoRefineModule(model, cfg)
+        if cfg.petrained_ckpt_path != '':
+            pl_model = DiffeoRefineModule.load_from_checkpoint(
+                cfg.petrained_ckpt_path,
+                model=model,
+                cfg=cfg
+            )
+            print('load pretrained ckpt...')
+        else:
+            pl_model = DiffeoRefineModule(model, cfg)
         # wnb_logger = WandbLogger(
         #     project=cfg.project_name,
         #     name=cfg.exp_name,

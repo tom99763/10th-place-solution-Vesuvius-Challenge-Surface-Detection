@@ -118,3 +118,57 @@ class FastClDiceLoss(nn.Module):
         cldice = 1.0 - 2.0 * tprec * tsens / (tprec + tsens + self.smooth)
 
         return cldice
+
+
+class SoftSDFLoss(nn.Module):
+    """
+    Stable differentiable alternative to Surface Dice.
+    Uses soft SDF (approx) for pred and true SDF for target.
+    """
+    def __init__(self, tau_vox: float = 2.0):
+        super().__init__()
+        self.tau = tau_vox
+
+    def forward(self, pred, target):
+        # pred: soft probability (0-1)
+        pred = pred.float()
+        target = target.float()
+
+        pred_sdf = self._soft_sdf(pred)
+        target_sdf = self._true_sdf(target)
+
+        # Focus loss inside tau_vox band (surface area of interest)
+        mask = (target_sdf.abs() < self.tau).float()
+
+        loss = F.l1_loss(pred_sdf * mask, target_sdf * mask)
+        return loss
+
+    def _soft_sdf(self, p):
+        """
+        Differentiable approximate signed distance for soft masks.
+        Smooth approximation of |∇p| == boundary.
+        """
+        # Approximate distance: distance ~ (1 - local average)
+        pad = (1, 1, 1, 1, 1, 1)
+        p_in = F.pad(p, pad, value=1.0)
+        p_out = F.pad(1 - p, pad, value=1.0)
+
+        d_in = 1 - F.avg_pool3d(p_in, 3, 1, 0)
+        d_out = 1 - F.avg_pool3d(p_out, 3, 1, 0)
+
+        # signed: inside negative, outside positive
+        return d_out - d_in
+
+    def _true_sdf(self, mask):
+        """
+        Ground truth SDF using binary mask.
+        More stable than soft version.
+        """
+        pad = (1, 1, 1, 1, 1, 1)
+        m_in = F.pad(mask, pad, value=1.0)
+        m_out = F.pad(1 - mask, pad, value=1.0)
+
+        d_in = 1 - F.avg_pool3d(m_in, 3, 1, 0)
+        d_out = 1 - F.avg_pool3d(m_out, 3, 1, 0)
+
+        return d_out - d_in

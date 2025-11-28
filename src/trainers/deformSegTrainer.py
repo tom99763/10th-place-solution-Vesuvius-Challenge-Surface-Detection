@@ -30,6 +30,7 @@ class DiffeoRefineModule(pl.LightningModule):
             roi_size=cfg.input_size, sw_batch_size=2, overlap=0, mode="constant"
         )
         self.topo_loss = FastClDiceLoss()  # ← main topology driver
+        self.soft_surf_loss = SoftSDFLoss()
         self.surf_loss = SurfaceLoss(tau_vox=2.0)  # ← main SurfaceDice driver
 
         # Validation accumulators (scalar averages)
@@ -65,7 +66,7 @@ class DiffeoRefineModule(pl.LightningModule):
         # segmentation loss using MONAI DiceCE
         L_seg = self.seg_loss(pred_warped * ignore_mask, mask * ignore_mask)
         L_topo = self.topo_loss(pred_warped * ignore_mask, mask * ignore_mask)
-        L_surf = self.surf_loss(pred_warped * ignore_mask, mask * ignore_mask)
+        L_surf = self.soft_surf_loss(pred_warped * ignore_mask, mask * ignore_mask)
 
         # smoothness regularizer
         L_smooth = self.svf_smoothness(v)
