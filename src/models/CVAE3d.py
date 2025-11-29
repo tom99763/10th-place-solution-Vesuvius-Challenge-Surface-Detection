@@ -5,4 +5,4 @@
 * https://github.com/Spartey/3D-VAE-GAN-Deep-Learning-Project (*****)
 '''
 
-#ToDo: Coarse-to-Fine Progressive 3D VAEGAN
+#ToDo: Coarse-to-Fine Progressive 3D VAEGAN for Scroll PointCloud Generation
