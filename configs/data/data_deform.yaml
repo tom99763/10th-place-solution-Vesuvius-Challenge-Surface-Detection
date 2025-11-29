@@ -75,3 +75,23 @@ transforms:
 
     - ToTensord:
         keys: ["Image", "Mask", "Mask_OOF"]
+
+  test:
+    - EnsureChannelFirstd:
+        keys: [ "Image", "Mask_OOF" ]
+        channel_dim: "no_channel"
+
+    - EnsureTyped:
+        keys: [ "Image", "Mask_OOF" ]
+        dtype: float32
+
+    - ScaleIntensityRanged:
+        keys: [ "Image" ]
+        a_min: 0.0
+        a_max: 213.0
+        b_min: -5.0
+        b_max: 5.0
+        clip: true
+
+    - ToTensord:
+        keys: [ "Image", "Mask_OOF" ]

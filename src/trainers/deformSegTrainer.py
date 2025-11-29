@@ -155,4 +155,4 @@ class DiffeoRefineModule(pl.LightningModule):
     # Optimizer
     # ----------------------------------------
     def configure_optimizers(self):
-        return torch.optim.AdamW(self.parameters(), lr=self.cfg.lr, weight_decay=1e-5)
+        return torch.optim.AdamW(self.parameters(), lr=self.cfg.lr, weight_decay=1e-2)

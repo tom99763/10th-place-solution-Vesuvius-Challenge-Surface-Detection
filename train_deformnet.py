@@ -35,7 +35,7 @@ def run(cfg: DictConfig):
     with open("./splits_final.json", "r") as f:
         val_splits = json.load(f)
 
-    for i in range(len(val_splits)):
+    for i in range(1, len(val_splits)):
         set_seed(cfg.seed)
         train_ids = val_splits[i]['train']
         val_ids = val_splits[i]['val']
