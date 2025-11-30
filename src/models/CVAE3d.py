@@ -16,11 +16,6 @@ import torch.nn.functional as F
 class ProgressiveEncoder3D(nn.Module):
     def __init__(self, latent_dim = 256, base_channels=256, max_steps = 3):
         super().__init__()
-        '''
-        * control max steps 
-        
-        this is wrong !!!!!
-        '''
         self.from_voxel = nn.ModuleList([
             nn.Conv3d(1, base_channels//2**(i+1), 3, 1, 1) for i in reversed(range(max_steps + 1))])
 
