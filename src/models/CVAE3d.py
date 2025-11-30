@@ -178,8 +178,8 @@ if __name__ == '__main__':
     print("Using device:", device)
 
     # Progressive parameters
-    max_steps = 3
-    step = 3
+    max_steps = 4
+    step = 1
     alpha = 0.5
 
     # Models
@@ -187,7 +187,7 @@ if __name__ == '__main__':
     generator = ProgressiveGenerator3D(max_steps=max_steps).to(device)
 
     # Example input: batch of 1, 1 channel, 256³ volume
-    x = torch.randn(1, 1, 256, 256, 256).to(device)
+    x = torch.randn(1, 1, 32, 32, 32).to(device)
     print("Input x shape:", x.shape)
 
     with torch.no_grad():
