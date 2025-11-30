@@ -64,15 +64,56 @@ class ProgressiveEncoder3D(nn.Module):
         return mu + eps * std
 
 
+class PositionalEncoding3D(nn.Module):
+    def __init__(self, num_bands=6, include_input=True):
+        super().__init__()
+        self.num_bands = num_bands
+        self.include_input = include_input
+
+        # Frequencies: 1, 2, 4, ..., 2^(num_bands-1)
+        self.freq_bands = 2 ** torch.arange(num_bands).float()
+
+    def forward(self, D, H, W, device):
+        """
+        Returns tensor of shape [C_pe, D, H, W]
+        """
+
+        z = torch.linspace(-1, 1, D, device=device)
+        y = torch.linspace(-1, 1, H, device=device)
+        x = torch.linspace(-1, 1, W, device=device)
+
+        zz, yy, xx = torch.meshgrid(z, y, x, indexing="ij")
+        coords = torch.stack([zz, yy, xx], dim=0)  # [3, D, H, W]
+
+        pe_list = []
+        if self.include_input:
+            pe_list.append(coords)
+
+        for freq in self.freq_bands.to(device):
+            for func in (torch.sin, torch.cos):
+                pe_list.append(func(coords * freq))
+
+        return torch.cat(pe_list, dim=0)  # [C_pe, D, H, W]
+
+
 class ProgressiveGenerator3D(nn.Module):
-    def __init__(self, latent_dim=256, base_channels=256, max_steps=3):
+    def __init__(self, latent_dim=256, base_channels=256, max_steps=3, pe_bands=6):
         super().__init__()
         self.max_steps = max_steps
 
-        # Project latent → initial 3D feature map
+        # Positional encoding module
+        self.pos_encoding = PositionalEncoding3D(num_bands=pe_bands)
+
+        # Channels introduced by PE
+        pe_channels = 3 * (1 + 2 * pe_bands)
+
+        # Project latent → feature map
         self.from_latent = nn.Conv3d(latent_dim, base_channels, 1)
 
-        # Progressive blocks (max_steps + 1, same as encoder)
+        # Combine latent features + PE
+        self.pe_proj = nn.Conv3d(base_channels + pe_channels, base_channels, 1)
+
+        # Progressive blocks
         ch = base_channels
         self.blocks = nn.ModuleList()
         self.to_voxel = nn.ModuleList()
@@ -92,15 +133,23 @@ class ProgressiveGenerator3D(nn.Module):
 
             ch = next_ch
 
-        # old-resolution upsampling for fade-in
+        # fade-in upsamplers (unchanged)
         self.upsamplers = nn.ModuleList([
             nn.Conv3d(base_channels // (2**i), base_channels // (2**(i+1)), 1)
             for i in range(max_steps)
         ])
 
     def forward(self, z, step=0, alpha=1.0):
-        # z: [B, latent_dim, D, H, W]
+        B, C, D, H, W = z.shape
+
         x = self.from_latent(z)
+
+        # --- Add positional encoding ---
+        pe = self.pos_encoding(D, H, W, device=z.device)  # [C_pe, D, H, W]
+        pe = pe.unsqueeze(0).expand(B, -1, -1, -1, -1)
+        x = torch.cat([x, pe], dim=1)
+        x = self.pe_proj(x)
+        # --------------------------------
 
         if step == 0:
             x = self.blocks[0](x)
@@ -110,15 +159,11 @@ class ProgressiveGenerator3D(nn.Module):
 
             x_new = self.blocks[s](x)
 
-            # Fade-in only at highest current step
             if s == step:
-                # Old-resolution output
                 x_old = self.to_voxel[s - 1](x)
                 x_old = F.interpolate(
-                    x_old,
-                    scale_factor=2,
-                    mode="trilinear",
-                    align_corners=False
+                    x_old, scale_factor=2,
+                    mode="trilinear", align_corners=False
                 )
 
                 out = (1 - alpha) * x_old + alpha * self.to_voxel[s](x_new)
