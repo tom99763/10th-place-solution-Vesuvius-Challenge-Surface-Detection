@@ -27,10 +27,10 @@ recon_target: "mask"
 
 
 defaults:
-  - models: deform_dynunet
+  - models: cvae3d
   - optimizers: AdamW
-  - data: data_deform
-  - trainer: deformSegTrainer
+  - data: data_cvae3d
+  - trainer: trainer_cvae3d
   - _self_
 
 

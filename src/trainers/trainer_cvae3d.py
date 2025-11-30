@@ -20,7 +20,7 @@ class ProgressiveVAETrainer(pl.LightningModule):
 
         # cfg defaults
         self.cfg = cfg
-        self.max_steps = getattr(cfg, "max_steps", 4)
+        self.max_steps = getattr(cfg, "max_steps", 3)
         self.lr = getattr(cfg, "lr", 1e-4)
         self.beta_kl = getattr(cfg, "beta_kl", 1.0)
         self.recon_loss_type = getattr(cfg, "recon_loss", "bce")
@@ -32,7 +32,7 @@ class ProgressiveVAETrainer(pl.LightningModule):
 
         # progressive state
         self.current_step = getattr(cfg, "initial_step", 0)
-        self.alpha = 1.0 if self.current_step == 0 else 0.5
+        self.alpha = 1.0 if self.current_step == 0 else 0.
         self._phase_iter_counter = 0
         self._alpha_ramp_counter = 0
         self._global_iter = 0
