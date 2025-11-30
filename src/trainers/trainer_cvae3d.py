@@ -2,6 +2,7 @@ import pytorch_lightning as pl
 import torch.nn as nn
 import torch.nn.functional as F
 import torch
+from monai.metrics import DiceMetric
 
 
 class ProgressiveVAETrainer(pl.LightningModule):
@@ -44,8 +45,8 @@ class ProgressiveVAETrainer(pl.LightningModule):
         else:
             raise ValueError("recon_loss must be 'bce' or 'l1'")
 
-        # 👇 Initial freezing (step=0 means nothing is frozen)
         self._apply_freezing()
+        self.val_dice_metric = DiceMetric(include_background=False, reduction="mean", ignore_empty=True)
 
     def freeze_progressive_layers(self, model, current_step):
         """
@@ -89,32 +90,22 @@ class ProgressiveVAETrainer(pl.LightningModule):
     # DATA HANDLING
     # ============================================================
     def _get_input_and_target(self, batch):
-        image = batch.get('Image') if isinstance(batch, dict) else batch[0]
-        mask = batch.get('Mask') if isinstance(batch, dict) else None
-
-        if self.recon_target == "mask" and mask is not None:
-            target = (mask > 0).float()
-        else:
-            target = image.float()
-
-        if 'Encoder_Input' in batch:
-            inp = batch['Encoder_Input'].float()
-        elif 'Mask_OOF' in batch:
-            inp = batch['Mask_OOF'].float()
-        else:
-            inp = image.float()
-
-        return inp, target
+        image = batch.get('Image')
+        mask = batch.get('Mask')
+        mask_oof = batch['Mask_OOF']
+        image_synth = image * mask * (mask != 2) + image * mask_oof * (mask == 2)
+        image_oof = image * mask_oof
+        return image_synth, image_oof, mask, mask_oof
 
     # ============================================================
     # TRAINING STEP
     # ============================================================
     def training_step(self, batch, batch_idx):
-        inp, target = self._get_input_and_target(batch)
+        image_synth, image_oof, mask, mask_oof = self._get_input_and_target(batch)
 
-        x_hat, mu, logvar, z = self.forward(inp)
+        x_hat, mu, logvar, z = self.forward(image_synth)
 
-        recon = self.recon_loss_fn(x_hat, target)
+        recon = self.recon_loss_fn(x_hat, image_synth)
         kl = -0.5 * torch.mean(torch.sum(1 + logvar - mu.pow(2) - logvar.exp(), dim=1))
         loss = recon + self.beta_kl * kl
 
@@ -126,27 +117,19 @@ class ProgressiveVAETrainer(pl.LightningModule):
         self._update_progressive_state()
         self._global_iter += 1
 
-        # ❗ If step changed → freeze new/old layers
         if self.current_step != prev_step:
             self._apply_freezing()
             print(f"[Progressive] Step changed: {prev_step} → {self.current_step}. Freezing applied.")
-
         return loss
 
     # ============================================================
     # VALIDATION
     # ============================================================
     def validation_step(self, batch, batch_idx):
-        inp, target = self._get_input_and_target(batch)
-        x_hat, mu, logvar, z = self.forward(inp)
-
-        recon = self.recon_loss_fn(x_hat, target)
-        kl = -0.5 * torch.mean(torch.sum(1 + logvar - mu.pow(2) - logvar.exp(), dim=1))
-        loss = recon + self.beta_kl * kl
-
-        self.log("val/loss", loss, on_epoch=True, prog_bar=True)
-
-        return None
+        image_synth, image_oof, mask, mask_oof = self._get_input_and_target(batch)
+        x_hat, mu, logvar, z = self.forward(image_oof)
+        pred_bin = x_hat > self.cfg.threshold
+        self.val_dice_metric(y_pred=pred_bin, y=(mask * (mask != 2)).long())
 
     # ============================================================
     # OPTIMIZER
@@ -186,6 +169,9 @@ class ProgressiveVAETrainer(pl.LightningModule):
                     self._phase_iter_counter = 0
 
     def on_validation_epoch_end(self):
+        dice_score = self.val_dice_metric.aggregate().mean().item()
+        self.log("val_dice", dice_score, prog_bar=True, rank_zero_only=True)
+        self.val_dice_metric.reset()
         if self.use_epoch_phase and (self.max_epochs_per_step is not None):
             desired_step = min(self.max_steps, self.current_epoch // max(1, self.max_epochs_per_step))
             if desired_step != self.current_step:
