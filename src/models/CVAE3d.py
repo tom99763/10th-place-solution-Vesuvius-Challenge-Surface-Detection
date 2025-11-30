@@ -18,18 +18,31 @@ class ProgressiveEncoder3D(nn.Module):
         super().__init__()
         '''
         * control max steps 
+        
+        this is wrong !!!!!
         '''
-        self.from_voxel = nn.ModuleList([nn.Conv3d(1, base_channels//2**i, 3, 1, 1) for i in reversed(range(1,  max_steps + 2))])
+        self.from_voxel = nn.ModuleList([
+            nn.Conv3d(1, base_channels//2**(i+1), 3, 1, 1) for i in reversed(range(max_steps + 1))])
 
         # Progressive downsampling blocks
-        self.blocks = nn.ModuleList(reversed([
-            nn.Sequential(
-                nn.Conv3d(base_channels//2 ** (i+1), base_channels//2 ** i, 4, 2, 1),
-                nn.BatchNorm3d(base_channels//2 ** i),
-                nn.LeakyReLU(0.2)
-            )
-            for i in range(max_steps + 1)
-        ]))
+        self.blocks = nn.ModuleList(
+            (reversed([
+                nn.Sequential(
+                    nn.Conv3d(base_channels // 2 ** (i + 1), base_channels // 2 ** i, 4, 2, 1),
+                    nn.BatchNorm3d(base_channels // 2 ** i),
+                    nn.LeakyReLU(0.2),
+                    nn.Conv3d(base_channels // 2 ** i, base_channels // 2 ** i, 4, 2, 1),
+                    nn.BatchNorm3d(base_channels // 2 ** i),
+                    nn.LeakyReLU(0.2)
+                ) if i == 0 else
+                nn.Sequential(
+                    nn.Conv3d(base_channels // 2 ** (i + 1), base_channels // 2 ** i, 4, 2, 1),
+                    nn.BatchNorm3d(base_channels // 2 ** i),
+                    nn.LeakyReLU(0.2)
+                )
+                for i in range(max_steps + 1)
+            ]))
+        )
 
         self.from_prev_blocks = nn.ModuleList(reversed([
             nn.Conv3d(base_channels//2 ** (i+1), base_channels//2 ** i, 1) for i in range(max_steps + 1)
@@ -43,17 +56,17 @@ class ProgressiveEncoder3D(nn.Module):
         self.to_logvar = nn.Conv3d(base_channels, latent_dim, 1)
 
     def forward(self, x, step=0, alpha=0.5):
-        x = self.from_voxel[min(step-1, 0)](x)
+        x = self.from_voxel[-step-1](x)
 
         if step == 0:
-            x = self.blocks[-1](x)
-            patch_out = self.to_latent_list[-1](x)
+            x = self.blocks[-step-1](x)
+            patch_out = self.to_latent_list[-step-1](x)
         else:
-            for s in range(step + 1):
+            for s in reversed(range(step + 1)):
                 x_prev = x
-                x = self.blocks[s](x)
-                x = alpha * x + (1-alpha) * F.avg_pool3d(self.from_prev_blocks[s](x_prev), kernel_size=2)
-            patch_out = self.to_latent_list[s](x)
+                x = self.blocks[-s-1](x)
+                x = alpha * x + (1-alpha) * F.avg_pool3d(self.from_prev_blocks[-s-1](x_prev), kernel_size = 4 if s==0 else 2)
+            patch_out = self.to_latent_list[-s-1](x)
         mu = self.to_mu(patch_out)
         logvar = self.to_logvar(patch_out)
         return mu, logvar
@@ -120,14 +133,25 @@ class ProgressiveGenerator3D(nn.Module):
 
         for i in range(max_steps + 1):
             next_ch = ch // 2
-
-            self.blocks.append(
-                nn.Sequential(
-                    nn.ConvTranspose3d(ch, next_ch, 4, 2, 1),
-                    nn.BatchNorm3d(next_ch),
-                    nn.ReLU(inplace=True)
+            if i ==0:
+                self.blocks.append(
+                    nn.Sequential(
+                        nn.ConvTranspose3d(ch, ch, 4, 2, 1),
+                        nn.BatchNorm3d(ch),
+                        nn.ReLU(inplace=True),
+                        nn.ConvTranspose3d(ch, next_ch, 4, 2, 1),
+                        nn.BatchNorm3d(next_ch),
+                        nn.ReLU(inplace=True)
+                    )
                 )
-            )
+            else:
+                self.blocks.append(
+                    nn.Sequential(
+                        nn.ConvTranspose3d(ch, next_ch, 4, 2, 1),
+                        nn.BatchNorm3d(next_ch),
+                        nn.ReLU(inplace=True)
+                    )
+                )
 
             self.to_voxel.append(nn.Conv3d(next_ch, 1, 1))
 
@@ -152,8 +176,8 @@ class ProgressiveGenerator3D(nn.Module):
         # --------------------------------
 
         if step == 0:
-            x = self.blocks[0](x)
-            return torch.sigmoid(self.to_voxel[0](x))
+            x = self.blocks[step](x)
+            return torch.sigmoid(self.to_voxel[step](x))
 
         for s in range(step + 1):
 
@@ -178,8 +202,8 @@ if __name__ == '__main__':
     print("Using device:", device)
 
     # Progressive parameters
-    max_steps = 4
-    step = 1
+    max_steps = 3
+    step = 0
     alpha = 0.5
 
     # Models
