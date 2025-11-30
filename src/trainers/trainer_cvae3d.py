@@ -32,7 +32,7 @@ class ProgressiveVAETrainer(pl.LightningModule):
 
         # progressive state
         self.current_step = getattr(cfg, "initial_step", 0)
-        self.alpha = 1.0 if self.current_step == 0 else 0.0
+        self.alpha = 1.0 if self.current_step == 0 else 0.5
         self._phase_iter_counter = 0
         self._alpha_ramp_counter = 0
         self._global_iter = 0
