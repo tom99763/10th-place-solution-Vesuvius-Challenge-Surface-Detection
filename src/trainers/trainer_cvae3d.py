@@ -38,6 +38,11 @@ class ProgressiveVAETrainer(pl.LightningModule):
         self._global_iter = 0
         self._apply_freezing()
         self.val_dice_metric = DiceMetric(include_background=False, reduction="mean", ignore_empty=True)
+        self.val_topo_losses = []
+        self.val_surf_losses = []
+        self.val_num_samples = 0
+        self.topo_loss = FastClDiceLoss()  # ← main topology driver
+        self.surf_loss = SurfaceLoss(tau_vox=2.0)  # ← main SurfaceDice driver
 
     def freeze_progressive_layers(self, model, current_step):
         """
@@ -76,11 +81,6 @@ class ProgressiveVAETrainer(pl.LightningModule):
         z = self.encoder.reparameterize(mu, logvar)
         x_hat = self.generator(z, step=step, alpha=alpha)
         return x_hat, mu, logvar, z
-
-    def masked_recon_loss(self, x_hat, target, mask):
-        valid_mask = (mask != 2).float()
-        loss = F.l1_loss(x_hat, target, reduction="none")
-        return (loss * valid_mask).sum() / (valid_mask.sum() + 1e-6)
 
     # ============================================================
     # DATA HANDLING
@@ -135,7 +135,13 @@ class ProgressiveVAETrainer(pl.LightningModule):
         x_hat, mu, logvar, z = self.forward(image_oof)
         x_hat = self.resize_on_step(x_hat, tuple(mask.shape[2:]))
         pred_bin = x_hat > 0
+        topo_loss = self.topo_loss(pred_bin, mask* (mask != 2))
+        surf_loss = self.surf_loss(pred_bin, mask* (mask != 2))
         self.val_dice_metric(y_pred=pred_bin, y=(mask * (mask != 2)).long())
+        batch_size = image_synth.shape[0]
+        self.val_topo_losses.append(topo_loss * batch_size)
+        self.val_surf_losses.append(surf_loss * batch_size)
+        self.val_num_samples += batch_size
 
     # ============================================================
     # OPTIMIZER
@@ -176,8 +182,30 @@ class ProgressiveVAETrainer(pl.LightningModule):
 
     def on_validation_epoch_end(self):
         dice_score = self.val_dice_metric.aggregate().mean().item()
+        avg_topo_loss = torch.stack(self.val_topo_losses).sum() / self.val_num_samples
+        avg_surf_loss = torch.stack(self.val_surf_losses).sum() / self.val_num_samples
+        topo_score = 1.0 - avg_topo_loss
+        surf_score = 1.0 - avg_surf_loss
+        comp_metric = 0.30 * topo_score + 0.35 * surf_score + 0.35 * dice_score
+        # === Logging ===
         self.log("val_dice", dice_score, prog_bar=True, rank_zero_only=True)
+        self.log("val_topo_score", topo_score, prog_bar=True, rank_zero_only=True)
+        self.log("val_surf_score", surf_score, prog_bar=True, rank_zero_only=True)
+        self.log("val_comp_metric", comp_metric, prog_bar=True, rank_zero_only=True, sync_dist=True)
+
+        if self.trainer.is_global_zero:
+            print(f"\nVAL Epoch {self.current_epoch:03d} │ "
+                  f"Dice: {dice_score:.4f} │ "
+                  f"Topo: {topo_score:.4f} │ "
+                  f"Surf: {surf_score:.4f} │ "
+                  f"→ COMP: {comp_metric:.4f} ←\n")
+
+        # === Reset everything ===
         self.val_dice_metric.reset()
+        self.val_topo_losses.clear()
+        self.val_surf_losses.clear()
+        self.val_num_samples = 0
+
         if self.use_epoch_phase and (self.max_epochs_per_step is not None):
             desired_step = min(self.max_steps, self.current_epoch // max(1, self.max_epochs_per_step))
             if desired_step != self.current_step:
