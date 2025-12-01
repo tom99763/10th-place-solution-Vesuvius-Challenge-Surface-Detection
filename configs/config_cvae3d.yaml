@@ -23,6 +23,7 @@ phase_iters: 8000
 use_epoch_phase: False
 max_epochs_per_step: null
 init_res: 32
+pseudo_weight: 0.2
 
 
 defaults:

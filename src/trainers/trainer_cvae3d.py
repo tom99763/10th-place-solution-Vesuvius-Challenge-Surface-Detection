@@ -3,6 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch
 from monai.metrics import DiceMetric
+from losses import *
 
 
 class ProgressiveVAETrainer(pl.LightningModule):
@@ -104,7 +105,7 @@ class ProgressiveVAETrainer(pl.LightningModule):
         image_synth = self.resize_on_step(image_synth)
         x_hat, mu, logvar, z = self.forward(image_synth)
 
-        recon = self.masked_recon_loss(x_hat, image_synth, mask)
+        recon = confidence_weighted_l1(x_hat, image_synth, mask, self.cfg.pseudo_weight)
         kl = -0.5 * torch.mean(torch.sum(1 + logvar - mu.pow(2) - logvar.exp(), dim=1))
         loss = recon + self.beta_kl * kl
 
