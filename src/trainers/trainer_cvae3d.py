@@ -35,15 +35,6 @@ class ProgressiveVAETrainer(pl.LightningModule):
         self._phase_iter_counter = 0
         self._alpha_ramp_counter = 0
         self._global_iter = 0
-
-        # losses
-        if self.recon_loss_type == "bce":
-            self.recon_loss_fn = lambda out, tgt: F.binary_cross_entropy(out, tgt)
-        elif self.recon_loss_type == "l1":
-            self.recon_loss_fn = lambda out, tgt: F.l1_loss(out, tgt)
-        else:
-            raise ValueError("recon_loss must be 'bce' or 'l1'")
-
         self._apply_freezing()
         self.val_dice_metric = DiceMetric(include_background=False, reduction="mean", ignore_empty=True)
 
@@ -85,6 +76,11 @@ class ProgressiveVAETrainer(pl.LightningModule):
         x_hat = self.generator(z, step=step, alpha=alpha)
         return x_hat, mu, logvar, z
 
+    def masked_recon_loss(self, x_hat, target, mask):
+        valid_mask = (mask != 2).float()
+        loss = F.l1_loss(x_hat, target, reduction="none")
+        return (loss * valid_mask).sum() / (valid_mask.sum() + 1e-6)
+
     # ============================================================
     # DATA HANDLING
     # ============================================================
@@ -108,7 +104,7 @@ class ProgressiveVAETrainer(pl.LightningModule):
         image_synth = self.resize_on_step(image_synth)
         x_hat, mu, logvar, z = self.forward(image_synth)
 
-        recon = self.recon_loss_fn(x_hat, image_synth)
+        recon = self.masked_recon_loss(x_hat, image_synth, mask)
         kl = -0.5 * torch.mean(torch.sum(1 + logvar - mu.pow(2) - logvar.exp(), dim=1))
         loss = recon + self.beta_kl * kl
 
@@ -131,7 +127,7 @@ class ProgressiveVAETrainer(pl.LightningModule):
     def validation_step(self, batch, batch_idx):
         image_synth, image_oof, mask, mask_oof = self._get_input_and_target(batch)
         x_hat, mu, logvar, z = self.forward(image_oof)
-        pred_bin = x_hat > self.cfg.threshold
+        pred_bin = x_hat > 0
         self.val_dice_metric(y_pred=pred_bin, y=(mask * (mask != 2)).long())
 
     # ============================================================

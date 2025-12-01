@@ -18,12 +18,10 @@ initial_step: 0
 latent_dim: 128
 base_channels: 256
 beta_kl: 10.0
-recon_loss: "l1"
 alpha_ramp_iters: 8000
 phase_iters: 8000
 use_epoch_phase: False
 max_epochs_per_step: null
-recon_target: "mask"
 init_res: 32
 
 
