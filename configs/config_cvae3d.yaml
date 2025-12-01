@@ -24,6 +24,7 @@ phase_iters: 8000
 use_epoch_phase: False
 max_epochs_per_step: null
 recon_target: "mask"
+init_res: 32
 
 
 defaults:

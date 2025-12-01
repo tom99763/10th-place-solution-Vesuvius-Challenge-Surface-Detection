@@ -97,12 +97,16 @@ class ProgressiveVAETrainer(pl.LightningModule):
         image_oof = image * mask_oof
         return image_synth, image_oof, mask, mask_oof
 
+    def resize_on_step(self, image):
+        res = self.cfg.init_res * 2 ** self.current_step
+        output = F.interpolate(image, (res, res, res), mode='trilinear')
+        return output
     # ============================================================
     # TRAINING STEP
     # ============================================================
     def training_step(self, batch, batch_idx):
         image_synth, image_oof, mask, mask_oof = self._get_input_and_target(batch)
-
+        image_synth = self.resize_on_step(image_synth)
         x_hat, mu, logvar, z = self.forward(image_synth)
 
         recon = self.recon_loss_fn(x_hat, image_synth)
