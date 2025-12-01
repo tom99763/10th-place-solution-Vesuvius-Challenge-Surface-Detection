@@ -24,8 +24,7 @@ class CVAEDataset(Dataset):
         mask = load_volume(self.data_path/'train_labels'/f'{idx}.tif')
         pred_mask = np.load(self.nnunet_path/'nnUNet_results/Dataset900_VesuviusScroll'
                                              '/nnUNetTrainer__nnUNetResEncUNetMPlans__3d_fullres/'
-                                             'oof'/f'{idx}.npz', mmap_mode='r')
-        pred_mask = pred_mask['probabilities'][1] #(d, h, w)
+                                             'oof'/f'{idx}.tif', mmap_mode='r')
         raw = {"Image": vol, "Mask": mask, "Mask_OOF": pred_mask}
         data = self.proc_data(raw)
         if self.train:
@@ -75,7 +74,7 @@ class TomoDataModule(pl.LightningDataModule):
         self.val_ids = val_ids
 
     def setup(self, stage: str = None):
-        self.train_dataset = CVAEDataset(self.cfg, self.train_ids, True)
+        self.train_dataset = CVAEDataset(self.cfg, self.train_ids, False)
         self.val_dataset = CVAEDataset(self.cfg, self.val_ids, False)
 
     def train_dataloader(self):
