@@ -11,6 +11,7 @@ fold_id: 0
 n_splits: 5
 seed: 42
 threshold: 0.5
+input_size: (320, 320, 320)
 
 #model config
 max_steps: 3
