@@ -11,11 +11,16 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from nltk.grammar import cfg_demo
 
 
 class ProgressiveEncoder3D(nn.Module):
-    def __init__(self, latent_dim = 256, base_channels=256, max_steps = 3):
+    def __init__(self, cfg):
         super().__init__()
+        self.cfg = cfg
+        latent_dim = self.cfg.latent_dim
+        base_channels = self.cfg.base_channels
+        max_steps = self.cfg.max_steps
         self.from_voxel = nn.ModuleList([
             nn.Conv3d(1, base_channels//2**(i+1), 3, 1, 1) for i in reversed(range(max_steps + 1))])
 
@@ -105,8 +110,12 @@ class PositionalEncoding3D(nn.Module):
 
 
 class ProgressiveGenerator3D(nn.Module):
-    def __init__(self, latent_dim=256, base_channels=256, max_steps=3, pe_bands=6):
+    def __init__(self, cfg):
         super().__init__()
+        latent_dim = cfg.latent_dim
+        base_channels = cfg.base_channels
+        max_steps = cfg.max_step
+        pe_bands = cfg.pe_bands
         self.max_steps = max_steps
 
         # Positional encoding module

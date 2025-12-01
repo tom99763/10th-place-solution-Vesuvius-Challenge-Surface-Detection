@@ -24,6 +24,7 @@ use_epoch_phase: False
 max_epochs_per_step: null
 init_res: 32
 pseudo_weight: 0.2
+pe_bands: 6
 
 
 defaults:

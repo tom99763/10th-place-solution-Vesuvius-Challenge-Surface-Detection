@@ -93,9 +93,13 @@ class ProgressiveVAETrainer(pl.LightningModule):
         image_oof = image * mask_oof
         return image_synth, image_oof, mask, mask_oof
 
-    def resize_on_step(self, image):
-        res = self.cfg.init_res * 2 ** self.current_step
-        output = F.interpolate(image, (res, res, res), mode='trilinear')
+    def resize_on_step(self, image, res=None):
+        if res is None:
+            res = self.cfg.init_res * 2 ** self.current_step
+        if type(res) == tuple:
+            output = F.interpolate(image, res, mode='trilinear')
+        else:
+            output = F.interpolate(image, (res, res, res), mode='trilinear')
         return output
     # ============================================================
     # TRAINING STEP
@@ -127,7 +131,9 @@ class ProgressiveVAETrainer(pl.LightningModule):
     # ============================================================
     def validation_step(self, batch, batch_idx):
         image_synth, image_oof, mask, mask_oof = self._get_input_and_target(batch)
+        image_oof = self.resize_on_step(image_oof)
         x_hat, mu, logvar, z = self.forward(image_oof)
+        x_hat = self.resize_on_step(x_hat, tuple(mask.shape[2:]))
         pred_bin = x_hat > 0
         self.val_dice_metric(y_pred=pred_bin, y=(mask * (mask != 2)).long())
 
