@@ -1,0 +1,32 @@
+project_name: vesurvius-challenge
+exp_name: deform-dynunet
+data_path: ./data/vesuvius-challenge-surface-detection
+nnunet_path: ./nnunet
+petrained_ckpt_path: ''
+batch_size: 1
+num_workers: 4
+lr: 1e-3
+offline: true
+fold_id: 0
+n_splits: 5
+seed: 42
+input_size: [-1, 128, 128]
+threshold: 0.5
+
+#model config
+max_v: 3.0
+n_steps: 5
+lambda_jac: 1.0
+lambda_smooth: 0.1
+lambda_ce: 0.1
+lambda_dice: 0.9
+
+
+defaults:
+  - models: deform_dynunet
+  - optimizers: AdamW
+  - data: data_deform
+  - trainer: deformSegTrainer
+  - _self_
+
+
