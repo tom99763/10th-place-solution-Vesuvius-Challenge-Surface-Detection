@@ -26,7 +26,6 @@ class ProgressiveVAETrainer(pl.LightningModule):
         self.recon_loss_type = getattr(cfg, "recon_loss", "bce")
         self.alpha_ramp_iters = getattr(cfg, "alpha_ramp_iters", 2000)
         self.phase_iters = getattr(cfg, "phase_iters", 2000)
-        self.recon_target = getattr(cfg, "recon_target", "mask")
         self.use_epoch_phase = getattr(cfg, "use_epoch_phase", False)
         self.max_epochs_per_step = getattr(cfg, "max_epochs_per_step", None)
 
