@@ -26,13 +26,13 @@ import json
 import subprocess
 import warnings
 warnings.filterwarnings("ignore", category=UserWarning, module="fft_conv_pytorch")
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 
-sys.path.append('/kaggle/Vesuvius-challenge-Codebase/src/nnUNet')
-os.environ["nnUNet_raw"] = "/kaggle/Vesuvius-challenge-Codebase/nnunet/nnUNet_raw_data_base/nnUNet_raw"
-os.environ["nnUNet_preprocessed"] = "/kaggle/Vesuvius-challenge-Codebase/nnunet/preprocessed"
-os.environ["nnUNet_results"] = "/kaggle/Vesuvius-challenge-Codebase/nnunet/nnUNet_results"
+sys.path.append('./nnUNet')
 
-
+os.environ["nnUNet_raw"] = "./nnunet/nnUNet_raw_data_base/nnUNet_raw"
+os.environ["nnUNet_preprocessed"] = "./nnunet/preprocessed"
+os.environ["nnUNet_results"] = "./nnunet/nnUNet_results"
 
 #configs
 plt.ion()   # interactive mode
@@ -48,17 +48,15 @@ def run_cmd(cmd_list):
 
 
 def main():
-    folds = [0,1,2,3,4]
-    for fold in folds:   
-        run_cmd([
-            
-            "nnUNetv2_train",
-            "900",
-            "2d",
-            str(fold),
-            "-num_gpus", "1",
-            "-p" "nnUNetResEncUNetMPlans_30G"
-        ])
+    run_cmd([
+        "nnUNetv2_plan_experiment",
+        "-d", "900",
+        "-c", "3d_fullres",
+        "-pl", "nnUNetPlannerResEncM",
+        #"-gpu_memory_target", "20",
+        #"-overwrite_plans_name", "nnUNetResEncUNetMPlans"
+
+    ])
 
 
     for i in range(5):
