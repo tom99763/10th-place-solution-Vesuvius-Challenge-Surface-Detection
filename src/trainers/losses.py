@@ -172,3 +172,20 @@ class SoftSDFLoss(nn.Module):
         d_out = 1 - F.avg_pool3d(m_out, 3, 1, 0)
 
         return d_out - d_in
+
+
+def confidence_weighted_l1(x_hat, x, mask, pseudo_weight=0.1):
+    """
+    x_hat: (B,C,D,H,W)
+    x:     (B,C,D,H,W)
+    mask:  (B,1,D,H,W) with value 1=real region, 2=pseudo region
+    """
+    # weight tensor: 1.0 for real, pseudo_weight for mask==2
+    w = torch.ones_like(mask, dtype=x.dtype)
+    w = w.masked_fill(mask == 2, pseudo_weight)
+
+    # L1 loss per voxel
+    loss_voxel = torch.abs(x_hat - x)
+
+    # apply weight + average
+    return (loss_voxel * w).mean()
