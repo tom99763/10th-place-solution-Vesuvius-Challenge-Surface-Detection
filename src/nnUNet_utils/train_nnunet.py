@@ -34,6 +34,7 @@ os.environ["nnUNet_raw"] = "./nnunet/nnUNet_raw_data_base/nnUNet_raw"
 os.environ["nnUNet_preprocessed"] = "./nnunet/preprocessed"
 os.environ["nnUNet_results"] = "./nnunet/nnUNet_results"
 
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 #configs
 plt.ion()   # interactive mode
 SPACING = [1, 1, 1]  # change if needed
@@ -48,26 +49,26 @@ def run_cmd(cmd_list):
 
 
 def main():
-    run_cmd([
-        "nnUNetv2_plan_experiment",
-        "-d", "900",
-        "-c", "3d_fullres",
-        "-pl", "nnUNetPlannerResEncM",
-        #"-gpu_memory_target", "20",
-        #"-overwrite_plans_name", "nnUNetResEncUNetMPlans"
+    # run_cmd([
+    #     "nnUNetv2_plan_experiment",
+    #     "-d", "900",
+    #     "-c", "3d_fullres",
+    #     "-pl", "nnUNetPlannerResEncM",
+    #     #"-gpu_memory_target", "20",
+    #     #"-overwrite_plans_name", "nnUNetResEncUNetMPlans"
 
-    ])
+    # ])
 
 
     for i in range(5):
         run_cmd([
-            sys.executable,
-            "-m", "nnunetv2.run.run_training",
+            
+            "nnUNetv2_train",
             "900",
             "3d_fullres",
             str(i),
-            "-num_gpus", "1",
-            "-p", "nnUNetResEncUNetMPlans"
+            "-p", "nnUNetResEncUNetMPlans_30G",
+            "-tr" , "RSNA2025TrainerSwinUNETR"
         ])
 
 
