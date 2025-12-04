@@ -60,6 +60,30 @@ class DeformDynUnet(nn.Module):
             return warped, v, phi
         return warped
 
+# --------------------
+# --------------------
+# Hybrid
+# --------------------
+# --------------------
+class SmallDeformDynUnet(DeformDynUnet):
+    def __init__(self, cfg):
+        super().__init__(cfg)
+    def forward(self, x, return_params: bool = False):
+        # brightness error: vol * soft_mask - vol * soft_mask_warped
+        # flow
+        # flow magnitute
+        # small-displacement-network(brightness error, flow) => final flow
+        raw_v = self.predictor(x)  # stationary velocity field (SVF)
+        v = torch.tanh(raw_v) * self.cfg.max_v
+        phi = scaling_and_squaring(v, n_steps=self.cfg.n_steps)
+        soft_oof = x[:, 1:2, :, :, :]
+        warped = warp_vol_using_disp(soft_oof, phi)
+        if return_params:
+            return warped, v, phi
+        return warped
+
+
+
 # Lightweight forward test
 if __name__ == "__main__":
     from omegaconf import OmegaConf
