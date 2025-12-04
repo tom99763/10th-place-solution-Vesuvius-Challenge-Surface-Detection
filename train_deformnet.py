@@ -32,10 +32,10 @@ def set_seed(seed=42):
 @hydra.main(config_path="./configs", config_name="config_deform", version_base=None)
 def run(cfg: DictConfig):
     nnunet_path = Path(cfg.nnunet_path)
-    with open("./splits_final.json", "r") as f:
+    with open(cfg.data_split_path, "r") as f:
         val_splits = json.load(f)
 
-    for i in range(1, len(val_splits)):
+    for i in range(3, len(val_splits)):
         set_seed(cfg.seed)
         train_ids = val_splits[i]['train']
         val_ids = val_splits[i]['val']
