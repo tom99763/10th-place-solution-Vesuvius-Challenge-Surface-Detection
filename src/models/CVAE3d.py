@@ -47,11 +47,6 @@ class ProgressiveEncoder3D(nn.Module):
         self.from_prev_blocks = nn.ModuleList(reversed([
             nn.Conv3d(base_channels//2 ** (i+1), base_channels//2 ** i, 1) for i in range(max_steps + 1)
         ]))
-
-        self.to_latent_list =  nn.ModuleList(reversed([
-            nn.Conv3d(base_channels//2**i, latent_dim, 1) for i in range(max_steps + 1)
-        ]))
-
         self.to_mu = nn.Conv3d(base_channels, latent_dim, 1)
         self.to_logvar = nn.Conv3d(base_channels, latent_dim, 1)
 
@@ -60,15 +55,13 @@ class ProgressiveEncoder3D(nn.Module):
 
         if step == 0:
             x = self.blocks[-step-1](x)
-            patch_out = self.to_latent_list[-step-1](x)
         else:
             for s in reversed(range(step + 1)):
                 x_prev = x
                 x = self.blocks[-s-1](x)
                 x = alpha * x + (1-alpha) * F.avg_pool3d(self.from_prev_blocks[-s-1](x_prev), kernel_size = 4 if s==0 else 2)
-            patch_out = self.to_latent_list[-s-1](x)
-        mu = self.to_mu(patch_out)
-        logvar = self.to_logvar(patch_out)
+        mu = self.to_mu(x)
+        logvar = self.to_logvar(x)
         return mu, logvar
 
     def reparameterize(self, mu, logvar):
@@ -114,7 +107,7 @@ class ProgressiveGenerator3D(nn.Module):
         super().__init__()
         latent_dim = cfg.latent_dim
         base_channels = cfg.base_channels
-        max_steps = cfg.max_step
+        max_steps = cfg.max_steps
         pe_bands = cfg.pe_bands
         self.max_steps = max_steps
 
@@ -205,17 +198,24 @@ if __name__ == '__main__':
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print("Using device:", device)
 
-    # Progressive parameters
-    max_steps = 3
-    step = 0
-    alpha = 0.5
 
-    # Models
-    encoder = ProgressiveEncoder3D(max_steps=max_steps).to(device)
-    generator = ProgressiveGenerator3D(max_steps=max_steps).to(device)
+    class CFG:
+        def __init__(self):
+            # Latent vector dimensionality
+            self.latent_dim = 128
+            self.base_channels = 256
+            self.max_steps = 3  # used in encoder
+            self.pe_bands = 6  # 3*(1+2*bands) extra channels
+            self.start_resolution = 32
+            self.alpha = 0.5
+
+    cfg = CFG()
+    encoder = ProgressiveEncoder3D(cfg).to(device)
+    generator = ProgressiveGenerator3D(cfg).to(device)
+    step = 1
 
     # Example input: batch of 1, 1 channel, 256³ volume
-    x = torch.randn(1, 1, 32, 32, 32).to(device)
+    x = torch.randn(1, 1, 64, 64, 64).to(device)
     print("Input x shape:", x.shape)
 
     with torch.no_grad():
@@ -229,7 +229,7 @@ if __name__ == '__main__':
         print("Latent z shape:", z.shape)
 
         # --- Generator ---
-        x_hat = generator(z, step=step, alpha=alpha)
+        x_hat = generator(z, step=step, alpha=cfg.alpha)
         print("Reconstructed volume shape:", x_hat.shape)
 
     print("Done.")
