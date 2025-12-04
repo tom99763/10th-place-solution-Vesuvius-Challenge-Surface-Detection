@@ -158,6 +158,6 @@ class DiffeoRefineModule(pl.LightningModule):
         return torch.optim.AdamW(self.parameters(), lr=self.cfg.lr, weight_decay=1e-2)
 
 
-class DiffeoRefineSmallModule(DiffeoRefineModule):
+class ICDiffeoRefineModule(DiffeoRefineModule):
     def __init__(self, model, cfg):
         super().__init__(model, cfg)
