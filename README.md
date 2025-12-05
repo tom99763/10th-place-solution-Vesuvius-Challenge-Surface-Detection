@@ -82,7 +82,7 @@ Go to `configs/config_deform.yaml`, here are some stuffs need to setup:
 * `petrained_ckpt_path`: path of pretrained deformnet checkpoint
 * `data_split_path`: path of validation split of nnunet json file, it's a file named `splits_final.json`
 
-#### Train DeformNet3d
+Then you can start to train DeformNet3D:
 ```bash
 python train_deformnet.py
 ```
