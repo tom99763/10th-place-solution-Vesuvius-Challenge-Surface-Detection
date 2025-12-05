@@ -25,12 +25,19 @@ python kaggle_helper.py upload-dataset \
 
 ## Train nnUNet
 
-### Basic training
+### Steup From Beginning
+#### Train nnunet
 ```bash
 cd nnUNet_utils
 python build_nnunet_dataset.py
 python train_nnunet.py
 ```
+#### Train DeformNet3D
+Go to `configs/config_deform.yaml`, here are some stuffs need to setup:
+* `data_path`: folder path of competition dataset
+* `nnunet_path`: folder path of nnunet results
+* `petrained_ckpt_path`: path of pretrained deformnet checkpoint
+* `data_split_path`: path of validation split of nnunet json file, it's a file named `splits_final.json`
 
 ### Custom Trainer
 
@@ -164,4 +171,6 @@ for i in range(5):
         "-tr", "xxxTrainer"
     ])
 ```
+
+
 
