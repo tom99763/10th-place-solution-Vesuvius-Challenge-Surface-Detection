@@ -33,7 +33,7 @@ python build_nnunet_dataset.py
 python train_nnunet.py
 ```
 #### Train DeformNet3D
-Build nnunet oof files for training DeformNet3D:
+##### Build nnunet oof files for training DeformNet3D:
 ```python
 python generate_nnunet_soft_oof.py
 ```
@@ -63,14 +63,15 @@ for i in range(5):
         "-m", "nnunetv2.run.run_training", #nnunet api
         "900", #nnunet dataset id
         "3d_fullres", #nnunet types (2d, 3d, region ....)
-        str(i),
+        str(i), #fold index
         "-num_gpus", "1",
         "-p", "nnUNetResEncUNetMPlans", #nnunet plans
         "--val", "--npz" #run validation, saving probability prediction as npz file
     ])
 ```
+Then manually moving files of each fold `/oof_softmax/fold{i}` to `/oof_softmax` and delete all folder `/oof_softmax/fold{i}`. 
 
-Go to `configs/config_deform.yaml`, here are some stuffs need to setup:
+##### Go to `configs/config_deform.yaml`, here are some stuffs need to setup:
 * `data_path`: folder path of competition dataset
 * `nnunet_path`: folder path of nnunet results
 * `petrained_ckpt_path`: path of pretrained deformnet checkpoint
