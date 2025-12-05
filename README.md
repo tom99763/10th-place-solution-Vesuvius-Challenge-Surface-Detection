@@ -32,6 +32,10 @@ cd nnUNet_utils
 python build_nnunet_dataset.py
 python train_nnunet.py
 ```
+
+Download existed nnunet results:
+* [nnunet-resencm-320-128-128]([https://example.com](https://www.kaggle.com/datasets/p4rallax/nnunet-resencm-320-128-128))
+
 #### Train DeformNet3D
 ##### Build nnunet oof files for training DeformNet3D:
 ```bash
