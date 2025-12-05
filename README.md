@@ -34,7 +34,7 @@ python train_nnunet.py
 ```
 #### Train DeformNet3D
 ##### Build nnunet oof files for training DeformNet3D:
-```python
+```bash
 python generate_nnunet_soft_oof.py
 ```
 You need to modify some stuffs: 
@@ -79,7 +79,7 @@ Go to `configs/config_deform.yaml`, here are some stuffs need to setup:
 * `data_split_path`: path of validation split of nnunet json file, it's a file named `splits_final.json`
 
 #### Train DeformNet3d
-```python
+```bash
 python train_deformnet.py
 ```
 
