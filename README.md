@@ -71,11 +71,17 @@ for i in range(5):
 ```
 Then manually moving files of each fold `/oof_softmax/fold{i}` to `/oof_softmax` and delete all folder `/oof_softmax/fold{i}`. 
 
-##### Go to `configs/config_deform.yaml`, here are some stuffs need to setup:
+##### Configuration Setup 
+Go to `configs/config_deform.yaml`, here are some stuffs need to setup:
 * `data_path`: folder path of competition dataset
 * `nnunet_path`: folder path of nnunet results
 * `petrained_ckpt_path`: path of pretrained deformnet checkpoint
 * `data_split_path`: path of validation split of nnunet json file, it's a file named `splits_final.json`
+
+#### Train DeformNet3d
+```python
+python train_deformnet.py
+```
 
 ## Custom nnUNet Trainer
 
