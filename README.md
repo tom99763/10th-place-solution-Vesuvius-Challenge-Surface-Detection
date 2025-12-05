@@ -23,16 +23,67 @@ python kaggle_helper.py upload-dataset \
     --notes "Add new model checkpoints"
 ```
 
-## Train nnUNet
+## Train nnUNet + DeformNet3d
 
-### Basic training
+### Steup From Beginning
+#### Train nnunet
 ```bash
 cd nnUNet_utils
 python build_nnunet_dataset.py
 python train_nnunet.py
 ```
+#### Train DeformNet3D
+##### Build nnunet oof files for training DeformNet3D:
+```bash
+python generate_nnunet_soft_oof.py
+```
+You need to modify some stuffs: 
+```python
+import subprocess
+import os
+from pathlib import Path
+import sys
 
-### Custom Trainer
+os.environ["nnUNet_raw"] = "./nnunet/nnUNet_raw_data_base/nnUNet_raw" #your nnunet raw dataset path
+os.environ["nnUNet_preprocessed"] = "./nnunet/preprocessed" #your processed dataset path
+os.environ["nnUNet_results"] = "./nnunet/nnUNet_results" #trained nnunet results, including checkpoint, json files, ...
+
+input_dir = Path("./nnunet/nnUNet_raw_data_base/nnUNet_raw/Dataset900_VesuviusScroll/imagesTr") #your training image folder path
+output_dir = Path("./nnunet/nnUNet_results/Dataset900_VesuviusScroll/nnUNetTrainer__nnUNetResEncUNetMPlans__3d_fullres/oof_softmax") #oof folder path
+
+def run_cmd(cmd_list):
+    print("\n>>> Running:", " ".join(cmd_list))
+    result = subprocess.run(cmd_list, check=True)
+    print(">>> Done.\n")
+    return result
+
+for i in range(5):
+    run_cmd([
+        sys.executable,
+        "-m", "nnunetv2.run.run_training", #nnunet api
+        "900", #nnunet dataset id
+        "3d_fullres", #nnunet types (2d, 3d, region ....)
+        str(i), #fold index
+        "-num_gpus", "1",
+        "-p", "nnUNetResEncUNetMPlans", #nnunet plans
+        "--val", "--npz" #run validation, saving probability prediction as npz file
+    ])
+```
+Then manually moving files of each fold `/oof_softmax/fold{i}` to `/oof_softmax` and delete all folder `/oof_softmax/fold{i}`. 
+
+##### Configuration Setup 
+Go to `configs/config_deform.yaml`, here are some stuffs need to setup:
+* `data_path`: folder path of competition dataset
+* `nnunet_path`: folder path of nnunet results
+* `petrained_ckpt_path`: path of pretrained deformnet checkpoint
+* `data_split_path`: path of validation split of nnunet json file, it's a file named `splits_final.json`
+
+#### Train DeformNet3d
+```bash
+python train_deformnet.py
+```
+
+## Custom nnUNet Trainer
 
 Go to `src/nnUNet/nnunetv2/training/nnUNetTrainer`, add your own trainer `xxxTrainer` by inheritting `nnUNetTrainer`, overriding 
 your own functions: `_build_loss`, `train_step`, `validation_step`, `get_dataloaders`, `get_training_transforms`, `get_validation_transforms`
@@ -164,4 +215,6 @@ for i in range(5):
         "-tr", "xxxTrainer"
     ])
 ```
+
+
 
