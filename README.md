@@ -23,7 +23,7 @@ python kaggle_helper.py upload-dataset \
     --notes "Add new model checkpoints"
 ```
 
-## Train nnUNet
+## Train nnUNet + DeformNet3d
 
 ### Steup From Beginning
 #### Train nnunet
@@ -77,7 +77,7 @@ Then manually moving files of each fold `/oof_softmax/fold{i}` to `/oof_softmax`
 * `petrained_ckpt_path`: path of pretrained deformnet checkpoint
 * `data_split_path`: path of validation split of nnunet json file, it's a file named `splits_final.json`
 
-### Custom nnUNet Trainer
+## Custom nnUNet Trainer
 
 Go to `src/nnUNet/nnunetv2/training/nnUNetTrainer`, add your own trainer `xxxTrainer` by inheritting `nnUNetTrainer`, overriding 
 your own functions: `_build_loss`, `train_step`, `validation_step`, `get_dataloaders`, `get_training_transforms`, `get_validation_transforms`
