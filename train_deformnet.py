@@ -35,7 +35,8 @@ def run(cfg: DictConfig):
     with open(cfg.data_split_path, "r") as f:
         val_splits = json.load(f)
 
-    for i in range(3, len(val_splits)):
+    for i in range(4, len(val_splits)):
+        print(f'training fold {i}')
         set_seed(cfg.seed)
         train_ids = val_splits[i]['train']
         val_ids = val_splits[i]['val']
