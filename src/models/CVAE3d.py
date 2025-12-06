@@ -433,6 +433,7 @@ if __name__ == '__main__':
     parser.add_argument('--no-cuda', action='store_true', default=False, help='disables cuda')
     parser.set_defaults(hflip=False)
     opt = parser.parse_args()
+    opt.device = torch.device("cuda")
 
     full_scale_size = [256, 256, 256]
     d, h, w = full_scale_size
@@ -450,30 +451,34 @@ if __name__ == '__main__':
         initial_size = [initial_size] * 3
         opt.Z_init_size = [opt.batch_size, opt.latent_dim, *initial_size]
 
-    # ---- Dummy 3D video volume ----
-    x = torch.randn(1, 1, *opt.img_size)  # (B, C, T, H, W)
+    noise_init = utils.generate_noise(size=opt.Z_init_size).to(opt.device)
+    opt.Noise_Amps = [1]
 
-    # ================================================================
-    # 1. Create GENERATOR and run forward()
-    # ================================================================
+    selected_scale_index = 5
     G = GeneratorHPVAEGAN(opt)
-    # ---- forward pass (rand mode) ----
-    out, mu, logvar, z = G(opt.noise_init, opt.noise_amp, mode='rand')
+    for _ in range(selected_scale_index):
+        G.init_next_stage()
+        opt.Noise_Amps.append(1)
+    G.to(opt.device)
+    fake, fake_vae = G(noise_init, opt.Noise_Amps, noise_init=noise_init, mode='rand')
 
-    print("\n--- GeneratorHPVAEGAN Forward ---")
-    print("out:", out.shape)  # (B, C, T, H, W)
-    print("mu:", mu.shape)  # (B, latent_dim)
-    print("logvar:", logvar.shape)  # (B, latent_dim)
-    print("z:", z.shape)  # (B, latent_dim)
+    print('fake image:', fake.shape)
+    print('fake vae:', fake_vae.shape)
 
-    # ================================================================
-    # 2. Create DISCRIMINATOR and run forward()
-    # ================================================================
-    D = WDiscriminator3D(opt)
+    # # ================================================================
+    # # GENERATROR real forward
+    # # ================================================================
 
-    disc_real = D(x)
-    disc_fake = D(out.detach())
 
-    print("\n--- WDiscriminator3D Forward ---")
-    print("disc_real:", disc_real.shape)  # (B, 1)
-    print("disc_fake:", disc_fake.shape)  # (B, 1)
+
+    # # ================================================================
+    # # DISCRIMINATOR
+    # # ================================================================
+    # D = WDiscriminator3D(opt)
+    #
+    # disc_real = D(x)
+    # disc_fake = D(out.detach())
+    #
+    # print("\n--- WDiscriminator3D Forward ---")
+    # print("disc_real:", disc_real.shape)  # (B, 1)
+    # print("disc_fake:", disc_fake.shape)  # (B, 1)
