@@ -382,7 +382,7 @@ if __name__ == '__main__':
     parser.add_argument('--manualSeed', type=int, help='manual seed')
 
     # networks hyper parameters:
-    parser.add_argument('--nc-im', type=int, default=3, help='# channels')
+    parser.add_argument('--nc-im', type=int, default=1, help='# channels')
     parser.add_argument('--nfc', type=int, default=64, help='model basic # channels')
     parser.add_argument('--latent-dim', type=int, default=128, help='Latent dim size')
     parser.add_argument('--vae-levels', type=int, default=3, help='# VAE levels')
@@ -454,7 +454,7 @@ if __name__ == '__main__':
     noise_init = utils.generate_noise(size=opt.Z_init_size).to(opt.device)
     opt.Noise_Amps = [1]
 
-    selected_scale_index = 5
+    selected_scale_index = 4
     G = GeneratorHPVAEGAN(opt)
     for _ in range(selected_scale_index):
         G.init_next_stage()
@@ -468,8 +468,14 @@ if __name__ == '__main__':
     # # ================================================================
     # # GENERATROR real forward
     # # ================================================================
-
-
+    size = utils.get_scales_by_index(selected_scale_index, opt.scale_factor, opt.stop_scale, opt.img_size)
+    vol_size = [size] * 3
+    x = torch.randn(opt.batch_size, 1, *vol_size).to(opt.device)
+    generated, generated_vae, (mu, logvar) = G(x, opt.Noise_Amps, mode="rec")
+    print('image:', generated.shape)
+    print('vae:', generated_vae.shape)
+    print('mu:', mu.shape)
+    print('logvar:', logvar.shape)
 
     # # ================================================================
     # # DISCRIMINATOR
