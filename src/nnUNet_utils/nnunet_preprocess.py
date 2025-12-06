@@ -48,7 +48,7 @@ def run_cmd(cmd_list):
 
 
 def main():
-    
+    # 1. only extrazct fingerprint
     # run_cmd([
         
     #     "nnUNetv2_extract_fingerprint",
@@ -60,7 +60,7 @@ def main():
     # ])
 
 
-
+    # all steps together cna be ignored
     # run_cmd([
         
     #     "nnUNetv2_plan_and_preprocess",
@@ -68,7 +68,8 @@ def main():
     #     "-c","3d_fullres",
     #     "-pl", "nnUNetPlannerResEncM",
     #     "--verify_dataset_integrity"
-        
+
+    #2. only generate pplans  
     # ])
     # # Only generate plans
     #    run_cmd([
@@ -81,7 +82,9 @@ def main():
     #     "-overwrite_plans_name", "nnUNetResEncUNetMPlans_30G"
         
     # ])
-
+  
+  
+  # 3. only preprocess
     run_cmd([
         
         "nnUNetv2_preprocess",
