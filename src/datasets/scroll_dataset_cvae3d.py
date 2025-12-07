@@ -4,97 +4,35 @@ import torch
 import pytorch_lightning as pl
 from ..procs.proc_data import *
 from pathlib import Path
+from src.procs.proc_utils import *
+import torch.nn.functional as F
+
 
 class CVAEDataset(Dataset):
-    def __init__(self, cfg, id_list, train):
+    def __init__(self, opt, is_train):
         super().__init__()
-        self.cfg = cfg
-        self.id_list = id_list
-        self.proc_data = generate_transforms(self.cfg.data.transforms.train if train else self.cfg.data.transforms.val)
-        self.data_path = Path(self.cfg.data_path)
-        self.nnunet_path = Path(self.cfg.nnunet_path)
-        self.train = train
+        self.opt = opt
+        self.is_train = is_train
+        self.id_list = opt.train_val_splits_ids[opt.selected_fold]['train'] if is_train\
+            else opt.train_val_splits_ids[opt.selected_fold]['val']
 
     def __len__(self):
         return len(self.id_list)
 
     def __getitem__(self, idx):
         idx = self.id_list[idx]
-        vol = load_volume(self.data_path / 'train_images' / f'{idx}.tif')
-        mask = load_volume(self.data_path/'train_labels'/f'{idx}.tif')
-        pred_mask = np.load(self.nnunet_path/'nnUNet_results/Dataset900_VesuviusScroll'
-                                             '/nnUNetTrainer__nnUNetResEncUNetMPlans__3d_fullres/'
-                                             'oof'/f'{idx}.tif', mmap_mode='r')
-        raw = {"Image": vol, "Mask": mask, "Mask_OOF": pred_mask}
-        data = self.proc_data(raw)
-        if self.train:
-            vol = torch.stack([_data['Image'] for _data in data], dim=0)
-            mask = torch.stack([_data['Mask'] for _data in data], dim=0)
-            mask_oof = torch.stack([_data['Mask_OOF'] for _data in data], dim=0)
-        else:
-            vol, mask, mask_oof = data['Image'], data['Mask'], data['Mask_OOF']
-        return vol, mask, mask_oof
+        mask_gt = load_volume(self.opt.dataset_dir/'train_labels'/f'{idx}.tif')
+        mask_pred = load_volume(self.opt.oof_dir/f'{idx}.tif')
+        mask_gt = torch.from_numpy(mask_gt).float()
+        mask_pred = torch.from_numpy(mask_pred).float()
+        mask_gt = mask_gt.unsqueeze(0).unsqueeze(0)
+        mask_pred = mask_pred.unsqueeze(0).unsqueeze(0)
+        mask_gt = F.interpolate(mask_gt, size=self.opt.scaled_size, mode="nearest")
+        mask_pred = F.interpolate(mask_pred, size=self.opt.scaled_size, mode="nearest")
+        mask_gt = mask_gt.squeeze(0).squeeze(0)
+        mask_pred = mask_pred.squeeze(0).squeeze(0)
+        return mask_gt, mask_pred
 
-
-def collate_fn_train(batch):
-    """
-    batch: list of tuples (Image, Mask, Mask_OOF)
-    """
-    images = torch.cat([item[0] for item in batch], dim=0)
-    masks = torch.cat([item[1] for item in batch], dim=0)
-    mask_oof = torch.cat([item[2] for item in batch], dim=0)
-
-    return {
-        "Image": images,
-        "Mask": masks,
-        "Mask_OOF": mask_oof
-    }
-
-
-def collate_fn_val(batch):
-    """
-    batch: list of tuples (Image, Mask, Mask_OOF)
-    """
-    images = torch.stack([item[0] for item in batch], dim=0)
-    masks = torch.stack([item[1] for item in batch], dim=0)
-    mask_oof = torch.stack([item[2] for item in batch], dim=0)
-
-    return {
-        "Image": images,
-        "Mask": masks,
-        "Mask_OOF": mask_oof
-    }
-
-
-class TomoDataModule(pl.LightningDataModule):
-    def __init__(self, cfg, train_ids, val_ids):
-        super().__init__()
-        self.cfg = cfg
-        self.train_ids = train_ids
-        self.val_ids = val_ids
-
-    def setup(self, stage: str = None):
-        self.train_dataset = CVAEDataset(self.cfg, self.train_ids, False)
-        self.val_dataset = CVAEDataset(self.cfg, self.val_ids, False)
-
-    def train_dataloader(self):
-        return DataLoader(
-            self.train_dataset,
-            batch_size=self.cfg.batch_size,
-            shuffle=True,
-            num_workers=self.cfg.num_workers,
-            pin_memory=True,
-            collate_fn=collate_fn_train,
-            persistent_workers = True
-        )
-
-    def val_dataloader(self):
-        return DataLoader(
-            self.val_dataset,
-            batch_size=self.cfg.batch_size,
-            shuffle=False,
-            num_workers=self.cfg.num_workers,
-            pin_memory=True,
-            collate_fn=collate_fn_val,
-            persistent_workers = True
-        )
+    def setup_scale(self, scale_idx):
+        size = get_scales_by_index(scale_idx, self.opt.scale_factor, self.opt.stop_scale, self.opt.img_size)
+        self.opt.scaled_size = [size] * 3

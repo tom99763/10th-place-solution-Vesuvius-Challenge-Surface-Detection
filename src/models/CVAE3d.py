@@ -3,7 +3,8 @@ import torch
 import torch.nn as nn
 import copy
 import torch.nn.functional as F
-import utils
+from src.procs.proc_utils import *
+
 
 def weights_init(m):
     classname = m.__class__.__name__
@@ -278,11 +279,11 @@ class GeneratorHPVAEGAN(nn.Module):
                 x_prev_out.detach_()
 
             # Upscale
-            x_prev_out_up = utils.upscale(x_prev_out, idx + 1, self.opt)
+            x_prev_out_up = upscale(x_prev_out, idx + 1, self.opt)
 
             # Add noise if "random" sampling, else, add no noise is "reconstruction" mode
             if mode == 'rand' and self.opt.vae_levels <= idx + 1:
-                noise = utils.generate_noise(ref=x_prev_out_up)
+                noise = generate_noise(ref=x_prev_out_up)
                 x_prev = block(x_prev_out_up + noise * noise_amp[idx + 1])
             else:
                 x_prev = block(x_prev_out_up)
@@ -357,11 +358,11 @@ class GeneratorVAE_nb(nn.Module):
                 x_prev_out.detach_()
 
             # Upscale
-            x_prev_out_up = utils.upscale(x_prev_out, idx + 1, self.opt)
+            x_prev_out_up = upscale(x_prev_out, idx + 1, self.opt)
 
             # Add noise if "random" sampling, else, add no noise is "reconstruction" mode
             if mode == 'rand':
-                noise = utils.generate_noise(ref=x_prev_out_up)
+                noise = generate_noise(ref=x_prev_out_up)
                 x_prev = block(x_prev_out_up + noise * noise_amp[idx + 1])
             else:
                 x_prev = block(x_prev_out_up)
@@ -444,14 +445,14 @@ if __name__ == '__main__':
     opt.noise_amp_init = opt.noise_amp
     opt.scale_factor_init = opt.scale_factor
 
-    utils.adjust_scales2image(opt.img_size, opt)
+    adjust_scales2image(opt.img_size, opt)
 
     if not hasattr(opt, 'Z_init_size'):
-        initial_size = utils.get_scales_by_index(0, opt.scale_factor, opt.stop_scale, opt.img_size)
+        initial_size = get_scales_by_index(0, opt.scale_factor, opt.stop_scale, opt.img_size)
         initial_size = [initial_size] * 3
         opt.Z_init_size = [opt.batch_size, opt.latent_dim, *initial_size]
 
-    noise_init = utils.generate_noise(size=opt.Z_init_size).to(opt.device)
+    noise_init = generate_noise(size=opt.Z_init_size).to(opt.device)
     opt.Noise_Amps = [1]
 
     selected_scale_index = 4
@@ -470,7 +471,7 @@ if __name__ == '__main__':
         # # ================================================================
         # # GENERATROR real forward
         # # ================================================================
-        size = utils.get_scales_by_index(selected_scale_index, opt.scale_factor, opt.stop_scale, opt.img_size)
+        size = get_scales_by_index(selected_scale_index, opt.scale_factor, opt.stop_scale, opt.img_size)
         vol_size = [size] * 3
         x = torch.randn(opt.batch_size, 1, *vol_size).to(opt.device)
         generated, generated_vae, (mu, logvar) = G(x, opt.Noise_Amps, mode="rec")
