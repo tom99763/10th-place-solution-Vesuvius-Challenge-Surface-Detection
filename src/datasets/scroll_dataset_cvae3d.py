@@ -44,7 +44,7 @@ class CVAEDataset(Dataset):
         mask_gt_0 = mask_gt_0.squeeze(0).squeeze(0)
         mask_pred_0 = mask_pred_0.squeeze(0).squeeze(0)
 
-        return mask_gt, mask_gt_0, mask_pred, mask_pred_0
+        return mask_gt[None], mask_gt_0[None], mask_pred[None], mask_pred_0[None]
 
     def setup_scale(self, scale_idx):
         size = get_scales_by_index(scale_idx, self.opt.scale_factor, self.opt.stop_scale, self.opt.img_size)
