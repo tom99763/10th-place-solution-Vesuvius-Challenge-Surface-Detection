@@ -25,7 +25,7 @@ magenta = colorama.Fore.MAGENTA + colorama.Style.BRIGHT
 '''pipeline explain 
 1. train VAEGAN from coarse to fine
 2. when current scale is larger than opt.vae_scale, then start to use discriminator
-3. there's no in discriminator
+3. there's no downsample in discriminator
 '''
 
 
