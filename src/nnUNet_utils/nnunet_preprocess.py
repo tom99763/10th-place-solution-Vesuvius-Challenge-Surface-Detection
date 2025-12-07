@@ -48,27 +48,52 @@ def run_cmd(cmd_list):
 
 
 def main():
-    
-    run_cmd([
+    # 1. only extrazct fingerprint
+    # run_cmd([
         
-        "nnUNetv2_plan_and_preprocess",
-        "-d","900",
-        "-c","2d",
-        "-pl", "nnUNetPlannerResEncM",
-        "--verify_dataset_integrity"
+    #     "nnUNetv2_extract_fingerprint",
+    #     "-d","900",
+    #     "-c","3d_fullres",
+    #     "-pl", "nnUNetPlannerResEncM",
+    #     "--verify_dataset_integrity"
         
-    ])
+    # ])
+
+
+    # all steps together cna be ignored
+    # run_cmd([
+        
+    #     "nnUNetv2_plan_and_preprocess",
+    #     "-d","900",
+    #     "-c","3d_fullres",
+    #     "-pl", "nnUNetPlannerResEncM",
+    #     "--verify_dataset_integrity"
+
+    #2. only generate pplans  
+    # ])
     # # Only generate plans
     #    run_cmd([
         
     #     "nnUNetv2_plan_experiment",
     #     "-d","900",
-    #     "-c","2d",
+    #     "-c","3d_fullres",
     #     "-pl", "nnUNetPlannerResEncM",
-    #     "-gpu_memory_target" , "30",
+    #     "-gpu_memory_target" , "38",
     #     "-overwrite_plans_name", "nnUNetResEncUNetMPlans_30G"
         
     # ])
+  
+  
+  # 3. only preprocess
+    run_cmd([
+        
+        "nnUNetv2_preprocess",
+        "-d","900",
+        "-c","3d_fullres",
+        "-pl", "nnUNetResEncUNetMPlans_30G",
+        
+        
+    ])
 
 
 if __name__ == '__main__':

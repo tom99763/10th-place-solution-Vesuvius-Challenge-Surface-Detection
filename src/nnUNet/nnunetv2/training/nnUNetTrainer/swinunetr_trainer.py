@@ -8,7 +8,7 @@ from nnunetv2.training.nnUNetTrainer.project_specific.rsna2025.nnUNetTrainerSkel
     nnUNetTrainerSkeletonRecall_more_DAv3,
 )
 
-from src.models.schedulers.warmup_cosine_annealing import CosineAnnealingLR as WarmupCosineAnnealingLR
+from nnunetv2.training.lr_scheduler.warmup_cosine_annealing import CosineAnnealingLR as WarmupCosineAnnealingLR
 
 
 SWIN_DEFAULT_FEATURE_SIZE = 24
