@@ -454,37 +454,42 @@ if __name__ == '__main__':
     noise_init = utils.generate_noise(size=opt.Z_init_size).to(opt.device)
     opt.Noise_Amps = [1]
 
-    selected_scale_index = 4
+    selected_scale_index = 0
     G = GeneratorHPVAEGAN(opt)
     for _ in range(selected_scale_index):
         G.init_next_stage()
         opt.Noise_Amps.append(1)
     G.to(opt.device)
-    fake, fake_vae = G(noise_init, opt.Noise_Amps, noise_init=noise_init, mode='rand')
 
-    print('fake image:', fake.shape)
-    print('fake vae:', fake_vae.shape)
+    with torch.no_grad():
+        fake, fake_vae = G(noise_init, opt.Noise_Amps, noise_init=noise_init, mode='rand')
 
-    # # ================================================================
-    # # GENERATROR real forward
-    # # ================================================================
-    size = utils.get_scales_by_index(selected_scale_index, opt.scale_factor, opt.stop_scale, opt.img_size)
-    vol_size = [size] * 3
-    x = torch.randn(opt.batch_size, 1, *vol_size).to(opt.device)
-    generated, generated_vae, (mu, logvar) = G(x, opt.Noise_Amps, mode="rec")
-    print('image:', generated.shape)
-    print('vae:', generated_vae.shape)
-    print('mu:', mu.shape)
-    print('logvar:', logvar.shape)
+        print('fake image:', fake.shape)
+        print('fake vae:', fake_vae.shape)
 
-    # # ================================================================
-    # # DISCRIMINATOR
-    # # ================================================================
-    # D = WDiscriminator3D(opt)
-    #
-    # disc_real = D(x)
-    # disc_fake = D(out.detach())
-    #
-    # print("\n--- WDiscriminator3D Forward ---")
-    # print("disc_real:", disc_real.shape)  # (B, 1)
-    # print("disc_fake:", disc_fake.shape)  # (B, 1)
+        # # ================================================================
+        # # GENERATROR real forward
+        # # ================================================================
+        size = utils.get_scales_by_index(selected_scale_index, opt.scale_factor, opt.stop_scale, opt.img_size)
+        vol_size = [size] * 3
+        x = torch.randn(opt.batch_size, 1, *vol_size).to(opt.device)
+        generated, generated_vae, (mu, logvar) = G(x, opt.Noise_Amps, mode="rec")
+        print('image:', generated.shape)
+        print('vae:', generated_vae.shape)
+        print('mu:', mu.shape)
+        print('logvar:', logvar.shape)
+
+        # # ================================================================
+        # # DISCRIMINATOR
+        # # ================================================================
+        D = WDiscriminator3D(opt)
+        D.to(opt.device)
+
+        disc_real = D(x)
+        disc_gen_fake = D(generated)
+        disc_rand_fake = D(fake)
+
+        print("\n--- WDiscriminator3D Forward ---")
+        print("disc_real:", disc_real.shape)
+        print("disc_gen_fake:", disc_gen_fake.shape)
+        print("disc_rand_fake:", disc_rand_fake.shape)
