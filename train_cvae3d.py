@@ -181,8 +181,9 @@ def train(opt, netG):
         ############################
         # train step
         ###########################
-        for mask_gt, mask_pred in tqdm(opt.train_loader):
+        for mask_gt, mask_gt_0, mask_pred, mask_pred_0 in tqdm(opt.train_loader):
             mask_gt = mask_gt.to(opt.device)
+            mask_gt_0 = mask_gt_0.to(opt.device)
             noise_init = generate_noise(size=opt.Z_init_size, device=opt.device)
 
             ############################
@@ -198,9 +199,9 @@ def train(opt, netG):
                             opt.Noise_Amps.append(opt.noise_amp)
                         else:
                             opt.Noise_Amps.append(0)
-                            z_reconstruction, _, _ = G_curr(mask_gt, opt.Noise_Amps, mode="rec")
+                            z_reconstruction, _, _ = G_curr(mask_gt_0, opt.Noise_Amps, mode="rec")
 
-                            RMSE = torch.sqrt(F.mse_loss(mask_gt, z_reconstruction))
+                            RMSE = torch.sqrt(F.mse_loss(mask_gt_0, z_reconstruction))
                             opt.noise_amp = opt.noise_amp_init * RMSE.item() / opt.batch_size
                             opt.Noise_Amps[-1] = opt.noise_amp
 
@@ -209,10 +210,10 @@ def train(opt, netG):
             ###########################
             total_loss = 0
 
-            generated, generated_vae, (mu, logvar) = G_curr(mask_gt, opt.Noise_Amps, mode="rec")
+            generated, generated_vae, (mu, logvar) = G_curr(mask_gt_0, opt.Noise_Amps, mode="rec")
 
             if opt.vae_levels >= opt.scale_idx + 1:
-                rec_vae_loss = opt.rec_loss(generated, mask_gt)
+                rec_vae_loss = opt.rec_loss(generated, mask_gt) + opt.rec_loss(generated_vae, mask_gt_0)
                 kl_loss = kl_criterion(mu, logvar)
                 vae_loss = opt.rec_weight * rec_vae_loss + opt.kl_weight * kl_loss
 
@@ -272,10 +273,14 @@ def train(opt, netG):
         # val step
         ###########################
         with torch.no_grad():
-            for mask_gt, mask_pred in tqdm(opt.val_loader):
+            for mask_gt, mask_gt_0, mask_pred, mask_pred_0 in tqdm(opt.val_loader):
                 mask_gt = mask_gt.to(opt.device)
-                mask_pred = mask_pred.to(opt.device)
-                mask_pred_rec, _, _ = G(mask_pred, opt.Noise_Amps, mode="rec")
+                # mask_gt_0 = mask_gt_0.to(opt.device)
+                # mask_pred = mask_pred.to(opt.device)
+                mask_pred_0 = mask_pred_0.to(opt.device)
+
+                #forward
+                mask_pred_rec, _, _ = G_curr(mask_pred_0, opt.Noise_Amps, mode="rec")
                 mask_pred_rec = mask_pred_rec.clamp(0, 1)
                 ignore_mask = (mask_gt != 2).float()
                 target_mask = mask_gt * ignore_mask

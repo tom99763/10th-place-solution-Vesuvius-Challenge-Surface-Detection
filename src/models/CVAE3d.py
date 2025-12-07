@@ -471,7 +471,7 @@ if __name__ == '__main__':
         # # ================================================================
         # # GENERATROR real forward
         # # ================================================================
-        size = get_scales_by_index(selected_scale_index, opt.scale_factor, opt.stop_scale, opt.img_size)
+        size = get_scales_by_index(0, opt.scale_factor, opt.stop_scale, opt.img_size)
         vol_size = [size] * 3
         x = torch.randn(opt.batch_size, 1, *vol_size).to(opt.device)
         generated, generated_vae, (mu, logvar) = G(x, opt.Noise_Amps, mode="rec")
