@@ -318,17 +318,17 @@ def train(opt, netG):
 
 def prepare_dataset(opt):
     train_dataset = CVAEDataset(opt, True)
-    val_dataset = CVAEDataset(opt, True)
+    val_dataset = CVAEDataset(opt, False)
     opt.train_dataset = train_dataset
     opt.val_dataset = val_dataset
-    opt.train_loader = DataLoader(train_dataset,
+    opt.train_loader = DataLoader(opt.train_dataset,
                                   shuffle=True,
                                   drop_last=False,
                                   batch_size=opt.batch_size,
                                   num_workers=4,
                                   persistent_workers=True
                                   )
-    opt.val_loader = DataLoader(val_dataset,
+    opt.val_loader = DataLoader(opt.val_dataset,
                                 shuffle=False,
                                 drop_last=False,
                                 batch_size=opt.batch_size,
