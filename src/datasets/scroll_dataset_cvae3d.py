@@ -17,6 +17,7 @@ class CVAEDataset(Dataset):
             else opt.train_val_splits_ids[opt.selected_fold]['val']
         size = get_scales_by_index(0, self.opt.scale_factor, self.opt.stop_scale, self.opt.img_size)
         self.scale_size_0 = [size] * 3
+        self.is_train = is_train
 
     def __len__(self):
         return len(self.id_list)
@@ -27,6 +28,9 @@ class CVAEDataset(Dataset):
         mask_pred = load_volume(self.opt.oof_dir/f'{idx}.tif')
         _mask_gt = torch.from_numpy(mask_gt).float()
         _mask_pred = torch.from_numpy(mask_pred).float()
+
+        if self.is_train:
+            _mask_gt = _mask_gt * (_mask_gt != 2) + _mask_pred * (_mask_gt == 2)
 
         #scaling
         mask_gt = _mask_gt.unsqueeze(0).unsqueeze(0)

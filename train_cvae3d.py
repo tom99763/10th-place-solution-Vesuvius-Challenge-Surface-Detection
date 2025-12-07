@@ -47,7 +47,7 @@ def get_parser():
     parser.add_argument('--nc-im', type=int, default=1, help='# channels')
     parser.add_argument('--nfc', type=int, default=64, help='model basic # channels')
     parser.add_argument('--latent-dim', type=int, default=128, help='Latent dim size')
-    parser.add_argument('--vae-levels', type=int, default=3, help='# VAE levels')
+    parser.add_argument('--vae-levels', type=int, default=4, help='Determine # layers being used for VAE')
     parser.add_argument('--enc-blocks', type=int, default=2, help='# encoder blocks')
     parser.add_argument('--ker-size', type=int, default=3, help='kernel size')
     parser.add_argument('--num-layer', type=int, default=5, help='number of layers')
@@ -63,7 +63,7 @@ def get_parser():
     parser.add_argument('--max-size', type=int, default=256, help='image minimal size at the coarser scale')
 
     # optimization hyper parameters:
-    parser.add_argument('--niter', type=int, default=50000, help='number of iterations to train per scale')
+    parser.add_argument('--niter', type=int, default=50, help='number of iterations to train per scale')
     parser.add_argument('--lr-g', type=float, default=0.0005, help='learning rate, default=0.0005')
     parser.add_argument('--lr-d', type=float, default=0.0005, help='learning rate, default=0.0005')
     parser.add_argument('--beta1', type=float, default=0.5, help='beta1 for adam. default=0.5')
@@ -115,10 +115,10 @@ def train(opt, netG):
         D_curr = WDiscriminator3D(opt).to(opt.device)
         if (opt.netG != '') and (opt.resumed_idx == opt.scale_idx):
             D_curr.load_state_dict(
-                torch.load('{}/netD_{}.pth'.format(opt.resume_dir, opt.scale_idx - 1))['state_dict'])
+                torch.load('{}/netD_{}_{}.pth'.format(opt.resume_dir, opt.scale_idx - 1, opt.selected_fold))['state_dict'])
         elif opt.vae_levels < opt.scale_idx:
             D_curr.load_state_dict(
-                torch.load('{}/netD_{}.pth'.format(opt.saver.experiment_dir, opt.scale_idx - 1))['state_dict'])
+                torch.load('{}/netD_{}_{}.pth'.format(opt.saver.experiment_dir, opt.scale_idx - 1, opt.selected_fold))['state_dict'])
         optimizerD = optim.Adam(D_curr.parameters(), lr=opt.lr_d, betas=(opt.beta1, 0.999))
 
     parameter_list = []
@@ -176,6 +176,7 @@ def train(opt, netG):
     val_surf_losses = []
     val_dice_metric = DiceMetric(include_background=False, reduction="mean", ignore_empty=True)
     val_num_samples = 0
+    best_score = 0
 
     for iteration in epoch_iterator:
         ############################
@@ -319,6 +320,21 @@ def train(opt, netG):
             val_dice_metric.reset()
             val_num_samples = 0
 
+        if comp_metric > best_score:
+            best_score = comp_metric
+            opt.saver.save_checkpoint({'data': opt.Noise_Amps}, 'Noise_Amps.pth')
+            opt.saver.save_checkpoint({
+                'scale': opt.scale_idx,
+                'state_dict': netG.state_dict(),
+                'optimizer': optimizerG.state_dict(),
+                'noise_amps': opt.Noise_Amps,
+            }, 'netG_{}_{}_{}_{}_{}.pth'.format(opt.selected_fold, topo_score, surf_score, dice_score, comp_metric))
+            if opt.vae_levels < opt.scale_idx + 1:
+                opt.saver.save_checkpoint({
+                    'scale': opt.scale_idx,
+                    'state_dict': D_curr.module.state_dict() if opt.device == 'cuda' else D_curr.state_dict(),
+                    'optimizer': optimizerD.state_dict(),
+                }, 'netD_{}_{}.pth'.format(opt.scale_idx, opt.selected_fold))
 
 
 def prepare_dataset(opt):
@@ -412,7 +428,6 @@ def main():
                 logging.info("{}Generator      :{} {}{}".format(blue, clear, opt.generator, clear))
                 logging.info("{}Iterations     :{} {}{}".format(blue, clear, opt.niter, clear))
                 logging.info("{}Rec. Weight    :{} {}{}".format(blue, clear, opt.rec_weight, clear))
-                logging.info("{}Sampling rates :{} {}{}".format(blue, clear, opt.sampling_rates, clear))
 
 
         netG = GeneratorHPVAEGAN(opt).to(opt.device)
