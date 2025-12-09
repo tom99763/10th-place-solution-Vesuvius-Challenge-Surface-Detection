@@ -72,7 +72,7 @@ def get_parser():
     parser.add_argument('--lr-d', type=float, default=0.0005, help='learning rate, default=0.0005')
     parser.add_argument('--beta1', type=float, default=0.5, help='beta1 for adam. default=0.5')
     parser.add_argument('--lambda-grad', type=float, default=0.1, help='gradient penelty weight')
-    parser.add_argument('--rec-weight', type=float, default=5., help='reconstruction loss weight')
+    parser.add_argument('--rec-weight', type=float, default=1., help='reconstruction loss weight')
     parser.add_argument('--kl-weight', type=float, default=1., help='reconstruction loss weight')
     parser.add_argument('--disc-loss-weight', type=float, default=1.0, help='discriminator weight')
     parser.add_argument('--lr-scale', type=float, default=0.2, help='scaling of learning rate for lower stages')
