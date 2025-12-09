@@ -223,9 +223,9 @@ def train(opt, netG):
             generated, generated_vae, (mu, logvar) = G_curr(video = mask_gt_0, noise_amp = opt.Noise_Amps, mode="rec")
 
             if opt.vae_levels >= opt.scale_idx + 1:
-                #rec_vae_loss = opt.rec_loss(generated, mask_gt) + opt.rec_loss(generated_vae, mask_gt_0)
-                rec_vae_loss = opt.topo_loss(generated, mask_gt) + opt.soft_surf_loss(generated, mask_gt) + \
-                               opt.topo_loss(generated_vae, mask_gt_0) + opt.soft_surf_loss(generated_vae, mask_gt_0)
+                rec_vae_loss = opt.rec_loss(generated, mask_gt) + opt.rec_loss(generated_vae, mask_gt_0)
+                rec_vae_loss += 0.5 *(opt.topo_loss(generated, mask_gt) + opt.soft_surf_loss(generated, mask_gt) + \
+                               opt.topo_loss(generated_vae, mask_gt_0) + opt.soft_surf_loss(generated_vae, mask_gt_0))
 
                 kl_loss = kl_criterion(mu, logvar)
                 vae_loss = opt.rec_weight * rec_vae_loss + opt.kl_weight * kl_loss
@@ -262,8 +262,9 @@ def train(opt, netG):
                 # (3) Update G network: maximize D(G(z))
                 ###########################
                 errG_total = 0
-                rec_loss = opt.topo_loss(generated, mask_gt) + opt.soft_surf_loss(generated, mask_gt) + \
-                               opt.topo_loss(generated_vae, mask_gt_0) + opt.soft_surf_loss(generated_vae, mask_gt_0)
+                rec_loss = opt.rec_loss(generated, mask_gt)
+                rec_loss += 0.5 * (opt.topo_loss(generated, mask_gt) + opt.soft_surf_loss(generated, mask_gt) + \
+                               opt.topo_loss(generated_vae, mask_gt_0) + opt.soft_surf_loss(generated_vae, mask_gt_0))
                 errG_total += opt.rec_weight * rec_loss
 
                 # Train with 3D Discriminator
