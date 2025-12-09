@@ -341,7 +341,7 @@ class GeneratorVAE_nb(nn.Module):
             z_vae_norm = noise_init_norm
             z_vae_bern = noise_init_bern
 
-        vae_out = torch.tanh(self.decoder(z_vae_norm * z_vae_bern))
+        vae_out = torch.sigmoid(self.decoder(z_vae_norm * z_vae_bern))
 
         if sample_init is not None:
             x_prev_out = self.refinement_layers(sample_init[0], sample_init[1], noise_amp, mode)
@@ -368,7 +368,7 @@ class GeneratorVAE_nb(nn.Module):
             else:
                 x_prev = block(x_prev_out_up)
 
-            x_prev_out = torch.tanh(x_prev + x_prev_out_up)
+            x_prev_out = torch.sigmoid(x_prev + x_prev_out_up)
 
         return x_prev_out
 
