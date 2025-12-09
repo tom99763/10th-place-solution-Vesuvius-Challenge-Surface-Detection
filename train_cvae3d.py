@@ -272,11 +272,11 @@ def train(opt, netG):
             torch.nn.utils.clip_grad_norm_(G_curr.parameters(), opt.grad_clip)
             optimizerG.step()
 
-            # Update progress bar
-            epoch_iterator.set_description('Scale [{}/{}], Iteration [{}/{}]'.format(
-                opt.scale_idx + 1, opt.stop_scale + 1,
-                iteration + 1, opt.niter,
-            ))
+        # Update progress bar
+        epoch_iterator.set_description('Scale [{}/{}], Iteration [{}/{}]'.format(
+            opt.scale_idx + 1, opt.stop_scale + 1,
+            iteration + 1, opt.niter,
+        ))
 
         ############################
         # val step
