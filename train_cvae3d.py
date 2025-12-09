@@ -67,7 +67,7 @@ def get_parser():
     parser.add_argument('--max-size', type=int, default=256, help='image minimal size at the coarser scale')
 
     # optimization hyper parameters:
-    parser.add_argument('--niter', type=int, default=30, help='number of iterations to train per scale')
+    parser.add_argument('--niter', type=int, default=40, help='number of iterations to train per scale')
     parser.add_argument('--lr-g', type=float, default=0.0005, help='learning rate, default=0.0005')
     parser.add_argument('--lr-d', type=float, default=0.0005, help='learning rate, default=0.0005')
     parser.add_argument('--beta1', type=float, default=0.5, help='beta1 for adam. default=0.5')
@@ -167,7 +167,7 @@ def train(opt, netG):
         G_curr = netG
 
     progressbar_args = {
-        "iterable": range(opt.niter),
+        "iterable": range(opt.niter * 2) if opt.vae_levels < opt.scale_idx + 1 else range(opt.niter),
         "desc": "Training scale [{}/{}]".format(opt.scale_idx + 1, opt.stop_scale + 1),
         "train": True,
         "offset": 0,
