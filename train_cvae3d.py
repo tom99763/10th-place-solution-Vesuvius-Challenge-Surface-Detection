@@ -77,7 +77,7 @@ def get_parser():
     parser.add_argument('--disc-loss-weight', type=float, default=1.0, help='discriminator weight')
     parser.add_argument('--lr-scale', type=float, default=0.2, help='scaling of learning rate for lower stages')
     parser.add_argument('--train-depth', type=int, default=1, help='how many layers are trained if growing')
-    parser.add_argument('--grad-clip', type=float, default=10, help='gradient clip')
+    parser.add_argument('--grad-clip', type=float, default=5, help='gradient clip')
     parser.add_argument('--const-amp', action='store_true', default=False, help='constant noise amplitude')
     parser.add_argument('--train-all', action='store_true', default=False, help='train all levels w.r.t. train-depth')
 
@@ -224,8 +224,7 @@ def train(opt, netG):
 
             if opt.vae_levels >= opt.scale_idx + 1:
                 rec_vae_loss = opt.rec_loss(generated, mask_gt) + opt.rec_loss(generated_vae, mask_gt_0)
-                rec_vae_loss += 0.5 *(opt.topo_loss(generated, mask_gt) + opt.soft_surf_loss(generated, mask_gt) + \
-                               opt.topo_loss(generated_vae, mask_gt_0) + opt.soft_surf_loss(generated_vae, mask_gt_0))
+                rec_vae_loss += opt.topo_loss(generated, mask_gt) + opt.soft_surf_loss(generated, mask_gt)
 
                 kl_loss = kl_criterion(mu, logvar)
                 vae_loss = opt.rec_weight * rec_vae_loss + opt.kl_weight * kl_loss
@@ -263,8 +262,7 @@ def train(opt, netG):
                 ###########################
                 errG_total = 0
                 rec_loss = opt.rec_loss(generated, mask_gt)
-                rec_loss += 0.5 * (opt.topo_loss(generated, mask_gt) + opt.soft_surf_loss(generated, mask_gt) + \
-                               opt.topo_loss(generated_vae, mask_gt_0) + opt.soft_surf_loss(generated_vae, mask_gt_0))
+                rec_loss += opt.topo_loss(generated, mask_gt) + opt.soft_surf_loss(generated, mask_gt)
                 errG_total += opt.rec_weight * rec_loss
 
                 # Train with 3D Discriminator

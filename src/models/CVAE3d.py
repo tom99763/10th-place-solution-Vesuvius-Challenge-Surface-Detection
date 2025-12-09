@@ -32,7 +32,8 @@ def reparameterize(mu, logvar, training):
         eps = torch.zeros_like(std).normal_()
         return eps.mul(std).add_(mu)
     else:
-        return torch.zeros_like(mu).normal_()
+        #return torch.zeros_like(mu).normal_()
+        return mu
 
 
 def reparameterize_bern(x, training):
