@@ -188,6 +188,9 @@ def train(opt, netG):
         # train step
         ###########################
         looper = tqdm(opt.train_loader)
+        netG.train()
+        if opt.vae_levels < opt.scale_idx + 1:
+            netD.train()
         for mask_gt, mask_gt_0, mask_pred, mask_pred_0 in looper:
             mask_gt = mask_gt.to(opt.device)
             mask_gt_0 = mask_gt_0.to(opt.device)
@@ -282,6 +285,9 @@ def train(opt, netG):
         ############################
         # val step
         ###########################
+        netG.eval()
+        if opt.vae_levels < opt.scale_idx + 1:
+            netD.eval()
         with torch.no_grad():
             for mask_gt, mask_gt_0, mask_pred, mask_pred_0 in tqdm(opt.val_loader):
                 mask_gt = mask_gt.to(opt.device)
