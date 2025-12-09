@@ -51,7 +51,7 @@ def get_parser():
     parser.add_argument('--nc-im', type=int, default=1, help='# channels')
     parser.add_argument('--nfc', type=int, default=64, help='model basic # channels')
     parser.add_argument('--latent-dim', type=int, default=128, help='Latent dim size')
-    parser.add_argument('--vae-levels', type=int, default=3, help='Determine # layers being used for VAE')
+    parser.add_argument('--vae-levels', type=int, default=4, help='Determine # layers being used for VAE')
     parser.add_argument('--enc-blocks', type=int, default=2, help='# encoder blocks')
     parser.add_argument('--ker-size', type=int, default=3, help='kernel size')
     parser.add_argument('--num-layer', type=int, default=5, help='number of layers')
@@ -61,13 +61,13 @@ def get_parser():
     parser.add_argument('--discriminator', type=str, default='WDiscriminator3D', help='discriminator model')
 
     # pyramid parameters:
-    parser.add_argument('--scale-factor', type=float, default=0.75, help='pyramid scale factor')
+    parser.add_argument('--scale-factor', type=float, default=0.5, help='pyramid scale factor')
     parser.add_argument('--noise_amp', type=float, default=0.1, help='addative noise cont weight')
     parser.add_argument('--min-size', type=int, default=32, help='image minimal size at the coarser scale')
     parser.add_argument('--max-size', type=int, default=256, help='image minimal size at the coarser scale')
 
     # optimization hyper parameters:
-    parser.add_argument('--niter', type=int, default=2, help='number of iterations to train per scale')
+    parser.add_argument('--niter', type=int, default=30, help='number of iterations to train per scale')
     parser.add_argument('--lr-g', type=float, default=0.0005, help='learning rate, default=0.0005')
     parser.add_argument('--lr-d', type=float, default=0.0005, help='learning rate, default=0.0005')
     parser.add_argument('--beta1', type=float, default=0.5, help='beta1 for adam. default=0.5')
@@ -94,7 +94,7 @@ def get_parser():
     # main arguments
     parser.add_argument('--checkname', type=str, default='DEBUG', help='check name')
     parser.add_argument('--mode', default='train', help='task to be done')
-    parser.add_argument('--batch-size', type=int, default=1, help='batch size')
+    parser.add_argument('--batch-size', type=int, default=4, help='batch size')
     parser.add_argument('--print-interval', type=int, default=100, help='print interva')
     parser.add_argument('--visualize', action='store_true', default=False, help='visualize using tensorboard')
     parser.add_argument('--no-cuda', action='store_true', default=False, help='disables cuda')
@@ -107,6 +107,7 @@ def get_parser():
 def train(opt, netG):
     with LoggingBlock("Updating dataset", emph=True):
         logging.info(f'training scale :{opt.scale_idx} at fold {opt.selected_fold}')
+        prepare_dataset(opt)
         opt.train_dataset.setup_scale(opt.scale_idx)
         opt.val_dataset.setup_scale(opt.scale_idx)
 
@@ -119,10 +120,10 @@ def train(opt, netG):
         D_curr = WDiscriminator3D(opt).to(opt.device)
         if (opt.netG != '') and (opt.resumed_idx == opt.scale_idx):
             D_curr.load_state_dict(
-                torch.load('{}/netD_{}_{}.pth'.format(opt.resume_dir, opt.scale_idx - 1, opt.selected_fold))['state_dict'])
+                torch.load('{}/netD_{}_{}.pth'.format(opt.resume_dir, opt.scale_idx - 1, opt.selected_fold), map_location=opt.device)['state_dict'])
         elif opt.vae_levels < opt.scale_idx:
             D_curr.load_state_dict(
-                torch.load('{}/netD_{}_{}.pth'.format(opt.saver.experiment_dir, opt.scale_idx - 1, opt.selected_fold))['state_dict'])
+                torch.load('{}/netD_{}_{}.pth'.format(opt.saver.experiment_dir, opt.scale_idx - 1, opt.selected_fold), map_location=opt.device)['state_dict'])
         optimizerD = optim.Adam(D_curr.parameters(), lr=opt.lr_d, betas=(opt.beta1, 0.999))
 
     parameter_list = []
@@ -205,9 +206,9 @@ def train(opt, netG):
                             opt.Noise_Amps.append(opt.noise_amp)
                         else:
                             opt.Noise_Amps.append(0)
+                            G_curr.to(opt.device)
                             z_reconstruction, _, _ = G_curr(video = mask_gt_0, noise_amp = opt.Noise_Amps, mode="rec")
-
-                            RMSE = torch.sqrt(F.mse_loss(mask_gt_0, z_reconstruction))
+                            RMSE = torch.sqrt(F.mse_loss(mask_gt, z_reconstruction))
                             opt.noise_amp = opt.noise_amp_init * RMSE.item() / opt.batch_size
                             opt.Noise_Amps[-1] = opt.noise_amp
 
@@ -336,7 +337,8 @@ def train(opt, netG):
                 'state_dict': netG.state_dict(),
                 'optimizer': optimizerG.state_dict(),
                 'noise_amps': opt.Noise_Amps,
-            }, 'netG_{}_{}_{}_{}_{}.pth'.format(opt.selected_fold, topo_score, surf_score, dice_score, comp_metric))
+            }, 'netG_{}_{}_ {:.3f}_{:.3f}_{:.3f}_{:.3f}.pth'.format(opt.selected_fold, opt.scale_idx,
+                                                                    topo_score, surf_score, dice_score, comp_metric))
             if opt.vae_levels < opt.scale_idx + 1:
                 opt.saver.save_checkpoint({
                     'scale': opt.scale_idx,
@@ -391,6 +393,7 @@ def setup_parameters(opt):
     opt.rec_loss = torch.nn.MSELoss()
     opt.topo_loss = FastClDiceLoss()
     opt.soft_surf_loss = SoftSDFLoss()
+    opt.surf_loss = SurfaceLoss()
 
     # Initial parameters
     opt.scale_idx = 0
@@ -438,14 +441,14 @@ def main():
         if opt.netG != '':
             if not os.path.isfile(opt.netG):
                 raise RuntimeError("=> no <G> checkpoint found at '{}'".format(opt.netG))
-            checkpoint = torch.load(opt.netG)
+            checkpoint = torch.load(opt.netG, map_location=opt.device)
             opt.scale_idx = checkpoint['scale']
             opt.resumed_idx = checkpoint['scale']
             opt.resume_dir = '/'.join(opt.netG.split('/')[:-1])
             for _ in range(opt.scale_idx):
                 netG.init_next_stage()
             netG.load_state_dict(checkpoint['state_dict'])
-            opt.Noise_Amps = torch.load(os.path.join(opt.resume_dir, 'Noise_Amps.pth'))['data']
+            opt.Noise_Amps = torch.load(os.path.join(opt.resume_dir, 'Noise_Amps.pth'), map_location=opt.device)['data']
         else:
             opt.resumed_idx = -1
 
