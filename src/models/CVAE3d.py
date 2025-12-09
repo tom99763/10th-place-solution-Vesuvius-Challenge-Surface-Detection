@@ -455,7 +455,7 @@ if __name__ == '__main__':
     noise_init = generate_noise(size=opt.Z_init_size).to(opt.device)
     opt.Noise_Amps = [1]
 
-    selected_scale_index = 4
+    selected_scale_index = 9
     G = GeneratorHPVAEGAN(opt)
     for _ in range(selected_scale_index):
         G.init_next_stage()

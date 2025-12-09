@@ -51,7 +51,7 @@ def get_parser():
     parser.add_argument('--nc-im', type=int, default=1, help='# channels')
     parser.add_argument('--nfc', type=int, default=64, help='model basic # channels')
     parser.add_argument('--latent-dim', type=int, default=128, help='Latent dim size')
-    parser.add_argument('--vae-levels', type=int, default=4, help='Determine # layers being used for VAE')
+    parser.add_argument('--vae-levels', type=int, default=2, help='Determine # layers being used for VAE')
     parser.add_argument('--enc-blocks', type=int, default=2, help='# encoder blocks')
     parser.add_argument('--ker-size', type=int, default=3, help='kernel size')
     parser.add_argument('--num-layer', type=int, default=5, help='number of layers')
@@ -61,7 +61,7 @@ def get_parser():
     parser.add_argument('--discriminator', type=str, default='WDiscriminator3D', help='discriminator model')
 
     # pyramid parameters:
-    parser.add_argument('--scale-factor', type=float, default=0.75, help='pyramid scale factor')
+    parser.add_argument('--scale-factor', type=float, default=0.5, help='pyramid scale factor')
     parser.add_argument('--noise_amp', type=float, default=0.1, help='addative noise cont weight')
     parser.add_argument('--min-size', type=int, default=32, help='image minimal size at the coarser scale')
     parser.add_argument('--max-size', type=int, default=256, help='image minimal size at the coarser scale')
@@ -72,12 +72,12 @@ def get_parser():
     parser.add_argument('--lr-d', type=float, default=0.0005, help='learning rate, default=0.0005')
     parser.add_argument('--beta1', type=float, default=0.5, help='beta1 for adam. default=0.5')
     parser.add_argument('--lambda-grad', type=float, default=0.1, help='gradient penelty weight')
-    parser.add_argument('--rec-weight', type=float, default=2., help='reconstruction loss weight')
-    parser.add_argument('--kl-weight', type=float, default=5., help='reconstruction loss weight')
+    parser.add_argument('--rec-weight', type=float, default=5., help='reconstruction loss weight')
+    parser.add_argument('--kl-weight', type=float, default=1., help='reconstruction loss weight')
     parser.add_argument('--disc-loss-weight', type=float, default=1.0, help='discriminator weight')
     parser.add_argument('--lr-scale', type=float, default=0.2, help='scaling of learning rate for lower stages')
     parser.add_argument('--train-depth', type=int, default=1, help='how many layers are trained if growing')
-    parser.add_argument('--grad-clip', type=float, default=5, help='gradient clip')
+    parser.add_argument('--grad-clip', type=float, default=10, help='gradient clip')
     parser.add_argument('--const-amp', action='store_true', default=False, help='constant noise amplitude')
     parser.add_argument('--train-all', action='store_true', default=False, help='train all levels w.r.t. train-depth')
 
@@ -188,6 +188,9 @@ def train(opt, netG):
         # train step
         ###########################
         looper = tqdm(opt.train_loader)
+        G_curr.train()
+        if opt.vae_levels < opt.scale_idx + 1:
+            D_curr.train()
         for mask_gt, mask_gt_0, mask_pred, mask_pred_0 in looper:
             mask_gt = mask_gt.to(opt.device)
             mask_gt_0 = mask_gt_0.to(opt.device)
@@ -220,7 +223,10 @@ def train(opt, netG):
             generated, generated_vae, (mu, logvar) = G_curr(video = mask_gt_0, noise_amp = opt.Noise_Amps, mode="rec")
 
             if opt.vae_levels >= opt.scale_idx + 1:
-                rec_vae_loss = opt.rec_loss(generated, mask_gt) + opt.rec_loss(generated_vae, mask_gt_0)
+                #rec_vae_loss = opt.rec_loss(generated, mask_gt) + opt.rec_loss(generated_vae, mask_gt_0)
+                rec_vae_loss = opt.topo_loss(generated, mask_gt) + opt.soft_surf_loss(generated, mask_gt) + \
+                               opt.topo_loss(generated_vae, mask_gt_0) + opt.soft_surf_loss(generated_vae, mask_gt_0)
+
                 kl_loss = kl_criterion(mu, logvar)
                 vae_loss = opt.rec_weight * rec_vae_loss + opt.kl_weight * kl_loss
 
@@ -256,7 +262,8 @@ def train(opt, netG):
                 # (3) Update G network: maximize D(G(z))
                 ###########################
                 errG_total = 0
-                rec_loss = opt.rec_loss(generated, mask_gt)
+                rec_loss = opt.topo_loss(generated, mask_gt) + opt.soft_surf_loss(generated, mask_gt) + \
+                               opt.topo_loss(generated_vae, mask_gt_0) + opt.soft_surf_loss(generated_vae, mask_gt_0)
                 errG_total += opt.rec_weight * rec_loss
 
                 # Train with 3D Discriminator
@@ -282,6 +289,9 @@ def train(opt, netG):
         ############################
         # val step
         ###########################
+        G_curr.eval()
+        if opt.vae_levels < opt.scale_idx + 1:
+            D_curr.eval()
         with torch.no_grad():
             for mask_gt, mask_gt_0, mask_pred, mask_pred_0 in tqdm(opt.val_loader):
                 mask_gt = mask_gt.to(opt.device)
@@ -315,7 +325,8 @@ def train(opt, netG):
             dice_score = val_dice_metric.aggregate().mean().item()
 
             # === Competition metric ===
-            comp_metric = 0.30 * topo_score + 0.35 * surf_score + 0.35 * dice_score
+            #comp_metric = 0.30 * topo_score + 0.35 * surf_score + 0.35 * dice_score
+            comp_metric = 0.40 * topo_score + 0.60 * surf_score #+ 0.35 * dice_score
 
             print(f"\nVAL Epoch {iteration} │ "
                   f"Dice: {dice_score:.4f} │ "
