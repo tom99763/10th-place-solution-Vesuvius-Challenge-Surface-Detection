@@ -261,7 +261,7 @@ class GeneratorHPVAEGAN(nn.Module):
         else:
             z_vae = noise_init
 
-        vae_out = torch.tanh(self.decoder(z_vae))
+        vae_out = torch.tanh(self.decoder(z_vae)) * 0.5 + 0.5
 
         if sample_init is not None:
             x_prev_out = self.refinement_layers(sample_init[0], sample_init[1], noise_amp, mode)
@@ -288,7 +288,7 @@ class GeneratorHPVAEGAN(nn.Module):
             else:
                 x_prev = block(x_prev_out_up)
 
-            x_prev_out = torch.tanh(x_prev + x_prev_out_up)
+            x_prev_out = torch.tanh(x_prev + x_prev_out_up) * 0.5 + 0.5
 
         return x_prev_out
 
