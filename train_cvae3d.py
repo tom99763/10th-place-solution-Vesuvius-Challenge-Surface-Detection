@@ -67,13 +67,13 @@ def get_parser():
     parser.add_argument('--max-size', type=int, default=256, help='image minimal size at the coarser scale')
 
     # optimization hyper parameters:
-    parser.add_argument('--niter', type=int, default=40, help='number of iterations to train per scale')
+    parser.add_argument('--niter', type=int, default=30, help='number of iterations to train per scale')
     parser.add_argument('--lr-g', type=float, default=0.0005, help='learning rate, default=0.0005')
     parser.add_argument('--lr-d', type=float, default=0.0005, help='learning rate, default=0.0005')
     parser.add_argument('--beta1', type=float, default=0.5, help='beta1 for adam. default=0.5')
     parser.add_argument('--lambda-grad', type=float, default=0.1, help='gradient penelty weight')
     parser.add_argument('--rec-weight', type=float, default=1., help='reconstruction loss weight')
-    parser.add_argument('--kl-weight', type=float, default=1., help='reconstruction loss weight')
+    parser.add_argument('--kl-weight', type=float, default=5., help='reconstruction loss weight')
     parser.add_argument('--disc-loss-weight', type=float, default=1.0, help='discriminator weight')
     parser.add_argument('--lr-scale', type=float, default=0.2, help='scaling of learning rate for lower stages')
     parser.add_argument('--train-depth', type=int, default=1, help='how many layers are trained if growing')
@@ -167,7 +167,7 @@ def train(opt, netG):
         G_curr = netG
 
     progressbar_args = {
-        "iterable": range(opt.niter * 2) if opt.vae_levels < opt.scale_idx + 1 else range(opt.niter),
+        "iterable": range(opt.niter * 3) if opt.vae_levels < opt.scale_idx + 1 else range(opt.niter),
         "desc": "Training scale [{}/{}]".format(opt.scale_idx + 1, opt.stop_scale + 1),
         "train": True,
         "offset": 0,
