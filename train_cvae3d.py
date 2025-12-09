@@ -4,7 +4,11 @@ from src.trainers.losses import *
 import argparse
 import random
 import os
-from src.utils import logger, saver, summaries, tools
+#from src.utils import logger, saver, summaries, tools
+from src.utils.logger import  *
+from src.utils.saver import *
+from src.utils.summaries import *
+from src.utils.tools import *
 import colorama
 from src.datasets.scroll_dataset_cvae3d import *
 import json
@@ -35,19 +39,19 @@ def get_parser():
     parser.add_argument('--manualSeed', type=int, help='manual seed')
 
     # files
-    parser.add_argument('--dataset_dir', default='./data/vesuvius-challenge-surface-detection', type=str, required=True,
+    parser.add_argument('--dataset_dir', default='./data/vesuvius-challenge-surface-detection', type=str,
                         help='dataset directory')
     parser.add_argument('--oof_dir', default='./nnunet/nnUNet_results/Dataset900_VesuviusScroll'
                                                  '/nnUNetTrainer__nnUNetResEncUNetMPlans__3d_fullres/'
-                                                 'oof', type=str, required=True,
+                                                 'oof', type=str,
                         help='out-of-fold directory')
-    parser.add_argument('--validation_split', default='./splits_final.json', type=str, required=True, help='validation split')
+    parser.add_argument('--validation_split', default='./splits_final.json', type=str, help='validation split')
 
     # networks hyper parameters:
     parser.add_argument('--nc-im', type=int, default=1, help='# channels')
     parser.add_argument('--nfc', type=int, default=64, help='model basic # channels')
     parser.add_argument('--latent-dim', type=int, default=128, help='Latent dim size')
-    parser.add_argument('--vae-levels', type=int, default=4, help='Determine # layers being used for VAE')
+    parser.add_argument('--vae-levels', type=int, default=3, help='Determine # layers being used for VAE')
     parser.add_argument('--enc-blocks', type=int, default=2, help='# encoder blocks')
     parser.add_argument('--ker-size', type=int, default=3, help='kernel size')
     parser.add_argument('--num-layer', type=int, default=5, help='number of layers')
@@ -63,7 +67,7 @@ def get_parser():
     parser.add_argument('--max-size', type=int, default=256, help='image minimal size at the coarser scale')
 
     # optimization hyper parameters:
-    parser.add_argument('--niter', type=int, default=50, help='number of iterations to train per scale')
+    parser.add_argument('--niter', type=int, default=2, help='number of iterations to train per scale')
     parser.add_argument('--lr-g', type=float, default=0.0005, help='learning rate, default=0.0005')
     parser.add_argument('--lr-d', type=float, default=0.0005, help='learning rate, default=0.0005')
     parser.add_argument('--beta1', type=float, default=0.5, help='beta1 for adam. default=0.5')
@@ -78,7 +82,7 @@ def get_parser():
     parser.add_argument('--train-all', action='store_true', default=False, help='train all levels w.r.t. train-depth')
 
     # Dataset
-    parser.add_argument('--video-path', required=True, help='video path')
+    parser.add_argument('--experiment-dir', default='./cvae3d', help='video path')
     parser.add_argument('--start-frame', default=0, type=int, help='start frame number')
     parser.add_argument('--max-frames', default=13, type=int, help='# frames to save')
     parser.add_argument('--hflip', action='store_true', default=False, help='horizontal flip')
@@ -101,7 +105,7 @@ def get_parser():
 
 
 def train(opt, netG):
-    with logger.LoggingBlock("Updating dataset", emph=True):
+    with LoggingBlock("Updating dataset", emph=True):
         logging.info(f'training scale :{opt.scale_idx} at fold {opt.selected_fold}')
         opt.train_dataset.setup_scale(opt.scale_idx)
         opt.val_dataset.setup_scale(opt.scale_idx)
@@ -182,7 +186,8 @@ def train(opt, netG):
         ############################
         # train step
         ###########################
-        for mask_gt, mask_gt_0, mask_pred, mask_pred_0 in tqdm(opt.train_loader):
+        looper = tqdm(opt.train_loader)
+        for mask_gt, mask_gt_0, mask_pred, mask_pred_0 in looper:
             mask_gt = mask_gt.to(opt.device)
             mask_gt_0 = mask_gt_0.to(opt.device)
             noise_init = generate_noise(size=opt.Z_init_size, device=opt.device)
@@ -200,7 +205,7 @@ def train(opt, netG):
                             opt.Noise_Amps.append(opt.noise_amp)
                         else:
                             opt.Noise_Amps.append(0)
-                            z_reconstruction, _, _ = G_curr(mask_gt_0, opt.Noise_Amps, mode="rec")
+                            z_reconstruction, _, _ = G_curr(video = mask_gt_0, noise_amp = opt.Noise_Amps, mode="rec")
 
                             RMSE = torch.sqrt(F.mse_loss(mask_gt_0, z_reconstruction))
                             opt.noise_amp = opt.noise_amp_init * RMSE.item() / opt.batch_size
@@ -211,7 +216,7 @@ def train(opt, netG):
             ###########################
             total_loss = 0
 
-            generated, generated_vae, (mu, logvar) = G_curr(mask_gt_0, opt.Noise_Amps, mode="rec")
+            generated, generated_vae, (mu, logvar) = G_curr(video = mask_gt_0, noise_amp = opt.Noise_Amps, mode="rec")
 
             if opt.vae_levels >= opt.scale_idx + 1:
                 rec_vae_loss = opt.rec_loss(generated, mask_gt) + opt.rec_loss(generated_vae, mask_gt_0)
@@ -219,6 +224,7 @@ def train(opt, netG):
                 vae_loss = opt.rec_weight * rec_vae_loss + opt.kl_weight * kl_loss
 
                 total_loss += vae_loss
+                looper.set_postfix(loss=f"total_loss: {total_loss} -- vae_loss: {rec_vae_loss} -- kl_loss :{kl_loss}")
             else:
                 ############################
                 # (2) Update D network: maximize D(x) + D(G(z))
@@ -233,7 +239,7 @@ def train(opt, netG):
 
                 # train with fake
                 #################
-                fake, _ = G_curr(noise_init, opt.Noise_Amps, noise_init=noise_init, mode="rand")
+                fake, _ = G_curr(video = noise_init, noise_amp =  opt.Noise_Amps, noise_init=noise_init, mode="rand")
 
                 # Train 3D Discriminator
                 output = D_curr(fake.detach())
@@ -259,6 +265,8 @@ def train(opt, netG):
 
                 total_loss += errG_total
 
+                looper.set_postfix(loss=f"total_loss: {total_loss} -- errG: {errG} -- errD :{errD_total} -- gp:{gradient_penalty}")
+
             G_curr.zero_grad()
             total_loss.backward()
             torch.nn.utils.clip_grad_norm_(G_curr.parameters(), opt.grad_clip)
@@ -281,7 +289,7 @@ def train(opt, netG):
                 mask_pred_0 = mask_pred_0.to(opt.device)
 
                 #forward
-                mask_pred_rec, _, _ = G_curr(mask_pred_0, opt.Noise_Amps, mode="rec")
+                mask_pred_rec, _, _ = G_curr(video = mask_pred_0, noise_amp = opt.Noise_Amps, mode="rec")
                 mask_pred_rec = mask_pred_rec.clamp(0, 1)
                 ignore_mask = (mask_gt != 2).float()
                 target_mask = mask_gt * ignore_mask
@@ -360,8 +368,8 @@ def prepare_dataset(opt):
 
 def setup_parameters(opt):
     # utilities
-    opt.saver = saver.VideoSaver(opt)
-    opt.summary = summaries.TensorboardSummary(opt.saver.experiment_dir)
+    opt.saver = VideoSaver(opt)
+    #opt.summary = summaries.TensorboardSummary(opt.saver.experiment_dir)
     device = 'cuda' if torch.cuda.is_available() and not opt.no_cuda else 'cpu'
     opt.device = device
 
@@ -407,6 +415,7 @@ def main():
         print(f"****** Fold: {fold_id} starts ******")
         opt.selected_fold = fold_id
         prepare_dataset(opt)
+        configure_logging(f"{opt.experiment_dir}/logs/train.log")
 
         #show loggings
         with open(os.path.join(opt.saver.experiment_dir, 'args.txt'), 'w') as args_file:
@@ -414,21 +423,16 @@ def main():
                 if type(value) in (str, int, float, tuple, list, bool):
                     args_file.write('{}: {}\n'.format(argument, value))
 
-        with logger.LoggingBlock("Commandline Arguments", emph=True):
+        with LoggingBlock("Commandline Arguments", emph=True):
             for argument, value in sorted(vars(opt).items()):
                 if type(value) in (str, int, float, tuple, list):
                     logging.info('{}: {}'.format(argument, value))
 
-        with logger.LoggingBlock("Experiment Summary", emph=True):
-            video_file_name, checkname, experiment = opt.saver.experiment_dir.split('/')[-3:]
-            logging.info("{}Checkname  :{} {}{}".format(magenta, clear, checkname, clear))
-            logging.info("{}Experiment :{} {}{}".format(magenta, clear, experiment, clear))
 
-            with logger.LoggingBlock("Commandline Summary", emph=True):
-                logging.info("{}Generator      :{} {}{}".format(blue, clear, opt.generator, clear))
-                logging.info("{}Iterations     :{} {}{}".format(blue, clear, opt.niter, clear))
-                logging.info("{}Rec. Weight    :{} {}{}".format(blue, clear, opt.rec_weight, clear))
-
+        with LoggingBlock("Commandline Summary", emph=True):
+            logging.info("{}Generator      :{} {}{}".format(blue, clear, opt.generator, clear))
+            logging.info("{}Iterations     :{} {}{}".format(blue, clear, opt.niter, clear))
+            logging.info("{}Rec. Weight    :{} {}{}".format(blue, clear, opt.rec_weight, clear))
 
         netG = GeneratorHPVAEGAN(opt).to(opt.device)
         if opt.netG != '':

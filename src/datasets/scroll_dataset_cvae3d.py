@@ -18,14 +18,16 @@ class CVAEDataset(Dataset):
         size = get_scales_by_index(0, self.opt.scale_factor, self.opt.stop_scale, self.opt.img_size)
         self.scale_size_0 = [size] * 3
         self.is_train = is_train
+        self.dataset_dir = Path(self.opt.dataset_dir)
+        self.oof_dir = Path(self.opt.oof_dir)
 
     def __len__(self):
         return len(self.id_list)
 
     def __getitem__(self, idx):
         idx = self.id_list[idx]
-        mask_gt = load_volume(self.opt.dataset_dir/'train_labels'/f'{idx}.tif')
-        mask_pred = load_volume(self.opt.oof_dir/f'{idx}.tif')
+        mask_gt = load_volume(self.dataset_dir/'train_labels'/f'{idx}.tif')
+        mask_pred = load_volume(self.oof_dir/f'{idx}.tif')
         _mask_gt = torch.from_numpy(mask_gt).float()
         _mask_pred = torch.from_numpy(mask_pred).float()
 

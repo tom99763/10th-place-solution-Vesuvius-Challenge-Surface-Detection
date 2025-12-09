@@ -7,7 +7,7 @@ import logging
 import os
 import re
 import sys
-import tools
+import src.utils.tools as tools
 
 
 def get_default_logging_format(colorize=False, brackets=False):
