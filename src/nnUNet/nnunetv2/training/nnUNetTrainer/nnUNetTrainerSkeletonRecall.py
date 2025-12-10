@@ -243,7 +243,7 @@ class nnUNetTrainerSkeletonRecall(nnUNetTrainer):
                 p_rotation=0.2,
                 rotation=rotation_for_DA,
                 p_scaling=0.2,
-                scaling=(0.7, 1.4),
+                scaling=(0.85, 1.15),  # Reduced from (0.7, 1.4) to (0.85, 1.15) for topology preservation
                 p_synchronize_scaling_across_axes=1,
                 bg_style_seg_sampling=False,  # , mode_seg='nearest'
             )
