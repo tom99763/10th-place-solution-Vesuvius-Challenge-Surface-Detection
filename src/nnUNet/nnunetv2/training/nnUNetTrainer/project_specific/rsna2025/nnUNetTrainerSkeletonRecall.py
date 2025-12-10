@@ -32,7 +32,9 @@ from batchgeneratorsv2.transforms.nnunet.seg_to_onehot import MoveSegAsOneHotToD
 from batchgeneratorsv2.transforms.noise.gaussian_blur import GaussianBlurTransform
 from batchgeneratorsv2.transforms.spatial.low_resolution import SimulateLowResolutionTransform
 from batchgeneratorsv2.transforms.spatial.mirroring import MirrorTransform
+from batchgeneratorsv2.transforms.spatial.rot90 import Rot90Transform
 from batchgeneratorsv2.transforms.spatial.spatial import SpatialTransform
+from batchgeneratorsv2.transforms.local.brightness_gradient import BrightnessGradientAdditiveTransform
 from batchgeneratorsv2.transforms.utils.compose import ComposeTransforms
 from batchgeneratorsv2.transforms.utils.deep_supervision_downsampling import DownsampleSegForDSTransform
 from batchgeneratorsv2.transforms.utils.nnunet_masking import MaskImageTransform
@@ -243,7 +245,7 @@ class nnUNetTrainerSkeletonRecall(nnUNetTrainer):
                 p_rotation=0.2,
                 rotation=rotation_for_DA,
                 p_scaling=0.2,
-                scaling=(0.7, 1.4),
+                scaling=(0.85, 1.15), #reduced from (0.7, 1.4) to (0.85, 1.15) for topology preservation    
                 p_synchronize_scaling_across_axes=1,
                 bg_style_seg_sampling=False,  # , mode_seg='nearest'
             )
@@ -251,6 +253,158 @@ class nnUNetTrainerSkeletonRecall(nnUNetTrainer):
 
         if do_dummy_2d_data_aug:
             transforms.append(Convert2DTo3DTransform())
+
+        # ====================================================================
+        # NEW TOPOLOGY-SAFE AUGMENTATIONS (Currently Disabled - Enable One at a Time)
+        # ====================================================================
+        # These augmentations are designed to improve TopoScore while preserving
+        # topology. Test each one individually to measure impact.
+        # ====================================================================
+
+        # # 1. Rot90Transform - Grid-aligned 90° rotations (XY plane only, preserves Z)
+        # # Why: Topology-safe rotations, helps orientation invariance
+        # # Expected impact: +1-3% TopoScore, neutral SurfaceDice/VOI
+        # transforms.append(RandomTransform(
+        #     Rot90Transform(axes=(1, 2)),  # Rotate in XY plane only (safe for scrolls)
+        #     apply_probability=0.4
+        # ))
+
+        # # 2. Copy-Paste Z-Safe - Instance boundary learning
+        # # Why: Helps model learn instance boundaries, reduces mergers between scroll layers
+        # # Expected impact: +2-4% TopoScore, slight improvement in VOI
+        # from scipy import ndimage
+        # class CopyPasteTransformZSafe(BasicTransform):
+        #     """Copy foreground regions, preserving Z-axis continuity for scrolls."""
+        #     def __init__(self, num_regions=(1, 2)):
+        #         super().__init__()
+        #         self.num_regions = num_regions
+        #     
+        #     def __call__(self, **data_dict):
+        #         seg = data_dict['segmentation'][0]  # (H, W, D)
+        #         data = data_dict['data']
+        #         
+        #         # Process per-slice to maintain Z continuity
+        #         for z in range(seg.shape[2]):
+        #             slice_2d = seg[:, :, z]
+        #             labeled, num_features = ndimage.label(slice_2d > 0)
+        #             if num_features > 0:
+        #                 n_regions = np.random.randint(1, min(self.num_regions[1] + 1, num_features + 1))
+        #                 region_ids = np.random.choice(range(1, num_features + 1), 
+        #                                            size=min(n_regions, num_features), 
+        #                                            replace=False)
+        #                 copy_mask = np.isin(labeled, region_ids)
+        #                 # Apply copy-paste per slice (keeps Z continuity)
+        #                 data[:, :, :, z] = np.where(
+        #                     copy_mask[None, :, :], 
+        #                     data[:, :, :, z], 
+        #                     data[:, :, :, z]
+        #                 )
+        #         data_dict['data'] = data
+        #         return data_dict
+        # 
+        # transforms.append(RandomTransform(
+        #     CopyPasteTransformZSafe(num_regions=(1, 2)),
+        #     apply_probability=0.25
+        # ))
+
+        # # 3. Low-Frequency Bias Field - Simulates CT acquisition variations
+        # # Why: Simulates real CT artifacts (bias fields) without topology risk
+        # # Expected impact: +0.5-1.5% TopoScore, slight improvement in SurfaceDice
+        # transforms.append(RandomTransform(
+        #     BrightnessGradientAdditiveTransform(
+        #         max_strength=(0.9, 1.15),  # Mild multiplicative bias
+        #         p_per_channel=1.0
+        #     ),
+        #     apply_probability=0.2
+        # ))
+
+        # # 4. Safe Translation - Small shifts without wrap-around
+        # # Why: Avoids cyclic mergers that hurt topology
+        # # Expected impact: +0.5-1% TopoScore, neutral others
+        # class SafeTranslationTransform(BasicTransform):
+        #     """Small translations with crop+pad (no wrap-around to prevent cyclic mergers)."""
+        #     def __init__(self, max_shift=2):
+        #         super().__init__()
+        #         self.max_shift = max_shift
+        #     
+        #     def __call__(self, **data_dict):
+        #         data = data_dict['data']
+        #         seg = data_dict['segmentation']
+        #         
+        #         # Random shifts per axis
+        #         shifts = [np.random.randint(-self.max_shift, self.max_shift + 1) 
+        #                  for _ in range(3)]
+        #         
+        #         if all(s == 0 for s in shifts):
+        #             return data_dict
+        #         
+        #         # Apply shift with crop+pad (no wrap)
+        #         for axis, shift in enumerate(shifts):
+        #             if shift == 0:
+        #                 continue
+        #             
+        #             # Shift data
+        #             data = np.roll(data, shift, axis=axis+1)  # +1 for channel dim
+        #             seg = np.roll(seg, shift, axis=axis+1)
+        #             
+        #             # Zero out wrapped regions to prevent cyclic connections
+        #             if shift > 0:
+        #                 slicer = [slice(None)] * data.ndim
+        #                 slicer[axis+1] = slice(0, shift)
+        #                 data[tuple(slicer)] = 0
+        #                 seg[tuple(slicer)] = 0
+        #             else:
+        #                 slicer = [slice(None)] * data.ndim
+        #                 slicer[axis+1] = slice(shift, None)
+        #                 data[tuple(slicer)] = 0
+        #                 seg[tuple(slicer)] = 0
+        #         
+        #         data_dict['data'] = data
+        #         data_dict['segmentation'] = seg
+        #         return data_dict
+        # 
+        # transforms.append(RandomTransform(
+        #     SafeTranslationTransform(max_shift=2),
+        #     apply_probability=0.15
+        # ))
+
+        # # 5. Spatial Dropout Z-Aware - Random region dropout per slice
+        # # Why: Forces model to learn continuity, encourages topology preservation
+        # # Expected impact: +1-2% TopoScore, slight improvement in continuity
+        # class SpatialDropoutTransformZSafe(BasicTransform):
+        #     """Randomly zero out small 3D regions per slice to force continuity learning."""
+        #     def __init__(self, dropout_size=(3, 3, 1), num_drops=(1, 2)):
+        #         super().__init__()
+        #         self.dropout_size = dropout_size
+        #         self.num_drops = num_drops
+        #     
+        #     def __call__(self, **data_dict):
+        #         data = data_dict['data']
+        #         H, W, D = data.shape[1:]
+        #         
+        #         n_drops = np.random.randint(self.num_drops[0], self.num_drops[1] + 1)
+        #         for _ in range(n_drops):
+        #             # Random position
+        #             h = np.random.randint(0, max(1, H - self.dropout_size[0]))
+        #             w = np.random.randint(0, max(1, W - self.dropout_size[1]))
+        #             d = np.random.randint(0, max(1, D - self.dropout_size[2]))
+        #             
+        #             # Zero out region (slice-aware: dropout_size[2]=1 means per-slice)
+        #             data[:, h:h+self.dropout_size[0], 
+        #                     w:w+self.dropout_size[1], 
+        #                     d:d+self.dropout_size[2]] = 0
+        #         
+        #         data_dict['data'] = data
+        #         return data_dict
+        # 
+        # transforms.append(RandomTransform(
+        #     SpatialDropoutTransformZSafe(dropout_size=(3, 3, 1), num_drops=(1, 2)),
+        #     apply_probability=0.15
+        # ))
+
+        # ====================================================================
+        # END OF NEW AUGMENTATIONS
+        # ====================================================================
 
         transforms.append(
             RandomTransform(
