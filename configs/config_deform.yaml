@@ -2,7 +2,7 @@ project_name: vesurvius-challenge
 exp_name: deform-dynunet-larger-patch
 data_path: ./data/vesuvius-challenge-surface-detection
 nnunet_path: ./nnunet
-petrained_ckpt_path: ./models/deform-dynunet-fold0-epoch=114-val_comp_metric=0.6404.ckpt
+petrained_ckpt_path: '' #./models/deform-dynunet-fold0-epoch=114-val_comp_metric=0.6404.ckpt
 data_split_path: ./splits_final.json
 batch_size: 1
 num_workers: 4
@@ -13,7 +13,7 @@ n_splits: 5
 seed: 42
 input_size: [-1, 128, 128]
 threshold: 0.5
-selected_fold: 0
+selected_fold: ''
 is_prob_oof_mask: false
 
 #model config

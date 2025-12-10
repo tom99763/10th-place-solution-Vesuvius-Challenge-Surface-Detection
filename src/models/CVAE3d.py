@@ -171,7 +171,7 @@ class WDiscriminator3D(nn.Module):
         self.head = ConvBlock3DSN(opt.nc_im, N, opt.ker_size, opt.ker_size // 2, stride=1, bn=True, act='lrelu')
         self.body = nn.Sequential()
         for i in range(opt.num_layer):
-            block = ConvBlock3DSN(N, N, opt.ker_size, opt.ker_size // 2, stride=1, bn=True, act='lrelu')
+            block = ConvBlock3DSN(N, N, opt.ker_size, opt.ker_size // 2, stride=2, bn=True, act='lrelu')
             self.body.add_module('block%d' % (i), block)
         self.tail = nn.Conv3d(N, 1, kernel_size=opt.ker_size, padding=1, stride=1)
 
@@ -262,7 +262,7 @@ class GeneratorHPVAEGAN(nn.Module):
         else:
             z_vae = noise_init
 
-        vae_out = torch.tanh(self.decoder(z_vae)) * 0.5 + 0.5
+        vae_out = torch.sigmoid(self.decoder(z_vae))
 
         if sample_init is not None:
             x_prev_out = self.refinement_layers(sample_init[0], sample_init[1], noise_amp, mode)
@@ -289,7 +289,7 @@ class GeneratorHPVAEGAN(nn.Module):
             else:
                 x_prev = block(x_prev_out_up)
 
-            x_prev_out = torch.tanh(x_prev + x_prev_out_up) * 0.5 + 0.5
+            x_prev_out = torch.sigmoid(x_prev + x_prev_out_up)
 
         return x_prev_out
 
@@ -456,7 +456,7 @@ if __name__ == '__main__':
     noise_init = generate_noise(size=opt.Z_init_size).to(opt.device)
     opt.Noise_Amps = [1]
 
-    selected_scale_index = 9
+    selected_scale_index = 4
     G = GeneratorHPVAEGAN(opt)
     for _ in range(selected_scale_index):
         G.init_next_stage()

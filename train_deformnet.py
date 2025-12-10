@@ -36,7 +36,7 @@ def run(cfg: DictConfig):
         val_splits = json.load(f)
 
     for i in range(len(val_splits)):
-        if cfg.selected_fold is not None and i!=cfg.selected_fold:
+        if cfg.selected_fold!='' and i!=cfg.selected_fold:
             continue
         print(f'training fold {i}')
         set_seed(cfg.seed)

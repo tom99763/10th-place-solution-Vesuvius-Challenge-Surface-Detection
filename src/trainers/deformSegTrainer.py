@@ -3,6 +3,7 @@ from monai.metrics import DiceMetric
 import pytorch_lightning as pl
 from src.trainers.losses import *
 from monai.losses import DiceCELoss
+from src.procs.proc_data import *
 
 # ---------------------
 # Lightning Module
@@ -59,7 +60,7 @@ class DiffeoRefineModule(pl.LightningModule):
     # ----------------------------------------
     def training_step(self, batch, batch_idx):
         vol, mask, mask_oof = batch['Image'], batch['Mask'], batch['Mask_OOF']
-        x = torch.cat([vol, mask_oof], dim=1)
+        x = torch.cat([vol, gaussian_blur_3d(mask_oof)], dim=1)
         pred_warped, v, phi = self(x, return_params=True)
         ignore_mask = mask != 2
 
@@ -86,7 +87,7 @@ class DiffeoRefineModule(pl.LightningModule):
 
     def validation_step(self, batch, batch_idx):
         vol, mask, mask_oof = batch['Image'], batch['Mask'], batch['Mask_OOF']
-        x = torch.cat([vol, mask_oof], dim=1)
+        x = torch.cat([vol, gaussian_blur_3d(mask_oof)], dim=1)
 
         # Replace this with real inference when ready
         pred_warped = self.sliding_window_inferer(x, self.model)

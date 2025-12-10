@@ -166,8 +166,13 @@ def train(opt, netG):
     else:
         G_curr = netG
 
+    if(opt.scale_idx==0):
+        niter = range(10)
+    else:
+        niter = range(opt.niter * 4) if opt.vae_levels < opt.scale_idx + 1 else range(opt.niter)
+
     progressbar_args = {
-        "iterable": range(opt.niter * 3) if opt.vae_levels < opt.scale_idx + 1 else range(opt.niter),
+        "iterable": niter,
         "desc": "Training scale [{}/{}]".format(opt.scale_idx + 1, opt.stop_scale + 1),
         "train": True,
         "offset": 0,
@@ -323,7 +328,8 @@ def train(opt, netG):
 
             # === Competition metric ===
             #comp_metric = 0.30 * topo_score + 0.35 * surf_score + 0.35 * dice_score
-            comp_metric = 0.40 * topo_score + 0.60 * surf_score #+ 0.35 * dice_score
+            #comp_metric = 0.40 * topo_score + 0.60 * surf_score #+ 0.35 * dice_score
+            comp_metric = 0.4 * topo_score + 0.6 * dice_score
 
             print(f"\nVAL Epoch {iteration} │ "
                   f"Dice: {dice_score:.4f} │ "
