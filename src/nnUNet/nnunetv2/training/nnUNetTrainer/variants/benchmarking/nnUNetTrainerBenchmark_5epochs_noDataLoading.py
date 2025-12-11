@@ -13,9 +13,10 @@ class nnUNetTrainerBenchmark_5epochs_noDataLoading(nnUNetTrainerBenchmark_5epoch
         configuration: str,
         fold: int,
         dataset_json: dict,
+        unpack_dataset: bool = True,
         device: torch.device = torch.device("cuda"),
     ):
-        super().__init__(plans, configuration, fold, dataset_json, device)
+        super().__init__(plans, configuration, fold, dataset_json, unpack_dataset, device)
         self._set_batch_size_and_oversample()
         num_input_channels = determine_num_input_channels(
             self.plans_manager, self.configuration_manager, self.dataset_json

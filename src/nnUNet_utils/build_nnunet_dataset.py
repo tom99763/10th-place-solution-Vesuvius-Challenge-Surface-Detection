@@ -129,13 +129,7 @@ def main():
 
     sys.path.append(REPO_DIR)
 
-    run_cmd([
-        sys.executable,
-        "-m", "nnunetv2.experiment_planning.plan_and_preprocess_entrypoints",
-        "-d", "900",
-        "-c", "3d_fullres",
-        "--verify_dataset_integrity"
-    ])
+
 
 
 
