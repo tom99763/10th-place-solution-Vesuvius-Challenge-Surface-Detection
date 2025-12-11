@@ -30,6 +30,11 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 
 sys.path.append('./nnUNet')
 
+
+#for other version
+sys.path.append('/kaggle/Vesuvius-challenge-Codebase/src/vesuvius_nnunet/nnunet')
+sys.path.append('/kaggle/Vesuvius-challenge-Codebase/src/vesuvius_nnunet/batchgeneratorsv2')
+
 os.environ["nnUNet_raw"] = "./nnunet/nnUNet_raw_data_base/nnUNet_raw"
 os.environ["nnUNet_preprocessed"] = "./nnunet/preprocessed"
 os.environ["nnUNet_results"] = "./nnunet/nnUNet_results"
