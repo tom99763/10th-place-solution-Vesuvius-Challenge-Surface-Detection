@@ -25,6 +25,11 @@ python kaggle_helper.py upload-dataset \
 
 ## Train nnUNet
 
+```bash
+pip install -r requirements.txt
+pip install -e ./src/nnUnet/
+```
+
 ### Basic training
 ```bash
 cd nnUNet_utils
@@ -62,3 +67,13 @@ for i in range(5):
     ])
 ```
 
+
+### Vesuvius nnunet Trainer
+
+These use an older version of nnunet and a modified version of batchgeneratorsv2.
+You will have to run
+```bash 
+pip install -e src/vesuvius_nnunet/batchgeneratorsv2/
+pip install -e src/vesuvius_nnunet/nnunet/
+```
+Note that our nnunet is the latest version of both packages, so you will have to reinstall both as per instructions at the start.
