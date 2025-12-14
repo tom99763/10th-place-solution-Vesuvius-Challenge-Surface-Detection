@@ -15,3 +15,5 @@ upsample_kernel_size: [[2, 2, 2], [2, 2, 2], [2, 2, 2], [2, 2, 2], [2, 2, 2]]
 filters: [32, 64, 128, 256, 320, 320]
 res_block: True
 norm_name: "INSTANCE"
+deep_supervision: false
+#deep_supr_num: 2

@@ -16,6 +16,7 @@ class DiffeoRefineModule(pl.LightningModule):
         self.lambda_jac = cfg.lambda_jac
         self.lambda_smooth = cfg.lambda_smooth
         self.cfg = cfg
+        self.deep_sup = self.cfg.models.deep_supervision
 
         # Loss
         self.seg_loss = DiceCELoss(
@@ -60,9 +61,18 @@ class DiffeoRefineModule(pl.LightningModule):
     # ----------------------------------------
     def training_step(self, batch, batch_idx):
         vol, mask, mask_oof = batch['Image'], batch['Mask'], batch['Mask_OOF']
-        x = torch.cat([vol, gaussian_blur_3d(mask_oof)], dim=1)
+        if self.cfg.apply_gaussian:
+            x = torch.cat([vol, gaussian_blur_3d(mask_oof)], dim=1)
+        else:
+            x = torch.cat([vol, mask_oof], dim=1)
         pred_warped, v, phi = self(x, return_params=True)
         ignore_mask = mask != 2
+
+        if self.deep_sup:
+            B = x.shape[0]
+            N = v.shape[0]//B
+            mask = mask.repeat(N, 1, 1, 1, 1)
+            ignore_mask = ignore_mask.repeat(N, 1, 1, 1, 1)
 
         # segmentation loss using MONAI DiceCE
         L_seg = self.seg_loss(pred_warped * ignore_mask, mask * ignore_mask)
@@ -87,7 +97,10 @@ class DiffeoRefineModule(pl.LightningModule):
 
     def validation_step(self, batch, batch_idx):
         vol, mask, mask_oof = batch['Image'], batch['Mask'], batch['Mask_OOF']
-        x = torch.cat([vol, gaussian_blur_3d(mask_oof)], dim=1)
+        if self.cfg.apply_gaussian:
+            x = torch.cat([vol, gaussian_blur_3d(mask_oof)], dim=1)
+        else:
+            x = torch.cat([vol, mask_oof], dim=1)
 
         # Replace this with real inference when ready
         pred_warped = self.sliding_window_inferer(x, self.model)

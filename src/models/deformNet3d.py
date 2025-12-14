@@ -52,9 +52,13 @@ class DeformDynUnet(nn.Module):
     def forward(self, x, return_params = False):
         #x: (batch, 2, d, h, w)
         raw_v = self.predictor(x) #stationary velocity field (SVF)
+        soft_oof = x[:, 1:2, :, :, :]
+        if self.cfg.models.deep_supervision and self.training:
+            B, N, C, D, H, W = raw_v.shape
+            raw_v = raw_v.contiguous().view(B * N, C, D, H, W)
+            soft_oof = soft_oof.repeat(N, 1, 1, 1, 1)
         v = torch.tanh(raw_v) * self.cfg.max_v
         phi = scaling_and_squaring(v, n_steps=self.cfg.n_steps)
-        soft_oof = x[:, 1:2, :, :, :]
         warped = warp_vol_using_disp(soft_oof, phi)
         if return_params:
             return warped, v, phi
@@ -150,6 +154,8 @@ if __name__ == "__main__":
         "filters": [32, 64, 128, 256, 320],
         "res_block": True,
         "norm_name": "INSTANCE",
+        "deep_supervision": True,
+        "deep_supr_num": 2
     })
     cfg = OmegaConf.create({
         "models": cfg_model,
@@ -160,8 +166,9 @@ if __name__ == "__main__":
     })
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model = ICDeformDynUnet(cfg).to(device)
-    model.eval()
+    model = DeformDynUnet(cfg).to(device)
+    #model.eval()
+    model.train()
 
     # fake data (use soft mask values in [0,1])
     x_img = torch.randn(1, 1, 64, 128, 128, device=device)
