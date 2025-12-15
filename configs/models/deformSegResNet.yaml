@@ -1,0 +1,10 @@
+_target_: "monai.networks.nets.SegResNet"
+spatial_dims: 3
+in_channels: 2
+out_channels: 3
+init_filters: 32
+blocks_down: [1, 2, 2, 4]
+blocks_up:   [1, 1, 1]
+norm: "INSTANCE"
+act: "RELU"
+dropout_prob: 0.0

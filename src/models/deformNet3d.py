@@ -53,10 +53,6 @@ class DeformDynUnet(nn.Module):
         #x: (batch, 2, d, h, w)
         raw_v = self.predictor(x) #stationary velocity field (SVF)
         soft_oof = x[:, 1:2, :, :, :]
-        if self.cfg.models.deep_supervision and self.training:
-            B, N, C, D, H, W = raw_v.shape
-            raw_v = raw_v.contiguous().view(B * N, C, D, H, W)
-            soft_oof = soft_oof.repeat(N, 1, 1, 1, 1)
         v = torch.tanh(raw_v) * self.cfg.max_v
         phi = scaling_and_squaring(v, n_steps=self.cfg.n_steps)
         warped = warp_vol_using_disp(soft_oof, phi)

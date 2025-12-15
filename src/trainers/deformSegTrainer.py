@@ -16,7 +16,6 @@ class DiffeoRefineModule(pl.LightningModule):
         self.lambda_jac = cfg.lambda_jac
         self.lambda_smooth = cfg.lambda_smooth
         self.cfg = cfg
-        self.deep_sup = self.cfg.models.deep_supervision
 
         # Loss
         self.seg_loss = DiceCELoss(
@@ -67,12 +66,6 @@ class DiffeoRefineModule(pl.LightningModule):
             x = torch.cat([vol, mask_oof], dim=1)
         pred_warped, v, phi = self(x, return_params=True)
         ignore_mask = mask != 2
-
-        if self.deep_sup:
-            B = x.shape[0]
-            N = v.shape[0]//B
-            mask = mask.repeat(N, 1, 1, 1, 1)
-            ignore_mask = ignore_mask.repeat(N, 1, 1, 1, 1)
 
         # segmentation loss using MONAI DiceCE
         L_seg = self.seg_loss(pred_warped * ignore_mask, mask * ignore_mask)

@@ -1,0 +1,13 @@
+_target_: "monai.networks.nets.SwinUNETR"
+in_channels: 2
+out_channels: 3
+feature_size: 24              # MUST be divisible by 12
+depths: [1, 1, 1, 1]
+num_heads: [3, 6, 6, 12]      # adjusted to align with Swin stages
+window_size: [5, 5, 5]
+mlp_ratio: 2.0
+qkv_bias: True
+drop_rate: 0.0
+attn_drop_rate: 0.0
+use_checkpoint: False
+norm_name: "INSTANCE"
