@@ -1,374 +1,564 @@
+import warnings
+from pathlib import Path
+from typing import Tuple, Optional, Dict, List
+
+import numpy as np
 import torch
 import torch.nn as nn
-from monai.networks.nets import SegResNetDS
-from monai.utils.misc import ensure_tuple_rep
-
+from torch.utils.data import Dataset, DataLoader
 import pytorch_lightning as pl
-from monai.losses import DiceCELoss, DiceLoss
-from monai.inferers import sliding_window_inference
-from monai.metrics import DiceMetric
-from monai.data import decollate_batch
+
+from torch.utils.data import DataLoader
+from monai import transforms as MT
+
 
 import tifffile
-from torch.utils.data import Dataset
-import json
-from pathlib import Path
 import numpy as np
-from torch.utils.data import DataLoader
-from monai.data import list_data_collate
 
-from pytorch_lightning.loggers import TensorBoardLogger
-from pytorch_lightning.callbacks import ModelCheckpoint, RichProgressBar
+import torch
+import torch.nn as nn
+import torch.optim as optim
+import pytorch_lightning as pl
+from typing import Tuple, Dict
+from monai.losses import DiceCELoss, TverskyLoss
 
-from monai.transforms import (
-    Compose, LoadImaged, EnsureChannelFirstd, ScaleIntensityd,
-    ConcatItemsd, RandCropByPosNegLabeld, RandRotate90d, ToTensord, EnsureTyped
+from monai.networks.nets import SwinUNETR
+
+import re
+from pathlib import Path
+from typing import List, Union, Tuple, Optional
+
+import pytorch_lightning as pl
+from pytorch_lightning.callbacks import (
+    ModelCheckpoint,
+    EarlyStopping,
+    LearningRateMonitor,
 )
+from pytorch_lightning.loggers import TensorBoardLogger
+from pytorch_lightning.utilities.exceptions import MisconfigurationException
 
-torch.set_float32_matmul_precision('medium')
 
-def get_transforms(mode="train"):
+import json
+
+warnings.filterwarnings("ignore")
+
+torch.set_float32_matmul_precision("medium")
+
+
+class SurfaceDataset3D(Dataset):
+    """3D Surface Detection Dataset.
+
+    Updated to support volume-based loading.
+    Optimized for faster Torch conversion.
+    Supports .tif, .npy, .npz formats.
     """
-    Args:
-        mode: 'train' for augmentation + cropping, 'val' for full volume normalization only.
-    """
-    transforms_list = [
-        # 1. Add Channel Dimension: (Depth, H, W) -> (1, Depth, H, W)
-        EnsureChannelFirstd(keys=["image", "noisy_mask", "label"], channel_dim="no_channel"),
-        
-        # 2. Normalize Intensity (Image only, masks stay 0/1)
-        ScaleIntensityd(keys=["image"]),
-        
-        # 3. Concatenate Image + Noisy Mask -> (2, Depth, H, W)
-        ConcatItemsd(keys=["image", "noisy_mask"], name="model_input", dim=0),
-        
-        # 4. Ensure data types (float32 for images, often uint8/int for labels)
-        EnsureTyped(keys=["model_input", "label"]),
-    ]
-    
-    # Training-specific Augmentations
-    if mode == "train":
-        transforms_list.extend([
-            # Crop 96x96x96 cubes centered around the object
-            RandCropByPosNegLabeld(
-                keys=["model_input", "label"],
-                label_key="label",
-                spatial_size=(96, 96, 96),
-                pos=1, neg=1, num_samples=1, 
-                image_key="model_input",
-                image_threshold=0,
-            ),
-            # Random Rotations
-            RandRotate90d(keys=["model_input", "label"], prob=0.5, spatial_axes=(0, 2)),
-        ])
-    
-    transforms_list.append(ToTensord(keys=["model_input", "label"]))
-    
-    return Compose(transforms_list)
 
-
-
-class IgnoreRegionDiceCELoss(nn.Module):
-    def __init__(self, ignore_index=2, ce_weight=1.0, dice_weight=1.0):
+    def __init__(self, ids, imgdir, lbldir):
         super().__init__()
-        self.ignore_index = ignore_index
-        self.ce_weight = ce_weight
-        self.dice_weight = dice_weight
-        
-        # 1. Cross Entropy Part
-        # PyTorch's CrossEntropyLoss has a built-in 'ignore_index' argument
-        self.ce_loss = nn.CrossEntropyLoss(ignore_index=ignore_index)
-        
-        # 2. Dice Part
-        # We use MONAI's DiceLoss but we will feed it masked inputs manually
-        self.dice_loss = DiceLoss(
-            include_background=False, # Focus on FG
-            to_onehot_y=False,        # We will handle one-hot manually to mask it
-            softmax=True,             # Convert logits to probs
-            reduction="mean",
-            smooth_nr=1e-5,           # Smoothing to prevent div-by-zero
-            smooth_dr=1e-5
-        )
+        self.ids = ids
+        self.imgdir = imgdir
+        self.lbldir = lbldir
 
-    def forward(self, logits, labels):
-        """
-        logits: (B, C, D, H, W) - Raw model output
-        labels: (B, 1, D, H, W) - Ground truth with 0, 1, and 2 (ignore)
-        """
-        
-        # --- Part A: Cross Entropy Loss ---
-        # CE expects labels as (B, D, H, W) long tensor (no channel dim)
-        labels_sq = labels.squeeze(1).long()
-        ce = self.ce_loss(logits, labels_sq)
-        
-        # --- Part B: Masked Dice Loss ---
-        
-        # 1. Create the Validity Mask (1 where we care, 0 where label is 2)
-        valid_mask = (labels != self.ignore_index).float()
-        
-        # 2. Clean the Labels for One-Hot Encoding
-        # We temporarily set label 2 to 0 to avoid errors during one-hot encoding.
-        # It doesn't matter what we set it to, because we will multiply by valid_mask anyway.
-        labels_clean = labels.clone()
-        labels_clean[labels == self.ignore_index] = 0
-        
-        # 3. One-Hot Encode Labels
-        # monai.networks.utils.one_hot is useful, or just standard torch
-        # Assuming 2 classes (BG, FG)
-        num_classes = logits.shape[1]
-        labels_onehot = torch.nn.functional.one_hot(labels_clean.squeeze(1).long(), num_classes=num_classes)
-        labels_onehot = labels_onehot.permute(0, 4, 1, 2, 3).float() # (B, C, D, H, W)
-        
-        # 4. Get Probabilities from Logits
-        probs = torch.softmax(logits, dim=1)
-        
-        # 5. Apply the Mask to BOTH Probabilities and One-Hot Labels
-        # This effectively removes the 'ignore' pixels from the Dice Sums (Intersection & Union)
-        # We expand mask to match channel dims
-        valid_mask_expanded = valid_mask.expand_as(probs)
-        
-        probs_masked = probs * valid_mask_expanded
-        labels_masked = labels_onehot * valid_mask_expanded
-        
-        # 6. Calculate Dice
-        # We pass the ALREADY masked tensors. 
-        # Note: We must disable softmax=True here because we did it manually above
-        # Note: We must disable to_onehot_y=True here because we did it manually
-        dice = self.dice_loss(probs_masked, labels_masked)
-        
-        # --- Combine ---
-        total_loss = (self.ce_weight * ce) + (self.dice_weight * dice)
-        
-        return total_loss
-
-class RefinementSegResNet(pl.LightningModule):
-    def __init__(self, lr=1e-4, input_size=(96, 96, 96)):
-        super().__init__()
-        self.save_hyperparameters()
-        
-        # 1. Initialize SegResNetVAE
-        # Note: input_image_size is CRITICAL here.
-        self.model = SegResNetDS(
-            spatial_dims=3,
-            in_channels=2,   # Image + Noisy Mask
-            out_channels=2,  # Background, Foreground
-        )
-        
-        # 2. Loss & Metrics
-        self.loss_function = IgnoreRegionDiceCELoss(
-            ignore_index=2, 
-            ce_weight=1.0, 
-            dice_weight=1.0
-        )
-        self.dice_metric = DiceMetric(include_background=False, reduction="mean")
-
-    def forward(self, x):
-        # SegResNetVAE returns (seg_output, vae_loss) in training
-        # But for inference, we usually only care about the seg_output.
-        # However, calling self.model(x) ALWAYS calculates VAE loss if use_vae=True.
-        return self.model(x)
-
-    def training_step(self, batch, batch_idx):
-        inputs, labels = batch["model_input"], batch["label"]
-        
-        # Forward pass returns TWO things
-        seg_output = self(inputs)
-        
-        # 1. Calculate Segmentation Loss (Dice + CE)
-        seg_loss = self.loss_function(seg_output, labels)
-        
-        # 2. Total Loss = Seg Loss + (Weight * VAE Loss)
-        # vae_loss is already a scalar tensor calculated inside the model
-        total_loss = seg_loss
-        
-        # Logging
-        self.log("train_loss", total_loss, prog_bar=True, on_step=True, on_epoch=True, logger=True)
-        
-        return total_loss
-
-    def validation_step(self, batch, batch_idx):
-        inputs, labels = batch["model_input"], batch["label"]
-        
-
-        outputs = sliding_window_inference(
-            inputs, 
-            (96, 96, 96), 
-            4, 
-            self, # Use the wrapper to discard VAE loss
-            overlap=0
-        )
-        
-        loss = self.loss_function(outputs, labels)
-        
-        # Metrics
-        preds = [torch.argmax(i, dim=0, keepdim=True) for i in decollate_batch(outputs)]
-        targets = [i for i in decollate_batch(labels)]
-        self.dice_metric(y_pred=preds, y=targets)
-        
-        self.log("val_loss", loss, prog_bar=True)
-        return loss
-
-    def on_validation_epoch_end(self):
-        metric = self.dice_metric.aggregate().item()
-        self.dice_metric.reset()
-        self.log("val_mean_dice", metric, prog_bar=True)
-
-    def configure_optimizers(self):
-        return torch.optim.AdamW(self.model.parameters(), lr=self.hparams.lr, weight_decay=1e-5)
-
-class TiffRefinementDataset(Dataset):
-    def __init__(self, foldid, transform=None, mode="train"):
-        """
-        Args:
-            img_dir (str): Path to folder containing original .tif volumes
-            noisy_mask_dir (str): Path to folder containing noisy prediction .tif
-            label_dir (str): Path to folder containing ground truth .tif
-            transform (callable): MONAI transforms
-        """
-        self.transform = transform
-
-        with open("./nnunet/preprocessed/Dataset900_VesuviusScroll/splits_final.json", "r") as f:
-            self.split_plan = json.load(f)
-
-        self.ids = self.split_plan[foldid]["train"] if mode == "train" else self.split_plan[foldid]["val"]
-        
-        self.foldid = foldid
-
-        self.imgdir = Path("./data/train_images")
-        self.lbldir = Path("./data/train_labels")
-        self.prddir = Path("./data/predmasks")
-        self.mode = mode
-       
-    
-
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self.ids)
 
-    def __getitem__(self, idx):
-
+    def __getitem__(self, idx: int):
         id = self.ids[idx]
+        # Load raw data -> (D, H, W)
+        image, mask = self._load_from_raw(id)
 
-        # 1. Load the 3D files
-       
-        img_path = self.imgdir / f"{id}.tif"
+        # Optimization: Convert directly to Tensor to avoid intermediate numpy float64 copies
+        # 1. Convert raw uint8/uint16 -> Tensor
+        # 2. Cast to float16
+        # 3. Scale
+        # 4. Add channel dim
+        image_t = torch.from_numpy(image).half().div_(255.0).unsqueeze(0)
+        mask_t = torch.from_numpy(mask).long().unsqueeze(0)
+
+        return image_t, mask_t, id
+
+    def _load_file(self, path: Path) -> np.ndarray:
+        """Helper to load generic file formats."""
+        return tifffile.imread(str(path))
+
+    def _load_from_raw(
+        self,
+        id: str,
+    ) -> Tuple[np.ndarray, Optional[np.ndarray]]:
+
+        image_path = self.imgdir / f"{id}.tif"
+        image_volume = self._load_file(image_path)
+
         label_path = self.lbldir / f"{id}.tif"
-        noisy_path = self.prddir / f"{id}.tif"
+        label_volume = self._load_file(label_path)
 
-        
-        img_vol = tifffile.imread(img_path).astype(np.float32).copy()
-        noisy_vol = tifffile.imread(noisy_path).astype(np.float32).copy()
-        label_vol = tifffile.imread(label_path).astype(np.float32).copy()
-        
-        # 2. Create the dictionary for MONAI
-        data_dict = {
-            "image": img_vol,
-            "noisy_mask": noisy_vol,
-            "label": label_vol
+        return image_volume, label_volume
+
+
+def custom_collate(batch):
+    """Custom collate to handle variable size 3D volumes.
+    Returns a list of items instead of stacking them, allowing GPU resizing later.
+    """
+    return batch
+
+
+class SurfaceDataModule(pl.LightningDataModule):
+    """Lightning DataModule for Surface Detection.
+
+    Handles all data loading, splitting, and dataloader creation.
+    Updated to use MONAI 3D augmentations on GPU with dynamic resizing.
+    """
+
+    def __init__(
+        self,
+        foldid,
+        imgdir: Path,
+        lbldir: Path,
+        volume_shape: Tuple[int, int, int],
+        batch_size: int = 1,
+        num_workers: int = 2,
+    ):
+        super().__init__()
+        self.foldid = foldid
+        self.imgdir = imgdir
+        self.lbldir = lbldir
+
+        self.batch_size = batch_size
+        self.num_workers = num_workers
+
+        # Will be set in setup()
+        self.train_dataset = None
+        self.val_dataset = None
+        self.test_dataset = None
+
+        self.volume_shape = volume_shape
+        # Define GPU-based augmentations using MONAI
+        # 1. Resize to target shape (trilinear for image, nearest for label)
+        # 2. Apply Augmentations
+        self.gpu_augments = MT.Compose(
+            [
+                MT.Resized(
+                    keys=["image", "label"],
+                    spatial_size=self.volume_shape,
+                    mode=["trilinear", "nearest"],
+                ),
+                MT.RandFlipd(keys=["image", "label"], prob=0.5, spatial_axis=0),
+                MT.RandFlipd(keys=["image", "label"], prob=0.5, spatial_axis=1),
+                MT.RandFlipd(keys=["image", "label"], prob=0.5, spatial_axis=2),
+                MT.RandRotated(
+                    keys=["image", "label"],
+                    range_x=0.1,
+                    range_y=0.1,
+                    range_z=0.1,
+                    prob=0.3,
+                    keep_size=True,
+                    mode=["bilinear", "nearest"],
+                ),
+                MT.RandShiftIntensityd(keys=["image"], offsets=0.1, prob=0.5),
+                MT.RandGaussianNoised(keys=["image"], prob=0.3, mean=0.0, std=0.01),
+            ]
+        )
+        # Validation transforms: Just Resize (for image AND label)
+        self.val_augments = MT.Compose(
+            [
+                MT.RandCropByPosNegLabeld(
+                    keys=["image", "label"],
+                    spatial_size=self.volume_shape,
+                    label_key="label",
+                    image_key="image",
+                    pos=1, neg=1, num_samples=1, 
+                    image_threshold=0,
+                )
+            ]
+        )
+        # Validation transforms for Image ONLY (for test set where labels are None)
+        self.val_image_augments = MT.Compose(
+            [
+                MT.Resized(
+                    keys=["image"], spatial_size=self.volume_shape, mode=["trilinear"]
+                )
+            ]
+        )
+
+        with open(
+            "./nnunet/preprocessed/Dataset900_VesuviusScroll/splits_final.json", "r"
+        ) as f:
+            self.split_plan = json.load(f)
+
+    def setup(self, stage: Optional[str] = None):
+        """Setup datasets for different stages."""
+        print(f"\nSetting up training data...")
+
+        foldids = self.split_plan[self.foldid]
+
+        trainids = foldids["train"]
+        valids = foldids["val"]
+
+        print(f"Train ids: {len(trainids)}")
+        print(f"Val ids: {len(valids)}")
+
+        # Create train dataset
+        self.train_dataset = SurfaceDataset3D(
+            trainids,
+            imgdir=self.imgdir,
+            lbldir=self.lbldir,
+        )
+        # Create validation dataset
+        self.val_dataset = SurfaceDataset3D(
+            trainids,
+            imgdir=self.imgdir,
+            lbldir=self.lbldir,
+        )
+
+    def train_dataloader(self) -> DataLoader:
+        """Create train dataloader with custom collate for variable sizes."""
+        return DataLoader(
+            self.train_dataset,
+            batch_size=self.batch_size,
+            shuffle=True,
+            num_workers=self.num_workers,
+            pin_memory=True,
+            persistent_workers=bool(self.num_workers > 0),
+            collate_fn=custom_collate,
+        )
+
+    def val_dataloader(self) -> DataLoader:
+        """Create validation dataloader with custom collate for variable sizes."""
+        return DataLoader(
+            self.val_dataset,
+            batch_size=self.batch_size,
+            shuffle=False,
+            num_workers=self.num_workers,
+            pin_memory=True,
+            persistent_workers=bool(self.num_workers > 0),
+            collate_fn=custom_collate,
+        )
+
+    def on_after_batch_transfer(self, batch, dataloader_idx):
+        """Apply MONAI GPU-accelerated 3D augmentations to the batch."""
+        # If custom_collate is used, batch is a list of tuples [(x, y, id), ...]
+        if not isinstance(batch, list):
+            return super().on_after_batch_transfer(batch, dataloader_idx)
+
+        x_list, y_list, frag_ids = [], [], []
+        # Determine device to ensure we process on GPU
+        # self.trainer.strategy.root_device is reliable in Lightning
+        device = (
+            self.trainer.strategy.root_device
+            if self.trainer
+            else torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        )
+        # Select transform
+        transforms = self.gpu_augments if self.trainer.training else self.val_augments
+
+        for item in batch:
+            x, y, frag_id = item
+
+            # # IMPORTANT: Explicitly move to GPU now.
+            # # This ensures the Resized and other transforms run on VRAM, avoiding CPU RAM spikes.
+            # x = x.to(device, non_blocking=True)
+            # y = y.to(device, non_blocking=True)
+
+            data = {"image": x, "label": y}
+            # Apply transforms (Resize + Augments)
+            data = transforms(data)
+
+            x_list.append(data["image"])
+            y_list.append(data["label"])
+            frag_ids.append(frag_id)
+
+        # Stack into tensors -> (B, C, D, H, W)
+        return torch.stack(x_list), torch.stack(y_list), frag_ids
+
+
+class SurfaceSegmentation3D(pl.LightningModule):
+    """3D Surface Segmentation using a custom network.
+
+    Key Design Choices:
+    - **Loss**: Combined DiceCELoss + TverskyLoss to handle structural imbalance.
+    - **Metrics**: Manual computation of Dice and IoU ignoring class 2.
+    """
+
+    def __init__(
+        self,
+        net: nn.Module,
+        out_channels: int = 2,
+        spatial_dims: int = 3,
+        learning_rate: float = 1e-3,
+        weight_decay: float = 1e-4,
+        ignore_index_val: int = 2,
+    ):
+        super().__init__()
+        self.save_hyperparameters(ignore=["net"])
+        self.net_module = net
+        self.learning_rate = learning_rate
+        self.weight_decay = weight_decay
+        self.ignore_index_val = ignore_index_val
+
+        # Loss function configuration
+        # TverskyLoss with alpha=0.7 emphasizes minimizing False Negatives (Recall)
+        self.criterion_tversky = TverskyLoss(
+            softmax=True,
+            to_onehot_y=False,
+            include_background=True,
+            alpha=0.7,
+            beta=0.3,
+        )
+        # DiceCELoss combines Dice Loss and Cross Entropy Loss
+        self.criterion_dice_ce = DiceCELoss(
+            softmax=True,
+            to_onehot_y=False,
+            include_background=True,
+        )
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return self.net_module(x)
+
+    def _compute_loss(
+        self, logits: torch.Tensor, targets: torch.Tensor
+    ) -> torch.Tensor:
+        """Compute loss excluding class 2 (unlabeled). Optimized for GPU."""
+        # targets shape: (B, 1, D, H, W)
+        mask = targets != self.ignore_index_val
+        # Prepare targets for One-Hot Encoding (replace ignore index with 0 temporary)
+        targets_sq = targets.squeeze(1)
+        targets_clean = torch.where(
+            mask.squeeze(1), targets_sq, torch.tensor(0, device=targets.device)
+        )
+        # One-Hot Encode
+        targets_onehot = torch.nn.functional.one_hot(
+            targets_clean.long(), num_classes=self.hparams.out_channels
+        ).float()
+        if self.hparams.spatial_dims == 3:
+            targets_onehot = targets_onehot.permute(0, 4, 1, 2, 3)
+        else:
+            targets_onehot = targets_onehot.permute(0, 3, 1, 2)
+        # Mask One-Hot Targets
+        targets_masked_ohe = targets_onehot * mask.half()
+
+        # Compute both losses and sum them
+        loss_tversky = self.criterion_tversky(logits, targets_masked_ohe)
+        loss_dice_ce = self.criterion_dice_ce(logits, targets_masked_ohe)
+
+        return loss_tversky + loss_dice_ce
+
+    def _compute_metrics(
+        self, preds_logits: torch.Tensor, targets_class_indices: torch.Tensor
+    ) -> dict:
+        preds_proba = torch.softmax(preds_logits, dim=1)
+        preds_hard = torch.argmax(preds_proba, dim=1, keepdim=True)
+        valid_mask = (
+            targets_class_indices != self.ignore_index_val
+        ).float()  # (B, 1, D, H, W)
+        num_classes = preds_logits.shape[1]  # This will be 2 (background, foreground)
+        dice_scores_per_class = []
+        iou_scores_per_class = []
+
+        for i in range(num_classes):
+            pred_class_i = (preds_hard == i).float()  # (B, 1, D, H, W)
+            target_class_i = (targets_class_indices == i).float()  # (B, 1, D, H, W)
+
+            pred_class_i_valid = pred_class_i * valid_mask
+            target_class_i_valid = target_class_i * valid_mask
+
+            intersection = (pred_class_i_valid * target_class_i_valid).sum()
+            union_sum_dice = pred_class_i_valid.sum() + target_class_i_valid.sum()
+            union_sum_iou = (
+                pred_class_i_valid.sum() + target_class_i_valid.sum() - intersection
+            )
+            dice = (2 * intersection + 1e-8) / (union_sum_dice + 1e-8)
+            iou = (intersection + 1e-8) / (union_sum_iou + 1e-8)
+            dice_scores_per_class.append(dice)
+            iou_scores_per_class.append(iou)
+
+        mean_dice = torch.mean(torch.stack(dice_scores_per_class))
+        mean_iou = torch.mean(torch.stack(iou_scores_per_class))
+        return {"dice": mean_dice, "iou": mean_iou}
+
+    def training_step(self, batch: Tuple, batch_idx: int) -> torch.Tensor:
+        inputs, targets, _ = batch
+        logits = self(inputs)
+        loss = self._compute_loss(logits, targets)
+
+        metrics = self._compute_metrics(logits, targets)
+
+        self.log("train_loss", loss, on_step=True, on_epoch=True, prog_bar=True)
+        self.log(
+            "train_dice", metrics["dice"], on_step=True, on_epoch=True, prog_bar=True
+        )
+        self.log(
+            "train_iou", metrics["iou"], on_step=True, on_epoch=True, prog_bar=True
+        )
+        return loss
+
+    def validation_step(self, batch: Tuple, batch_idx: int) -> torch.Tensor:
+        inputs, targets, _ = batch
+        logits = self(inputs)
+        loss = self._compute_loss(logits, targets)
+
+        metrics = self._compute_metrics(logits, targets)
+
+        self.log("val_loss", loss, on_step=False, on_epoch=True, prog_bar=True)
+        self.log(
+            "val_dice", metrics["dice"], on_step=False, on_epoch=True, prog_bar=True
+        )
+        self.log("val_iou", metrics["iou"], on_step=False, on_epoch=True, prog_bar=True)
+        return loss
+
+    def configure_optimizers(self):
+        optimizer = optim.AdamW(
+            self.parameters(), lr=self.learning_rate, weight_decay=self.weight_decay
+        )
+        # Cosine Annealing Scheduler
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+            optimizer,
+            T_max=self.trainer.max_epochs if self.trainer else MAX_EPOCHS,
+            eta_min=1e-6,
+        )
+        return {
+            "optimizer": optimizer,
+            "lr_scheduler": {"scheduler": scheduler, "interval": "epoch"},
         }
-        
-        # 3. Apply Transforms
-        if self.transform:
-            data_dict = self.transform(data_dict)
 
-        if self.mode == "train":
-            for x in data_dict:
-                del x["image"], x["noisy_mask"]
-
-
-        # 4. Return
-        # If training, 'model_input' is (2, 96, 96, 96)
-        # If validation, 'model_input' is (2, D, H, W) full volume
-        return data_dict
+    def predict_step(self, batch: Tuple, batch_idx: int) -> Dict:
+        inputs, _, frag_id = batch
+        logits = self(inputs)
+        probs = torch.softmax(logits, dim=1)
+        pred_class = torch.argmax(probs, dim=1)
+        return {"prediction": pred_class, "fragment_id": frag_id}
 
 
-def get_dataloaders(
-    foldid,
-    batch_size=2, 
-    num_workers=4
-):
+def get_best_checkpoint(
+    checkpoint_dirs: Union[str, Path, List[Union[str, Path]]],
+    name: str = "",
+) -> Tuple[str, float]:
+    """Finds the checkpoint with the highest val_dice score across multiple directories."""
+    # Normalize input to a list of Paths
+    if not isinstance(checkpoint_dirs, list):
+        checkpoint_dirs = [checkpoint_dirs]
+    checkpoint_dirs = [d for d in checkpoint_dirs if Path(d).exists()]
+    if not checkpoint_dirs:
+        print("No valid folder provided.")
+        return None, None
 
-    # --- Training Setup ---
-    train_ds = TiffRefinementDataset(
-        foldid,
-        transform=get_transforms(mode="train"),
-        mode = "train"
-    )
+    checkpoints = []
+    # Regex for val_dice
+    pattern = re.compile(r"val_dice=?([0-9]+\.[0-9]+)")
+    # Iterate over all files in all valid directories
+    for path in [f for d in checkpoint_dirs for f in Path(d).glob(f"{name}*.ckpt")]:
+        match = pattern.search(path.name)
+        if not match:
+            continue
+        checkpoints.append((float(match.group(1)), str(path)))
 
-    train_loader = DataLoader(
-        train_ds, 
-        batch_size=batch_size, 
-        shuffle=True, 
-        num_workers=num_workers,
-        collate_fn=list_data_collate, # Handles stacking different sized crops if needed
-        pin_memory=True
-    )
+    if not checkpoints:
+        print("No valid checkpoints found.")
+        return None, None
 
-    val_ds = TiffRefinementDataset(
-        foldid,
-        transform=get_transforms(mode="val"),
-        mode="val"
-    )
+    # Sort by score descending so the best is first
+    checkpoints.sort(key=lambda x: x[0], reverse=True)
+    best_score, best_path = checkpoints[0]
+    print(f"Found {len(checkpoints)} checkpoints.")
+    print(f"Best  (Score={best_score}): {Path(best_path)}")
+    return best_path, best_score
 
-    val_loader = DataLoader(
-        val_ds, 
-        batch_size=1, 
-        shuffle=False, 
-        num_workers=num_workers,
-        collate_fn=list_data_collate
-    )
-
-    return train_loader, val_loader
 
 def main():
-    # 1. Setup Paths
-    log_dir = "./logs"
-    foldid = 0
-    
-    # 2. Init DataLoaders
-    train_loader, val_loader = get_dataloaders(
-        foldid, 
-        batch_size=8, 
-        num_workers=8
+    # Create DataModule
+    datamodule = SurfaceDataModule(
+        foldid=FOLDID,
+        imgdir=TRAIN_IMAGES_DIR,
+        lbldir=TRAIN_LABELS_DIR,
+        volume_shape=MODEL_INPUT_SIZE,
     )
-    
-    # 3. Init Model
-    model = RefinementSegResNet(lr=1e-4)
-    
-    # 4. Setup Loggers & Callbacks
-    
+    datamodule.setup()
+
+    # Initialize SwinUNETR model
+    net = SwinUNETR(
+        in_channels=1,
+        out_channels=2,
+        feature_size=48,
+        use_v2=True,
+        drop_rate=0.2,
+        attn_drop_rate=0.2,
+        dropout_path_rate=0.2,
+    )
+    net_name = net.__class__.__name__
+    model = SurfaceSegmentation3D(net=net)
+
+    # Callbacks
+    checkpoint_callback = ModelCheckpoint(
+        dirpath=OUTPUT_DIR,
+        filename=net_name + "-{epoch:02d}-{val_dice:.4f}",
+        monitor="val_dice",
+        mode="max",
+        save_top_k=3,
+        verbose=True,
+    )
+
+    early_stop_callback = EarlyStopping(
+        monitor="val_dice", patience=10, mode="max", verbose=True
+    )
+
+    lr_monitor = LearningRateMonitor(logging_interval="epoch")
+
     # TensorBoard Logger
     # Logs will be saved at: ./logs/refinement_project/version_X
     logger = TensorBoardLogger(
-        save_dir=log_dir,
-        name="refinement_project",
-        default_hp_metric=False
+        save_dir="./logs", name="refinement_project", default_hp_metric=False
     )
-    
-    # Checkpointing: Save best model based on Dice Score
-    checkpoint_callback = ModelCheckpoint(
-        monitor="val_mean_dice",
-        mode="max",
-        filename="best-checkpoint-{epoch:02d}-{val_mean_dice:.4f}",
-        save_top_k=1,
-        save_last=True
-    )
-    
-    # 5. Trainer
+
+    # Trainer
     trainer = pl.Trainer(
-        accelerator="gpu",
-        devices=1,
-        max_epochs=100,
+        max_epochs=MAX_EPOCHS,
+        accelerator="auto",
+        devices="auto",
         logger=logger,
-        callbacks=[checkpoint_callback],
-        
-        # Logging settings
-        log_every_n_steps=10,    # Log to Tensorboard every 10 steps
-        enable_progress_bar=True # Enables the TQDM bar
+        callbacks=[checkpoint_callback, early_stop_callback, lr_monitor],
+        precision="16-mixed",
+        log_every_n_steps=1,
+        enable_progress_bar=True,
+        accumulate_grad_batches=18,
+        gradient_clip_val=1.0,  # Clips gradient norm to 1.0 to prevent exploding gradients
     )
-    
-    # 6. Start Training
-    print("Starting Training...")
-    trainer.fit(model, train_loader, val_loader)
+
+    ckpt_path, ckpt_score = get_best_checkpoint(
+        [OUTPUT_DIR, CHECKPOINT_DIR], name=net_name
+    )
+
+    # Train
+    try:
+        trainer.fit(model, datamodule=datamodule, ckpt_path=ckpt_path)
+    except MisconfigurationException as ex:
+        print(ex)
+
 
 if __name__ == "__main__":
+
+    FOLDID = 0
+
+    # Paths
+    DATA_DIR = Path("./data")
+    CHECKPOINT_DIR = "./model-zoo"
+
+    TRAIN_IMAGES_DIR = Path("./data/train_images")
+    TRAIN_LABELS_DIR = Path("./data/train_labels")
+    TEST_IMAGES_DIR = DATA_DIR / "test_images"
+    OUTPUT_DIR = Path(".")
+
+    DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+    MODEL_INPUT_SIZE = (
+        128,
+        128,
+        128,
+    )  # (depth, height, width) - resize volumes to this
+    IN_CHANNELS = 1  # grayscale
+    OUT_CHANNELS = 2  # background + papyrus (ignore class 2)
+
+    # Training
+    BATCH_SIZE = 1
+    NUM_WORKERS = 4
+    MAX_EPOCHS = 50
+    LEARNING_RATE = 2e-3
+
     main()

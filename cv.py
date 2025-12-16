@@ -49,16 +49,16 @@ def compute_score_for_id(args):
     gtarr = itk.GetArrayFromImage(gt)
     predarr = itk.GetArrayFromImage(pred)
 
-   #  predarr = cc3d.dust(
-   #            predarr, 
-   #            threshold=16, # min_size
-   #            connectivity=6, # equivalent to structure=struct_6 usually
-   #            in_place=True   # Modifies array in-place to save RAM
-   #        )
-   #        
-   #  # predarr is now labeled. Convert back to boolean/uint8 if needed for scoring
-   #  predarr[predarr > 0] = 1
-   # 
+    predarr = cc3d.dust(
+              predarr, 
+              threshold=16, # min_size
+              connectivity=6, # equivalent to structure=struct_6 usually
+              in_place=True   # Modifies array in-place to save RAM
+          )
+          
+    # predarr is now labeled. Convert back to boolean/uint8 if needed for scoring
+    predarr[predarr > 0] = 1
+
     score_report = calc_score(gtarr, predarr)
 
     return {
