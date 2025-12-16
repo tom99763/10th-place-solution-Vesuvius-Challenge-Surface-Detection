@@ -99,6 +99,7 @@ task_folder = f"Dataset{task_id:03d}_{task_name}"
 base_dir = BASE / task_folder
 imagesTr = base_dir / "imagesTs"
 results = base_dir / "results"
+selected_fold = 4
 
 # make folders
 imagesTr.mkdir(parents=True, exist_ok=True)
@@ -267,7 +268,7 @@ class DeformNNUnetPredictor3D(nnUNetPredictor):
             progress=True
         )
 
-    @torch.no_grad()
+    @torch.inference_mode()
     def predict_and_export_with_deformnet(self,
                                           ret,
                                           output_file_truncated,
@@ -489,7 +490,6 @@ def predict(cfg):
                                 )
 
 def main():
-    selected_fold = 0
     json_path = './splits_final.json'
     with open(json_path, 'r') as f:
         val_splits = json.load(f)
