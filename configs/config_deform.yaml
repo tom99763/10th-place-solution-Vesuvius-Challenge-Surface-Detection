@@ -4,7 +4,7 @@ data_path: ./data/vesuvius-challenge-surface-detection
 oof_path : ./nnunet/nnUNet_results/Dataset900_VesuviusScroll/nnUNetTrainer__nnUNetResEncUNetMPlans__3d_fullres/oof
 oof_path2: '' #./nnunet/nnUNet_results/Dataset900_VesuviusScroll/nnUNetTrainer__nnUNetResEncUNetMPlans__3d_fullres/oof_deform_prob
 nnunet_path: ./nnunet
-petrained_ckpt_path: '' #./models/deform-dynunet-fold0-epoch=114-val_comp_metric=0.6404.ckpt
+petrained_ckpt_path: './models/deform-dynunet-128-patch-hard-fold2-epoch=19-val_comp_metric=0.6274.ckpt'
 data_split_path: ./splits_final.json
 batch_size: 1
 num_workers: 4
