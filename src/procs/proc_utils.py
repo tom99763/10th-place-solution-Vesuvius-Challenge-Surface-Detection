@@ -59,8 +59,7 @@ def generate_noise(ref=None, size=None, type='normal', emb_size=None, device=Non
 
 def get_scales_by_index(index, scale_factor, stop_scale, img_size):
     scale = math.pow(scale_factor, stop_scale - index)
-    s_size = math.ceil(scale * img_size)
-
+    s_size = math.floor(scale * img_size)
     return s_size
 
 
@@ -84,8 +83,8 @@ def upscale(video, index, opt):
     assert index > 0
 
     next_shape = get_scales_by_index(index, opt.scale_factor, opt.stop_scale, opt.img_size)
-    next_fps, next_td, _ = get_fps_td_by_index(index, opt)
-    next_shape = [next_td, int(next_shape * opt.ar), next_shape]
+    #next_fps, next_td, _ = get_fps_td_by_index(index, opt)
+    next_shape = [next_shape] * 3
 
     # Video interpolation
     vid_up = interpolate_3D(video, size=next_shape)

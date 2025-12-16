@@ -3,24 +3,22 @@ import os
 from pathlib import Path
 import sys
 
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 os.environ["nnUNet_raw"] = "./nnunet/nnUNet_raw_data_base/nnUNet_raw"
 os.environ["nnUNet_preprocessed"] = "./nnunet/preprocessed"
 os.environ["nnUNet_results"] = "./nnunet/nnUNet_results"
 
 input_dir = Path("./nnunet/nnUNet_raw_data_base/nnUNet_raw/Dataset900_VesuviusScroll/imagesTr")
-output_dir = Path("./nnunet/nnUNet_results/Dataset900_VesuviusScroll/nnUNetTrainer__nnUNetResEncUNetMPlans__3d_fullres/oof_softmax")
+output_dir = Path("./nnunet/nnUNet_results/Dataset900_VesuviusScroll/nnUNetTrainer__nnUNetResEncUNetMPlans_30G__3d_fullres/oof")
 
-# for i in range(5):
-#     if os.path.exists(output_dir/f'fold{i}'):
-#         os.makedirs(output_dir/f'fold{i}')
 # cmd = [
 #     "nnUNetv2_predict",
 #     "-i", str(input_dir),
-#     "-o", str(output_dir/f'fold{i}'),
+#     "-o", str(output_dir),
 #     "-d", "900",
 #     "-c", "3d_fullres",
-#     "-p", "nnUNetResEncUNetMPlans",
-#     "--save_probability",
+#     "-p", "nnUNetResEncUNetMPlans_30G",
+#     "--save_probabilities",
 #     "--disable_tta"
 # ]
 
@@ -29,6 +27,8 @@ def run_cmd(cmd_list):
     result = subprocess.run(cmd_list, check=True)
     print(">>> Done.\n")
     return result
+
+#run_cmd(cmd)
 
 for i in range(5):
     run_cmd([

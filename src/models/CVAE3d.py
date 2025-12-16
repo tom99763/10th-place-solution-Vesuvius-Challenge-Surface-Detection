@@ -3,7 +3,8 @@ import torch
 import torch.nn as nn
 import copy
 import torch.nn.functional as F
-import utils
+from src.procs.proc_utils import *
+
 
 def weights_init(m):
     classname = m.__class__.__name__
@@ -31,7 +32,8 @@ def reparameterize(mu, logvar, training):
         eps = torch.zeros_like(std).normal_()
         return eps.mul(std).add_(mu)
     else:
-        return torch.zeros_like(mu).normal_()
+        #return torch.zeros_like(mu).normal_()
+        return mu
 
 
 def reparameterize_bern(x, training):
@@ -169,7 +171,7 @@ class WDiscriminator3D(nn.Module):
         self.head = ConvBlock3DSN(opt.nc_im, N, opt.ker_size, opt.ker_size // 2, stride=1, bn=True, act='lrelu')
         self.body = nn.Sequential()
         for i in range(opt.num_layer):
-            block = ConvBlock3DSN(N, N, opt.ker_size, opt.ker_size // 2, stride=1, bn=True, act='lrelu')
+            block = ConvBlock3DSN(N, N, opt.ker_size, opt.ker_size // 2, stride=2, bn=True, act='lrelu')
             self.body.add_module('block%d' % (i), block)
         self.tail = nn.Conv3d(N, 1, kernel_size=opt.ker_size, padding=1, stride=1)
 
@@ -260,7 +262,7 @@ class GeneratorHPVAEGAN(nn.Module):
         else:
             z_vae = noise_init
 
-        vae_out = torch.tanh(self.decoder(z_vae))
+        vae_out = torch.sigmoid(self.decoder(z_vae))
 
         if sample_init is not None:
             x_prev_out = self.refinement_layers(sample_init[0], sample_init[1], noise_amp, mode)
@@ -278,16 +280,16 @@ class GeneratorHPVAEGAN(nn.Module):
                 x_prev_out.detach_()
 
             # Upscale
-            x_prev_out_up = utils.upscale(x_prev_out, idx + 1, self.opt)
+            x_prev_out_up = upscale(x_prev_out, idx + 1, self.opt)
 
             # Add noise if "random" sampling, else, add no noise is "reconstruction" mode
             if mode == 'rand' and self.opt.vae_levels <= idx + 1:
-                noise = utils.generate_noise(ref=x_prev_out_up)
+                noise = generate_noise(ref=x_prev_out_up)
                 x_prev = block(x_prev_out_up + noise * noise_amp[idx + 1])
             else:
                 x_prev = block(x_prev_out_up)
 
-            x_prev_out = torch.tanh(x_prev + x_prev_out_up)
+            x_prev_out = torch.sigmoid(x_prev + x_prev_out_up)
 
         return x_prev_out
 
@@ -339,7 +341,7 @@ class GeneratorVAE_nb(nn.Module):
             z_vae_norm = noise_init_norm
             z_vae_bern = noise_init_bern
 
-        vae_out = torch.tanh(self.decoder(z_vae_norm * z_vae_bern))
+        vae_out = torch.sigmoid(self.decoder(z_vae_norm * z_vae_bern))
 
         if sample_init is not None:
             x_prev_out = self.refinement_layers(sample_init[0], sample_init[1], noise_amp, mode)
@@ -357,16 +359,16 @@ class GeneratorVAE_nb(nn.Module):
                 x_prev_out.detach_()
 
             # Upscale
-            x_prev_out_up = utils.upscale(x_prev_out, idx + 1, self.opt)
+            x_prev_out_up = upscale(x_prev_out, idx + 1, self.opt)
 
             # Add noise if "random" sampling, else, add no noise is "reconstruction" mode
             if mode == 'rand':
-                noise = utils.generate_noise(ref=x_prev_out_up)
+                noise = generate_noise(ref=x_prev_out_up)
                 x_prev = block(x_prev_out_up + noise * noise_amp[idx + 1])
             else:
                 x_prev = block(x_prev_out_up)
 
-            x_prev_out = torch.tanh(x_prev + x_prev_out_up)
+            x_prev_out = torch.sigmoid(x_prev + x_prev_out_up)
 
         return x_prev_out
 
@@ -382,7 +384,7 @@ if __name__ == '__main__':
     parser.add_argument('--manualSeed', type=int, help='manual seed')
 
     # networks hyper parameters:
-    parser.add_argument('--nc-im', type=int, default=3, help='# channels')
+    parser.add_argument('--nc-im', type=int, default=1, help='# channels')
     parser.add_argument('--nfc', type=int, default=64, help='model basic # channels')
     parser.add_argument('--latent-dim', type=int, default=128, help='Latent dim size')
     parser.add_argument('--vae-levels', type=int, default=3, help='# VAE levels')
@@ -406,8 +408,8 @@ if __name__ == '__main__':
     parser.add_argument('--lr-d', type=float, default=0.0005, help='learning rate, default=0.0005')
     parser.add_argument('--beta1', type=float, default=0.5, help='beta1 for adam. default=0.5')
     parser.add_argument('--lambda-grad', type=float, default=0.1, help='gradient penelty weight')
-    parser.add_argument('--rec-weight', type=float, default=10., help='reconstruction loss weight')
-    parser.add_argument('--kl-weight', type=float, default=1., help='reconstruction loss weight')
+    parser.add_argument('--rec-weight', type=float, default=1., help='reconstruction loss weight')
+    parser.add_argument('--kl-weight', type=float, default=5., help='reconstruction loss weight')
     parser.add_argument('--disc-loss-weight', type=float, default=1.0, help='discriminator weight')
     parser.add_argument('--lr-scale', type=float, default=0.2, help='scaling of learning rate for lower stages')
     parser.add_argument('--train-depth', type=int, default=1, help='how many layers are trained if growing')
@@ -433,6 +435,7 @@ if __name__ == '__main__':
     parser.add_argument('--no-cuda', action='store_true', default=False, help='disables cuda')
     parser.set_defaults(hflip=False)
     opt = parser.parse_args()
+    opt.device = torch.device("cuda")
 
     full_scale_size = [256, 256, 256]
     d, h, w = full_scale_size
@@ -443,37 +446,52 @@ if __name__ == '__main__':
     opt.noise_amp_init = opt.noise_amp
     opt.scale_factor_init = opt.scale_factor
 
-    utils.adjust_scales2image(opt.img_size, opt)
+    adjust_scales2image(opt.img_size, opt)
 
     if not hasattr(opt, 'Z_init_size'):
-        initial_size = utils.get_scales_by_index(0, opt.scale_factor, opt.stop_scale, opt.img_size)
+        initial_size = get_scales_by_index(0, opt.scale_factor, opt.stop_scale, opt.img_size)
         initial_size = [initial_size] * 3
         opt.Z_init_size = [opt.batch_size, opt.latent_dim, *initial_size]
 
-    # ---- Dummy 3D video volume ----
-    x = torch.randn(1, 1, *opt.img_size)  # (B, C, T, H, W)
+    noise_init = generate_noise(size=opt.Z_init_size).to(opt.device)
+    opt.Noise_Amps = [1]
 
-    # ================================================================
-    # 1. Create GENERATOR and run forward()
-    # ================================================================
+    selected_scale_index = 4
     G = GeneratorHPVAEGAN(opt)
-    # ---- forward pass (rand mode) ----
-    out, mu, logvar, z = G(opt.noise_init, opt.noise_amp, mode='rand')
+    for _ in range(selected_scale_index):
+        G.init_next_stage()
+        opt.Noise_Amps.append(1)
+    G.to(opt.device)
 
-    print("\n--- GeneratorHPVAEGAN Forward ---")
-    print("out:", out.shape)  # (B, C, T, H, W)
-    print("mu:", mu.shape)  # (B, latent_dim)
-    print("logvar:", logvar.shape)  # (B, latent_dim)
-    print("z:", z.shape)  # (B, latent_dim)
+    with torch.no_grad():
+        fake, fake_vae = G(noise_init, opt.Noise_Amps, noise_init=noise_init, mode='rand')
 
-    # ================================================================
-    # 2. Create DISCRIMINATOR and run forward()
-    # ================================================================
-    D = WDiscriminator3D(opt)
+        print('fake image:', fake.shape)
+        print('fake vae:', fake_vae.shape)
 
-    disc_real = D(x)
-    disc_fake = D(out.detach())
+        # # ================================================================
+        # # GENERATROR real forward
+        # # ================================================================
+        size = get_scales_by_index(0, opt.scale_factor, opt.stop_scale, opt.img_size)
+        vol_size = [size] * 3
+        x = torch.randn(opt.batch_size, 1, *vol_size).to(opt.device)
+        generated, generated_vae, (mu, logvar) = G(x, opt.Noise_Amps, mode="rec")
+        print('image:', generated.shape)
+        print('vae:', generated_vae.shape)
+        print('mu:', mu.shape)
+        print('logvar:', logvar.shape)
 
-    print("\n--- WDiscriminator3D Forward ---")
-    print("disc_real:", disc_real.shape)  # (B, 1)
-    print("disc_fake:", disc_fake.shape)  # (B, 1)
+        # # ================================================================
+        # # DISCRIMINATOR
+        # # ================================================================
+        D = WDiscriminator3D(opt)
+        D.to(opt.device)
+
+        disc_real = D(x)
+        disc_gen_fake = D(generated)
+        disc_rand_fake = D(fake)
+
+        print("\n--- WDiscriminator3D Forward ---")
+        print("disc_real:", disc_real.shape)
+        print("disc_gen_fake:", disc_gen_fake.shape)
+        print("disc_rand_fake:", disc_rand_fake.shape)

@@ -18,9 +18,9 @@ warnings.filterwarnings("ignore", category=UserWarning, module="fft_conv_pytorch
 
 sys.path.append('./src/nnUNet')
 
-os.environ["nnUNet_raw"] = "./nnunet/nnUNet_raw_data_base/nnUNet_raw"
-os.environ["nnUNet_preprocessed"] = "./nnunet/preprocessed"
-os.environ["nnUNet_results"] = "./nnunet/nnUNet_results"
+os.environ["nnUNet_raw"] = "../../nnunet/nnUNet_raw_data_base/nnUNet_raw"
+os.environ["nnUNet_preprocessed"] = "../../nnunet/preprocessed"
+os.environ["nnUNet_results"] = "../../nnunet/nnUNet_results"
 
 #configs
 plt.ion()   # interactive mode
@@ -69,13 +69,13 @@ def run_cmd(cmd_list):
 
 def main():
     # --- INPUT DATA ---
-    DATA_DIR = Path("../../../data/vesuvius-challenge-surface-detection")
+    DATA_DIR = Path("../../data/vesuvius-challenge-surface-detection")
     CSV_PATH = DATA_DIR / "train.csv"
     IMG_DIR = DATA_DIR / "train_images"
     LBL_DIR = DATA_DIR / "train_labels"
     REPO_DIR = 'nnunet_repo'
     # --- OUTPUT NNUNET DIR ---
-    BASE = Path("./nnunet/nnUNet_raw_data_base/nnUNet_raw")
+    BASE = Path("../../nnunet/nnUNet_raw_data_base/nnUNet_raw")
     task_id = 900
     task_name = "VesuviusScroll"
     task_folder = f"Dataset{task_id:03d}_{task_name}"
