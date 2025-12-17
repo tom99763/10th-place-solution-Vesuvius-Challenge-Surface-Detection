@@ -1,0 +1,35 @@
+project_name: vesurvius-challenge
+exp_name: compose-dynunet-128-patch-hard
+data_path: ./data/vesuvius-challenge-surface-detection
+oof_path1 : ''
+oof_path2: ''
+oof_path3: ''
+nnunet_path: ./nnunet
+petrained_ckpt_path: ''
+data_split_path: ./splits_final.json
+batch_size: 1
+num_workers: 4
+lr: 1e-3
+offline: true
+fold_id: 0
+n_splits: 5
+seed: 42
+input_size: [-1, 128, 128]
+threshold: 0.5
+selected_fold: ''
+is_prob_oof_mask: false
+apply_gaussian: false
+
+#model config
+lambda_ce: 0.1
+lambda_dice: 0.9
+
+
+defaults:
+  - models: composeNet
+  - optimizers: AdamW
+  - data: data_deform
+  - trainer: deformSegTrainer
+  - _self_
+
+
