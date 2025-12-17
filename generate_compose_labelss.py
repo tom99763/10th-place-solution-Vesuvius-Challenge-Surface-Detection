@@ -32,9 +32,9 @@ def main():
             skeleton3d[i] = skeleton
             edge3d[i] = edge
             cover3d[i] = cover
-        tiff.imwrite(save_path/ "skeleton3d.tif", skeleton3d.astype(np.uint8))
-        tiff.imwrite(save_path/"edge3d.tif", edge3d.astype(np.uint8))
-        tiff.imwrite(save_path/"cover3d.tif", cover3d.astype(np.uint8))
+        tiff.imwrite(save_path/ f"skeleton3d_{case_id}.tif", skeleton3d.astype(np.uint8))
+        tiff.imwrite(save_path/f"edge3d_{case_id}.tif", edge3d.astype(np.uint8))
+        tiff.imwrite(save_path/f"cover3d_{case_id}.tif", cover3d.astype(np.uint8))
 
 if __name__ == '__main__':
     main()
