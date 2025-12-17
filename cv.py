@@ -82,7 +82,7 @@ def main():
         )
         writer.writeheader()
 
-        for fold_idx in range(4):
+        for fold_idx in range(4,5):
             val_ids = fold_splits[fold_idx]['val']
             tee_print(f"Processing fold {fold_idx} with {len(val_ids)} validation samples")
 
