@@ -59,10 +59,11 @@ class ComposeRefineModule(pl.LightningModule):
     # TRAINING
     # -------------------------------------------------
     def training_step(self, batch, batch_idx):
-        vol, mask_oof = batch["Image"], batch["Mask_OOF"]
+        vol, mask_oof, mask = batch["Image"], batch["Mask_OOF"], batch["Mask"]
         skel_gt = batch["Skeleton"]
         edge_gt = batch["Edge"]
         cover_gt = batch["Cover"]
+        ignore_mask = (mask != 2).float()
 
         if self.cfg.apply_gaussian:
             x = torch.cat([vol, gaussian_blur_3d(mask_oof)], dim=1)
@@ -77,22 +78,22 @@ class ComposeRefineModule(pl.LightningModule):
 
         # === Skeleton loss ===
         L_skel = (
-            self.dice_ce(skel_pred, skel_gt)
+            self.dice_ce(skel_pred * ignore_mask, skel_gt * ignore_mask)
             + self.cfg.lambda_topo * self.cldice(
-                skel_pred.sigmoid(), skel_gt
+                skel_pred.sigmoid() * ignore_mask, skel_gt * ignore_mask
             )
         )
 
         # === Edge loss ===
         L_edge = (
-            self.dice_ce(edge_pred, edge_gt)
+            self.dice_ce(edge_pred * ignore_mask, edge_gt * ignore_mask)
             + self.cfg.lambda_sdf * self.sdf(
-                edge_pred.sigmoid(), edge_gt
+                edge_pred.sigmoid() * ignore_mask, edge_gt * ignore_mask
             )
         )
 
         # === Cover loss ===
-        L_cover = self.dice_ce(cover_pred, cover_gt)
+        L_cover = self.dice_ce(cover_pred * ignore_mask, cover_gt * ignore_mask)
 
         # === Optional recomposition consistency ===
         if self.cfg.lambda_consistency > 0:
@@ -103,7 +104,7 @@ class ComposeRefineModule(pl.LightningModule):
             ).clamp(0, 1)
 
             gt_full = (skel_gt + edge_gt + cover_gt).clamp(0, 1)
-            L_cons = self.dice_ce_n(recon, gt_full)
+            L_cons = self.dice_ce_n(recon * ignore_mask, gt_full * ignore_mask)
         else:
             L_cons = 0.0
 
