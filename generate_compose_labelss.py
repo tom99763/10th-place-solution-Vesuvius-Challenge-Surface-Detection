@@ -15,7 +15,7 @@ def main():
     if not os.path.exists(save_path):
         os.makedirs(save_path)
     df = pd.read_csv(data_path/'train.csv')
-    for _, row in tqdm(df.iterrows(), total=len(df), desc="Copying TIFFs"):
+    for _, row in tqdm(df.iterrows(), total=len(df), desc="Generate Compose TIFFs"):
         case_id = row.id
         mask_path = data_path/'train_labels'/f'{case_id}.tif'
         mask = load_volume(mask_path)
