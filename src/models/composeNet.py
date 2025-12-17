@@ -46,26 +46,26 @@ class ComposeNet3D(nn.Module):
 
         self.predictor = instantiate(cfg.models)
 
-        C = cfg.head.in_channels
+        C = cfg.models.out_channels
         norm = nn.InstanceNorm3d
 
         self.skeleton_head = ResHead3D(
             in_channels=C,
-            out_channels=cfg.head.skeleton_out,
+            out_channels=1,
             n_blocks=cfg.head.n_blocks,
             norm=norm,
         )
 
         self.edge_head = ResHead3D(
             in_channels=C,
-            out_channels=cfg.head.edge_out,
+            out_channels=1,
             n_blocks=cfg.head.n_blocks,
             norm=norm,
         )
 
         self.cover_head = ResHead3D(
             in_channels=C,
-            out_channels=cfg.head.cover_out,
+            out_channels=1,
             n_blocks=cfg.head.n_blocks,
             norm=norm,
         )
@@ -78,9 +78,9 @@ class ComposeNet3D(nn.Module):
         prediction = torch.clamp(skeleton.sigmoid() + edge.sigmoid() + cover.sigmoid(), 0, 1)
         if return_components:
             components = {
-                "skeleton": skeleton,
-                "edge": edge,
-                "cover": cover
+                "Skeleton": skeleton,
+                "Edge": edge,
+                "Cover": cover
             }
             return prediction, components
         return prediction

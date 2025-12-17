@@ -1,11 +1,11 @@
 transforms:
   train:
     - EnsureChannelFirstd:
-        keys: ["Image", "Mask", "Mask_OOF1", "Mask_OOF2"]
+        keys: ["Image", "Mask", "Mask_OOF", "Skeleton", "Edge", "Cover"]
         channel_dim: "no_channel"
 
     - EnsureTyped:
-        keys: ["Image", "Mask", "Mask_OOF1", "Mask_OOF2"]
+        keys: ["Image", "Mask", "Mask_OOF", "Skeleton", "Edge", "Cover"]
         dtype: float32
 
     # === Intensity handling: exactly what nnUNet CTNormalization does ===
@@ -20,7 +20,7 @@ transforms:
 
     # === 3D patch extraction: exactly 3d_fullres ===
     - RandCropByPosNegLabeld:
-        keys: ["Image", "Mask", "Mask_OOF1", "Mask_OOF2"]
+        keys: ["Image", "Mask", "Mask_OOF", "Skeleton", "Edge", "Cover"]
         label_key: "Mask"
         spatial_size: ${input_size}   # ← exact patch_size from 3d_fullres
         pos: 2
@@ -31,20 +31,20 @@ transforms:
 
 #    # === Optional but highly recommended light 3D augs (nnUNet also uses them) ===
 #    - Rand3DElasticd:
-#        keys: ["Image", "Mask", "Mask_OOF1", "Mask_OOF2"]
+#        keys: ["Image", "Mask", "Mask_OOF", "Skeleton", "Edge", "Cover"]
 #        prob: 0.3
 #        sigma_range: [15, 25]
 #        magnitude_range: [100, 200]
 #        spatial_size: ${input_size}
-#        mode: ["bilinear", "nearest", "nearest", "nearest"]
+#        mode: ["bilinear", "nearest", "nearest", "nearest", "nearest", "nearest"]
 #        padding_mode: "zeros"
 #
 #    - RandAffined:
-#        keys: ["Image", "Mask", "Mask_OOF"]
+#        keys: ["Image", "Mask", "Mask_OOF", "Skeleton", "Edge", "Cover"]
 #        prob: 0.3
 #        rotate_range: [(-0.26, 0.26), (-0.26, 0.26), (-0.05, 0.05)]
 #        scale_range: [(-0.15, 0.15), (-0.15, 0.15), (-0.05, 0.05)]
-#        mode: ["bilinear", "nearest", "nearest", "nearest"]
+#        mode: ["bilinear", "nearest", "nearest", "nearest", "nearest", "nearest"]
 #        spatial_size:${input_size}
 #
 #    - RandGaussianNoised:
@@ -54,15 +54,15 @@ transforms:
 #        std: 0.02
 
     - ToTensord:
-        keys: ["Image", "Mask", "Mask_OOF1", "Mask_OOF2"]
+        keys: ["Image", "Mask", "Mask_OOF", "Skeleton", "Edge", "Cover"]
 
   val:
     - EnsureChannelFirstd:
-        keys: ["Image", "Mask", "Mask_OOF1", "Mask_OOF2"]
+        keys: ["Image", "Mask", "Mask_OOF", "Skeleton", "Edge", "Cover"]
         channel_dim: "no_channel"
 
     - EnsureTyped:
-        keys: ["Image", "Mask", "Mask_OOF1", "Mask_OOF2"]
+        keys: ["Image", "Mask", "Mask_OOF", "Skeleton", "Edge", "Cover"]
         dtype: float32
 
     - ScaleIntensityRanged:
@@ -74,15 +74,15 @@ transforms:
         clip: true
 
     - ToTensord:
-        keys: ["Image", "Mask", "Mask_OOF1", "Mask_OOF2"]
+        keys: ["Image", "Mask", "Mask_OOF", "Skeleton", "Edge", "Cover"]
 
   test:
     - EnsureChannelFirstd:
-        keys: [ "Image", "Mask_OOF1", "Mask_OOF2"]
+        keys: [ "Image", "Mask", "Mask_OOF", "Skeleton", "Edge", "Cover"]
         channel_dim: "no_channel"
 
     - EnsureTyped:
-        keys: [ "Image", "Mask_OOF1", "Mask_OOF2"]
+        keys: [ "Image", "Mask", "Mask_OOF", "Skeleton", "Edge", "Cover"]
         dtype: float32
 
     - ScaleIntensityRanged:
@@ -94,4 +94,4 @@ transforms:
         clip: true
 
     - ToTensord:
-        keys: [ "Image", "Mask_OOF1", "Mask_OOF2"]
+        keys: [ "Image", "Mask", "Mask_OOF", "Skeleton", "Edge", "Cover"]

@@ -1,6 +1,7 @@
 project_name: vesurvius-challenge
-exp_name: compose-dynunet-128-patch-hard
+exp_name: compose-dynunet-single-oof
 data_path: ./data/vesuvius-challenge-surface-detection
+compose_label_path: ./data/train_compose_labels
 oof_path1 : ''
 oof_path2: ''
 oof_path3: ''
@@ -9,7 +10,7 @@ petrained_ckpt_path: ''
 data_split_path: ./splits_final.json
 batch_size: 1
 num_workers: 4
-lr: 1e-3
+lr: 1e-2
 offline: true
 fold_id: 0
 n_splits: 5
@@ -28,8 +29,8 @@ lambda_dice: 0.9
 defaults:
   - models: composeNet
   - optimizers: AdamW
-  - data: data_deform
-  - trainer: deformSegTrainer
+  - data: data_compose
+  - trainer: composeNetTrainer
   - _self_
 
 
