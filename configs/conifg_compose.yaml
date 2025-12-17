@@ -22,8 +22,11 @@ is_prob_oof_mask: false
 apply_gaussian: false
 
 #model config
-lambda_ce: 0.1
-lambda_dice: 0.9
+lambda_ce: 0.3
+lambda_dice: 0.7
+lambda_topo: 0.5
+lambda_sdf: 0.3
+lambda_consistency: 0.2
 
 
 defaults:

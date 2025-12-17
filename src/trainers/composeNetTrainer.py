@@ -11,64 +11,91 @@ from src.procs.proc_data import *
 # Lightning Module
 # ---------------------
 class ComposeRefineModule(pl.LightningModule):
-    def __init__(self, model, cfg ):
+    def __init__(self, model, cfg):
         super().__init__()
         self.model = model
-        self.lr = cfg.lr
-        self.lambda_jac = cfg.lambda_jac
-        self.lambda_smooth = cfg.lambda_smooth
         self.cfg = cfg
+        self.lr = cfg.lr
 
-        # Loss
-        self.seg_loss = DiceCELoss(
-            sigmoid=True,  # ← critical fix
-            to_onehot_y=True,  # because your labels are integer class indices
+        # === Base segmentation loss (binary heads) ===
+        self.dice_ce = DiceCELoss(
+            sigmoid=True,
             softmax=False,
-            reduction="mean",
+            to_onehot_y=False,
             squared_pred=True,
             lambda_ce=cfg.lambda_ce,
             lambda_dice=cfg.lambda_dice,
         )
-        self.sliding_window_inferer = SlidingWindowInfererAdapt(
-            roi_size=cfg.input_size, sw_batch_size=2, overlap=0, mode="constant"
-        )
-        self.topo_loss = FastClDiceLoss()  # ← main topology driver
-        self.soft_surf_loss = SoftSDFLoss()
-        self.surf_loss = SurfaceLoss(tau_vox=2.0)  # ← main SurfaceDice driver
 
-        # Validation accumulators (scalar averages)
-        self.val_topo_losses = []
-        self.val_surf_losses = []
-        self.val_dice_metric = DiceMetric(include_background=False, reduction="mean", ignore_empty=True)
-
-        # For proper epoch-level averaging
-        self.val_num_samples = 0
+        # === Topology & surface ===
+        self.cldice = FastClDiceLoss()
+        self.sdf = SoftSDFLoss(tau_vox=2.0)
+        self.surface = SurfaceLoss(tau_vox=2.0)
 
     def forward(self, x, return_components=False):
         return self.model(x, return_components=return_components)
 
-    # ----------------------------------------
-    # TRAINING STEP
-    # ----------------------------------------
+    # -------------------------------------------------
+    # TRAINING
+    # -------------------------------------------------
     def training_step(self, batch, batch_idx):
-        vol, mask, mask_oof = batch['Image'], batch['Mask'], batch['Mask_OOF']
-        skeleton, edge, cover = batch["Skeleton"], batch["Edge"], batch["Cover"]
+        vol, mask_oof = batch["Image"], batch["Mask_OOF"]
+        skel_gt = batch["Skeleton"]
+        edge_gt = batch["Edge"]
+        cover_gt = batch["Cover"]
+
         if self.cfg.apply_gaussian:
             x = torch.cat([vol, gaussian_blur_3d(mask_oof)], dim=1)
         else:
             x = torch.cat([vol, mask_oof], dim=1)
-        _, components = self(x, return_components=True)
 
-        # segmentation loss using MONAI DiceCE
-        L_skel = self.seg_loss(components["Skeleton"], skeleton)
-        L_edge = self.seg_loss(components["Edge"], edge)
-        L_cover = self.seg_loss(components["Cover"], cover)
-        loss = L_skel + L_edge + L_cover
+        _, comps = self(x, return_components=True)
 
-        self.log("loss", loss, prog_bar=True)
-        self.log("loss_skel", L_skel, prog_bar=True)
-        self.log("loss_edge", L_edge, prog_bar=True)
-        self.log("loss_cover", L_cover, prog_bar=True)
+        skel_pred = comps["Skeleton"]
+        edge_pred = comps["Edge"]
+        cover_pred = comps["Cover"]
+
+        # === Skeleton loss ===
+        L_skel = (
+            self.dice_ce(skel_pred, skel_gt)
+            + self.cfg.lambda_topo * self.cldice(
+                skel_pred.sigmoid(), skel_gt
+            )
+        )
+
+        # === Edge loss ===
+        L_edge = (
+            self.dice_ce(edge_pred, edge_gt)
+            + self.cfg.lambda_sdf * self.sdf(
+                edge_pred.sigmoid(), edge_gt
+            )
+        )
+
+        # === Cover loss ===
+        L_cover = self.dice_ce(cover_pred, cover_gt)
+
+        # === Optional recomposition consistency ===
+        if self.cfg.lambda_consistency > 0:
+            recon = (
+                skel_pred.sigmoid()
+                + edge_pred.sigmoid()
+                + cover_pred.sigmoid()
+            ).clamp(0, 1)
+
+            gt_full = (skel_gt + edge_gt + cover_gt).clamp(0, 1)
+            L_cons = self.dice_ce(recon, gt_full)
+        else:
+            L_cons = 0.0
+
+        loss = L_skel + L_edge + L_cover + self.cfg.lambda_consistency * L_cons
+
+        self.log_dict({
+            "loss": loss,
+            "loss_skel": L_skel,
+            "loss_edge": L_edge,
+            "loss_cover": L_cover,
+        }, prog_bar=True)
+
         return loss
 
     def validation_step(self, batch, batch_idx):
@@ -105,6 +132,7 @@ class ComposeRefineModule(pl.LightningModule):
 
         return None
 
+
     def on_validation_epoch_end(self):
         # === Average all losses over all samples in the epoch ===
         avg_topo_loss = torch.stack(self.val_topo_losses).sum() / self.val_num_samples
@@ -139,8 +167,9 @@ class ComposeRefineModule(pl.LightningModule):
         self.val_surf_losses.clear()
         self.val_num_samples = 0
 
-    # ----------------------------------------
-    # Optimizer
-    # ----------------------------------------
     def configure_optimizers(self):
-        return torch.optim.AdamW(self.parameters(), lr=self.cfg.lr, weight_decay=1e-2)
+        return torch.optim.AdamW(
+            self.parameters(),
+            lr=self.lr,
+            weight_decay=1e-2
+        )
