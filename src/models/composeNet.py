@@ -75,7 +75,7 @@ class ComposeNet3D(nn.Module):
         skeleton = self.skeleton_head(fmap)
         edge = self.edge_head(fmap)
         cover = self.cover_head(fmap)
-        prediction = skeleton.sigmoid() + edge.sigmoid() + cover.sigmoid()
+        prediction = torch.clamp(skeleton.sigmoid() + edge.sigmoid() + cover.sigmoid(), 0, 1)
         if return_components:
             components = {
                 "skeleton": skeleton,
