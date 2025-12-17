@@ -16,7 +16,6 @@ import json
 from src.models.composeNet import *
 from src.trainers.composeNetTrainer import *
 import torch.multiprocessing as mp
-import pytorch_lightining as pl
 mp.set_start_method("spawn", force=True)
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
@@ -31,7 +30,7 @@ def set_seed(seed=42):
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
 
-@hydra.main(config_path="./configs", config_name="config_deform", version_base=None)
+@hydra.main(config_path="./configs", config_name="config_compose", version_base=None)
 def run(cfg: DictConfig):
     nnunet_path = Path(cfg.nnunet_path)
     with open(cfg.data_split_path, "r") as f:
@@ -82,8 +81,8 @@ def run(cfg: DictConfig):
         #wnb_logger.watch(model, log="all", log_freq=20)
 
         # training
-        trainer.fit(pl_model, datamodule=datamodule)
-        #trainer.validate(pl_model, datamodule=datamodule)
+        #trainer.fit(pl_model, datamodule=datamodule)
+        trainer.validate(pl_model, datamodule=datamodule)
 
 if __name__ == '__main__':
     run()

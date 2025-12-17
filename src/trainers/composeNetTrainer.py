@@ -26,11 +26,22 @@ class ComposeRefineModule(pl.LightningModule):
             lambda_ce=cfg.lambda_ce,
             lambda_dice=cfg.lambda_dice,
         )
+        self.sliding_window_inferer = SlidingWindowInfererAdapt(
+            roi_size=cfg.input_size, sw_batch_size=2, overlap=0, mode="constant"
+        )
 
         # === Topology & surface ===
         self.cldice = FastClDiceLoss()
         self.sdf = SoftSDFLoss(tau_vox=2.0)
         self.surface = SurfaceLoss(tau_vox=2.0)
+
+        # Validation accumulators (scalar averages)
+        self.val_topo_losses = []
+        self.val_surf_losses = []
+        self.val_dice_metric = DiceMetric(include_background=False, reduction="mean", ignore_empty=True)
+
+        # For proper epoch-level averaging
+        self.val_num_samples = 0
 
     def forward(self, x, return_components=False):
         return self.model(x, return_components=return_components)
@@ -115,8 +126,8 @@ class ComposeRefineModule(pl.LightningModule):
 
         # === Compute losses exactly like training (but in eval mode) ===
         with torch.no_grad():
-            topo_loss = self.topo_loss(prediction, target_mask)  # scalar
-            surf_loss = self.surf_loss(prediction, target_mask)  # scalar
+            topo_loss = self.cldice(prediction, target_mask)  # scalar
+            surf_loss = self.surface(prediction, target_mask)  # scalar
 
         # Binarize for DiceMetric
         pred_bin = pred_masked > self.cfg.threshold

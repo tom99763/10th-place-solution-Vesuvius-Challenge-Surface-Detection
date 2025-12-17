@@ -2,7 +2,7 @@ project_name: vesurvius-challenge
 exp_name: compose-dynunet-single-oof
 data_path: ./data/vesuvius-challenge-surface-detection
 compose_label_path: ./data/train_compose_labels
-oof_path1 : ''
+oof_path1 : ./nnunet/nnUNet_results/Dataset900_VesuviusScroll/nnUNetTrainer__nnUNetResEncUNetMPlans__3d_fullres/oof_deform_gaussian/oof
 oof_path2: ''
 oof_path3: ''
 nnunet_path: ./nnunet
@@ -19,7 +19,7 @@ input_size: [-1, 128, 128]
 threshold: 0.5
 selected_fold: ''
 is_prob_oof_mask: false
-apply_gaussian: false
+apply_gaussian: true
 
 #model config
 lambda_ce: 0.3
@@ -27,6 +27,9 @@ lambda_dice: 0.7
 lambda_topo: 0.5
 lambda_sdf: 0.3
 lambda_consistency: 0.2
+
+#model structures
+n_blocks: 3
 
 
 defaults:

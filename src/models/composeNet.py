@@ -52,21 +52,21 @@ class ComposeNet3D(nn.Module):
         self.skeleton_head = ResHead3D(
             in_channels=C,
             out_channels=1,
-            n_blocks=cfg.head.n_blocks,
+            n_blocks=cfg.n_blocks,
             norm=norm,
         )
 
         self.edge_head = ResHead3D(
             in_channels=C,
             out_channels=1,
-            n_blocks=cfg.head.n_blocks,
+            n_blocks=cfg.n_blocks,
             norm=norm,
         )
 
         self.cover_head = ResHead3D(
             in_channels=C,
             out_channels=1,
-            n_blocks=cfg.head.n_blocks,
+            n_blocks=cfg.n_blocks,
             norm=norm,
         )
 
