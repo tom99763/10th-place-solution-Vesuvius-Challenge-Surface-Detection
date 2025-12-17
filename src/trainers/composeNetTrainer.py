@@ -26,6 +26,15 @@ class ComposeRefineModule(pl.LightningModule):
             lambda_ce=cfg.lambda_ce,
             lambda_dice=cfg.lambda_dice,
         )
+
+        self.dice_ce_n = DiceCELoss(
+            sigmoid=False,
+            softmax=False,
+            to_onehot_y=False,
+            squared_pred=True,
+            lambda_ce=cfg.lambda_ce,
+            lambda_dice=cfg.lambda_dice,
+        )
         self.sliding_window_inferer = SlidingWindowInfererAdapt(
             roi_size=cfg.input_size, sw_batch_size=2, overlap=0, mode="constant"
         )
@@ -94,7 +103,7 @@ class ComposeRefineModule(pl.LightningModule):
             ).clamp(0, 1)
 
             gt_full = (skel_gt + edge_gt + cover_gt).clamp(0, 1)
-            L_cons = self.dice_ce(recon, gt_full)
+            L_cons = self.dice_ce_n(recon, gt_full)
         else:
             L_cons = 0.0
 
