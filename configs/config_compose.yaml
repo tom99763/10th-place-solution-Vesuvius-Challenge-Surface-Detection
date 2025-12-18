@@ -15,7 +15,7 @@ offline: true
 fold_id: 0
 n_splits: 5
 seed: 42
-input_size: [128, 128, 128]
+input_size: [-1, 128, 128]
 threshold: 0.5
 selected_fold: ''
 is_prob_oof_mask: false
@@ -30,6 +30,7 @@ lambda_consistency: 0.2
 
 #model structures
 n_blocks: 3
+eps: 0.1
 
 
 defaults:
