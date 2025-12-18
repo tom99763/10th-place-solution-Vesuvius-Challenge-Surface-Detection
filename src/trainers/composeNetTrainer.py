@@ -23,6 +23,9 @@ class ComposeRefineModule(pl.LightningModule):
             roi_size=cfg.input_size, sw_batch_size=2, overlap=0, mode="constant"
         )
 
+        self.cldice = FastClDiceLoss()  # ← main topology driver
+        self.surface = SurfaceLoss(tau_vox=2.0)  # ← main SurfaceDice driver
+
         # Validation accumulators (scalar averages)
         self.val_topo_losses = []
         self.val_surf_losses = []
