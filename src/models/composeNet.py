@@ -13,12 +13,12 @@ class ComposeNet3D(nn.Module):
     def forward(self, x):
         prediction = self.predictor(x)
         prediction = torch.tanh(prediction)
-        if not self.training:
-            mask = x[:, 1:2]
-            corr = torch.where(
-                prediction > self.eps, 1,
-                torch.where(prediction < -self.eps, -1, 0)
-            )
-            mask = (mask + corr).clamp(0, 1)
-            return mask
-        return prediction
+        mask = self.refine(x, prediction)
+        if self.training:
+            return mask, prediction
+        return mask
+
+    def refine(self, x, prediction):
+        mask = x[:, 1:2]
+        mask = (mask + prediction).clamp(0, 1)
+        return mask

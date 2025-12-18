@@ -18,6 +18,15 @@ class ComposeRefineModule(pl.LightningModule):
         self.cfg = cfg
         self.lr = cfg.lr
         self.l1_loss = nn.SmoothL1Loss(beta=0.1)
+        self.seg_loss = DiceCELoss(
+            sigmoid=False,  # ← critical fix
+            to_onehot_y=True,  # because your labels are integer class indices
+            softmax=False,
+            reduction="mean",
+            squared_pred=True,
+            lambda_ce=cfg.lambda_ce,
+            lambda_dice=cfg.lambda_dice,
+        )
 
         self.sliding_window_inferer = SlidingWindowInfererAdapt(
             roi_size=cfg.input_size, sw_batch_size=2, overlap=0, mode="constant"
@@ -44,12 +53,12 @@ class ComposeRefineModule(pl.LightningModule):
         vol, mask_oof, mask = batch["Image"], batch["Mask_OOF"], batch["Mask"]
         ignore_mask = (mask != 2).float()
         x = torch.cat([vol, mask_oof], dim=1)
-        output = self(x)
-        loss = self.l1_loss(output * ignore_mask, (mask - mask_oof) * ignore_mask)
+        mask_pred, residual_pred = self(x)
+        loss = self.l1_loss(residual_pred * ignore_mask, (mask - mask_oof) * ignore_mask) +\
+            self.seg_loss(mask_pred * ignore_mask, mask * ignore_mask)
         self.log_dict({
             "loss": loss,
         }, prog_bar=True)
-
         return loss
 
     def validation_step(self, batch, batch_idx):
@@ -70,8 +79,10 @@ class ComposeRefineModule(pl.LightningModule):
             topo_loss = self.cldice(pred_mask, target_mask)  # scalar
             surf_loss = self.surface(pred_mask, target_mask)  # scalar
 
+        pred_bin = pred_mask > self.cfg.threshold
+
         # Update MONAI Dice
-        self.val_dice_metric(y_pred=pred_mask, y=(mask * ignore_mask).long())
+        self.val_dice_metric(y_pred=pred_bin, y=(mask * ignore_mask).long())
 
         # Store losses weighted by batch size
         batch_size = vol.shape[0]
