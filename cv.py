@@ -20,6 +20,13 @@ def tee_print(*args, **kwargs):
 
 
 def calc_score(labelarr, predarr):
+    surface_tolerance: float = 2.0
+    voi_connectivity: int = 26
+    voi_transform: str = 'one_over_one_plus'
+    voi_alpha: float = 0.3
+    topo_weight: float = 0.3
+    surface_dice_weight: float = 0.35
+    voi_weight: float = 0.35
     score_report = topometrics.leaderboard.compute_leaderboard_score(
         predictions=predarr,
         labels=labelarr,
@@ -71,7 +78,7 @@ def compute_score_for_id(args):
 
 
 def main():
-    with open(nnunet_processed / "splits_final.json", "r") as f:
+    with open("./splits_final.json", "r") as f:
         fold_splits = json.load(f)
 
         # open CSV for writing
