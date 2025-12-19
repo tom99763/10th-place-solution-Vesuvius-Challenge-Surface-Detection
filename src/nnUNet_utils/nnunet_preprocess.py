@@ -1,109 +1,75 @@
-import sys
-import time
 import os
-import torch
-import pandas as pd
-# from skimage import io, transform
-import numpy as np
-import matplotlib.pyplot as plt
-from torch.utils.data import Dataset, DataLoader
-from torchvision import transforms, utils
-import torch.nn.functional as F
-from tqdm import tqdm
-from scipy import ndimage
-from glob import glob
-import pandas as pd
-from pathlib import Path
-import matplotlib.pyplot as plt
-# Ignore warnings
-import warnings
-warnings.filterwarnings("ignore")
-from random import sample
-import nibabel as nib
-from PIL import Image, ImageSequence
-import shutil
 import json
 import subprocess
-import warnings
-warnings.filterwarnings("ignore", category=UserWarning, module="fft_conv_pytorch")
+from pathlib import Path
 
-sys.path.append('/kaggle/Vesuvius-challenge-Codebase/src/nnUNet')
-os.environ["nnUNet_raw"] = "/kaggle/Vesuvius-challenge-Codebase/nnunet/nnUNet_raw_data_base/nnUNet_raw"
-os.environ["nnUNet_preprocessed"] = "/kaggle/Vesuvius-challenge-Codebase/nnunet/preprocessed"
-os.environ["nnUNet_results"] = "/kaggle/Vesuvius-challenge-Codebase/nnunet/nnUNet_results"
+# ---------------------------
+# nnU-Net paths 
+# ---------------------------
+os.environ["nnUNet_raw"] = "./nnunet/nnUNet_raw_data_base/nnUNet_raw"
+os.environ["nnUNet_preprocessed"] = "./nnunet/preprocessed"
+os.environ["nnUNet_results"] = "./nnunet/nnUNet_results"
 
-
-
-#configs
-plt.ion()   # interactive mode
-SPACING = [1, 1, 1]  # change if needed
-DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-
-
-def run_cmd(cmd_list):
-    print("\n>>> Running:", " ".join(cmd_list))
-    result = subprocess.run(cmd_list, check=True)
-    print(">>> Done.\n")
-    return result
+DATASET_ID = "900"
+CONFIG = "3d_fullres"
+PLANNER = "nnUNetPlannerResEncM"
+PLANS_NAME = "nnUNetResEncUNetMPlans_30G"
+PATCH_SIZE = [320, 128, 128]
 
 
-def main():
-    # 1. only extrazct fingerprint
-    # run_cmd([
-        
-    #     "nnUNetv2_extract_fingerprint",
-    #     "-d","900",
-    #     "-c","3d_fullres",
-    #     "-pl", "nnUNetPlannerResEncM",
-    #     "--verify_dataset_integrity"
-        
-    # ])
+def run(cmd):
+    print("\n>>>", " ".join(cmd))
+    subprocess.run(cmd, check=True)
 
+# --------------------------------------------------
+# 1) Extract fingerprint
+# --------------------------------------------------
+run([
+    "nnUNetv2_extract_fingerprint",
+    "-d", DATASET_ID,
+    "-c", CONFIG,
+    "-pl", PLANNER,
+    "--verify_dataset_integrity"
+])
 
-    # all steps together cna be ignored
-    # run_cmd([
-        
-    #     "nnUNetv2_plan_and_preprocess",
-    #     "-d","900",
-    #     "-c","3d_fullres",
-    #     "-pl", "nnUNetPlannerResEncM",
-    #     "--verify_dataset_integrity"
+# --------------------------------------------------
+# 2) Generate plans
+# --------------------------------------------------
+run([
+    "nnUNetv2_plan_experiment",
+    "-d", DATASET_ID,
+    "-c", CONFIG,
+    "-pl", PLANNER,
+    "-gpu_memory_target", "38",
+    "-overwrite_plans_name", PLANS_NAME
+])
 
-    #2. only generate pplans  
-    # ])
-    # # Only generate plans
-    #    run_cmd([
-        
-    #     "nnUNetv2_plan_experiment",
-    #     "-d","900",
-    #     "-c","3d_fullres",
-    #     "-pl", "nnUNetPlannerResEncM",
-    #     "-gpu_memory_target" , "38",
-    #     "-overwrite_plans_name", "nnUNetResEncUNetMPlans_30G"
-        
-    # ])
-  
-  
-  # 3. only preprocess
-    run_cmd([
-        
-        "nnUNetv2_preprocess",
-        "-d","900",
-        "-c","3d_fullres",
-        "-pl", "nnUNetResEncUNetMPlans_30G",
-        
-        
-    ])
+# --------------------------------------------------
+# 3) MODIFY plans file (THIS IS THE MAGIC PART)
+# --------------------------------------------------
+plans_dir = Path(os.environ["nnUNet_preprocessed"])
+plans_file = list(plans_dir.rglob(f"{PLANS_NAME}.json"))[0]
 
+print(f"\n>>> Editing plans file: {plans_file}")
 
-if __name__ == '__main__':
-    main()
+with open(plans_file, "r") as f:
+    plans = json.load(f)
 
+plans["configurations"]["3d_fullres"]["patch_size"] = PATCH_SIZE
 
+with open(plans_file, "w") as f:
+    json.dump(plans, f, indent=4)
 
+print(f">>> Patch size set to {PATCH_SIZE}")
 
+# --------------------------------------------------
+# 4) Preprocess
+# --------------------------------------------------
+run([
+    "nnUNetv2_preprocess",
+    "-d", DATASET_ID,
+    "-c", CONFIG,
+    "-pl", PLANS_NAME
+])
 
-
-
-
-
+print("\n✅ DONE: fingerprint → plans → patch size → preprocess")
