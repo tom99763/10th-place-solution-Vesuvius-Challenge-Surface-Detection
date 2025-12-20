@@ -24,15 +24,32 @@ class ComposeDataset(Dataset):
         vol = load_volume(self.data_path / 'train_images' / f'{idx}.tif')
         mask = load_volume(self.data_path/'train_labels'/f'{idx}.tif')
         oof_mask = load_volume(Path(f'{self.cfg.oof_path1}/{idx}.tif'))
-        raw = {"Image": vol, "Mask": mask, "Mask_OOF": oof_mask}
-        data = self.proc_data(raw)
         if self.train:
+            skeleton_mask = load_volume(self.compose_label_path / f'skeleton3d_{idx}.tif')
+            edge_mask = load_volume(self.compose_label_path / f'edge3d_{idx}.tif')
+            cover_mask = load_volume(self.compose_label_path / f'cover3d_{idx}.tif')
+
+            raw = {"Image": vol, "Mask": mask, "Mask_OOF": oof_mask,
+                   "Skeleton": skeleton_mask,
+                   "Edge": edge_mask,
+                   "Cover": cover_mask
+                   }
+
+            data = self.proc_data(raw)
             vol = torch.stack([_data['Image'] for _data in data], dim=0)
             mask = torch.stack([_data['Mask'] for _data in data], dim=0)
             mask_oof = torch.stack([_data['Mask_OOF'] for _data in data], dim=0)
+            skeleton_mask = torch.stack([_data['Skeleton'] for _data in data], dim=0)
+            edge_mask = torch.stack([_data['Edge'] for _data in data], dim=0)
+            cover_mask = torch.stack([_data['Cover'] for _data in data], dim=0)
+            return vol, mask, mask_oof, skeleton_mask, edge_mask, cover_mask
         else:
+            raw = {"Image": vol, "Mask": mask, "Mask_OOF": oof_mask,
+                   }
+
+            data = self.proc_data(raw)
             vol, mask, mask_oof = data['Image'], data['Mask'], data['Mask_OOF']
-        return vol, mask, mask_oof
+            return vol, mask, mask_oof
 
 
 def collate_fn_train(batch):
@@ -42,11 +59,17 @@ def collate_fn_train(batch):
     images = torch.cat([item[0] for item in batch], dim=0)
     masks = torch.cat([item[1] for item in batch], dim=0)
     mask_oof = torch.cat([item[2] for item in batch], dim=0)
+    skeleton_masks = torch.cat([item[3] for item in batch], dim=0)
+    edge_masks = torch.cat([item[4] for item in batch], dim=0)
+    cover_masks = torch.cat([item[5] for item in batch], dim=0)
 
     return {
         "Image": images,
         "Mask": masks,
         "Mask_OOF": mask_oof,
+        "Skeleton": skeleton_masks,
+        "Edge": edge_masks,
+        "Cover": cover_masks
     }
 
 

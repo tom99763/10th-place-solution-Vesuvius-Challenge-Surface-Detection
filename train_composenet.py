@@ -68,7 +68,8 @@ def run(cfg: DictConfig):
             dirpath="./models",
             filename=f"{cfg.exp_name}-fold{i}"
                      + "-{epoch:02d}-{val_comp_metric:.4f}",
-            save_top_k=1
+            save_top_k=1,
+            save_last=True
         )
         lr_monitor = pl.callbacks.LearningRateMonitor(logging_interval="epoch")
 
@@ -81,8 +82,8 @@ def run(cfg: DictConfig):
         #wnb_logger.watch(model, log="all", log_freq=20)
 
         # training
-        #trainer.fit(pl_model, datamodule=datamodule)
-        trainer.validate(pl_model, datamodule=datamodule)
+        trainer.fit(pl_model, datamodule=datamodule)
+        #trainer.validate(pl_model, datamodule=datamodule)
 
 if __name__ == '__main__':
     run()
