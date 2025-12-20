@@ -93,6 +93,8 @@ class ComposeRefineModule(pl.LightningModule):
             prediction = prediction > self.cfg.threshold
         else:
             prediction = mask_oof
+
+        #print(prediction)
         score = calc_score(mask.cpu().numpy()[0, 0] ,prediction.cpu().numpy()[0, 0])
         self.val_num_samples += x.shape[0]
         self.scores.append(score.score)

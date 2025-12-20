@@ -3,6 +3,7 @@ import torch
 from pathlib import Path
 from ..procs.proc_data import generate_transforms, load_volume
 import numpy as np
+import pytorch_lightning as pl
 
 class ComposeDataset(Dataset):
     def __init__(self, cfg, id_list, train: bool):
@@ -26,8 +27,8 @@ class ComposeDataset(Dataset):
 
         if self.train:
             c = np.load(self.compose_label_path / f'{idx}.npz', mmap_mode ='r')
-            c1 = c['thickness']
-            c2 = c['sdf']
+            c1 = c['sdf']
+            c2 = c['thickness']
             c3 = c['normals']
 
             raw = {
@@ -36,7 +37,9 @@ class ComposeDataset(Dataset):
                 "Mask_OOF": oof_mask,
                 "C1": c1,
                 "C2": c2,
-                "C3": c3
+                "C30": c3[0],
+                "C31": c3[1],
+                "C32": c3[2]
             }
 
             data = self.proc_data(raw)
@@ -45,8 +48,10 @@ class ComposeDataset(Dataset):
             mask_oof = torch.stack([d['Mask_OOF'] for d in data], dim=0)
             c1 = torch.stack([d['C1'] for d in data], dim=0)
             c2 = torch.stack([d['C2'] for d in data], dim=0)
-            c3 = torch.stack([d['C3'] for d in data], dim=0)
-
+            c30 = torch.stack([d['C30'] for d in data], dim=0)
+            c31 = torch.stack([d['C31'] for d in data], dim=0)
+            c32 = torch.stack([d['C32'] for d in data], dim=0)
+            c3 = torch.cat([c30, c31, c32], dim=1)
             return vol, mask, mask_oof, c1, c2, c3
 
         else:

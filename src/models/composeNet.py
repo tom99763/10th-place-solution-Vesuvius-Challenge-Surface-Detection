@@ -25,7 +25,7 @@ class MaskDecompositionTorch:
         B, _, D, H, W = sdf.shape
         device = sdf.device
 
-        recon = torch.zeros((B, 1, D, H, W), dtype=torch.uint8, device=device)
+        recon = torch.zeros((B, 1, D, H, W), dtype=torch.float32, device=device)
 
         for b in range(B):
             center_mask = sdf[b,0] <= 0

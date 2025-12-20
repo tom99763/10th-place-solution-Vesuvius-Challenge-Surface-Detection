@@ -10,7 +10,7 @@ petrained_ckpt_path: ''
 data_split_path: ./splits_final.json
 batch_size: 1
 num_workers: 4
-lr: 1e-2
+lr: 1e-3
 offline: true
 fold_id: 0
 n_splits: 5

@@ -1,3 +1,5 @@
+import os.path
+
 import numpy as np
 import pandas as pd
 from pathlib import Path
@@ -16,6 +18,8 @@ def main():
 
     for _, row in tqdm(df.iterrows(), total=len(df), desc="Generate Compressed NPZs"):
         case_id = row['id']
+        if os.path.exists(save_path / f"{case_id}.npz"):
+            continue
         mask_path = data_path / 'train_labels' / f'{case_id}.tif'
         mask = load_volume(mask_path)
         mask = mask * (mask != 2)

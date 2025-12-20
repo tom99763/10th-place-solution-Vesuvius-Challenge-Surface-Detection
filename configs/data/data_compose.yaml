@@ -1,11 +1,11 @@
 transforms:
   train:
     - EnsureChannelFirstd:
-        keys: ["Image", "Mask", "Mask_OOF", "C1", "C2", "C3"]
+        keys: ["Image", "Mask", "Mask_OOF", "C1", "C2", "C30", "C31", "C32"]
         channel_dim: "no_channel"
 
     - EnsureTyped:
-        keys: ["Image", "Mask", "Mask_OOF", "C1", "C2", "C3"]
+        keys: ["Image", "Mask", "Mask_OOF", "C1", "C2", "C30", "C31", "C32"]
         dtype: float32
 
     # === Intensity handling: exactly what nnUNet CTNormalization does ===
@@ -19,7 +19,7 @@ transforms:
 
     # === 3D patch extraction: exactly 3d_fullres ===
     - RandCropByPosNegLabeld:
-        keys: ["Image", "Mask", "Mask_OOF", "C1", "C2", "C3"]
+        keys: ["Image", "Mask", "Mask_OOF", "C1", "C2", "C30", "C31", "C32"]
         label_key: "Mask"
         spatial_size: ${input_size}   # ← exact patch_size from 3d_fullres
         pos: 2
@@ -53,7 +53,7 @@ transforms:
 #        std: 0.02
 
     - ToTensord:
-        keys: ["Image", "Mask", "Mask_OOF", "C1", "C2", "C3"]
+        keys: ["Image", "Mask", "Mask_OOF", "C1", "C2", "C30", "C31", "C32"]
 
   val:
     - EnsureChannelFirstd:
