@@ -22,14 +22,14 @@ is_prob_oof_mask: false
 apply_gaussian: true
 
 #model config
-lambda_ce: 0.1
-lambda_dice: 0.9
-lambda_topo: 0.5
-lambda_sdf: 0.3
-lambda_consistency: 0.
+lambda_sdf: 1.0
+lambda_thickness: 1.0
+lambda_normals: 1.0
 
 #model structures
 n_blocks: 3
+kernel_size: 3
+sigma: 5
 
 
 defaults:

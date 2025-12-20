@@ -1,15 +1,14 @@
 transforms:
   train:
     - EnsureChannelFirstd:
-        keys: ["Image", "Mask", "Mask_OOF", "Skeleton", "Edge", "Cover"]
+        keys: ["Image", "Mask", "Mask_OOF", "C1", "C2", "C3"]
         channel_dim: "no_channel"
 
     - EnsureTyped:
-        keys: ["Image", "Mask", "Mask_OOF", "Skeleton", "Edge", "Cover"]
+        keys: ["Image", "Mask", "Mask_OOF", "C1", "C2", "C3"]
         dtype: float32
 
     # === Intensity handling: exactly what nnUNet CTNormalization does ===
-    # 1. Clip to [0.5%, 99.5%] percentile → then z-score using foreground stats
     - ScaleIntensityRanged:
         keys: ["Image"]
         a_min: 0.0          # percentile_00_5
@@ -20,7 +19,7 @@ transforms:
 
     # === 3D patch extraction: exactly 3d_fullres ===
     - RandCropByPosNegLabeld:
-        keys: ["Image", "Mask", "Mask_OOF", "Skeleton", "Edge", "Cover"]
+        keys: ["Image", "Mask", "Mask_OOF", "C1", "C2", "C3"]
         label_key: "Mask"
         spatial_size: ${input_size}   # ← exact patch_size from 3d_fullres
         pos: 2
@@ -31,7 +30,7 @@ transforms:
 
 #    # === Optional but highly recommended light 3D augs (nnUNet also uses them) ===
 #    - Rand3DElasticd:
-#        keys: ["Image", "Mask", "Mask_OOF", "Skeleton", "Edge", "Cover"]
+#        keys: ["Image", "Mask", "Mask_OOF", "C1", "C2", "C3"]
 #        prob: 0.3
 #        sigma_range: [15, 25]
 #        magnitude_range: [100, 200]
@@ -40,7 +39,7 @@ transforms:
 #        padding_mode: "zeros"
 #
 #    - RandAffined:
-#        keys: ["Image", "Mask", "Mask_OOF", "Skeleton", "Edge", "Cover"]
+#        keys: ["Image", "Mask", "Mask_OOF", "C1", "C2", "C3"]
 #        prob: 0.3
 #        rotate_range: [(-0.26, 0.26), (-0.26, 0.26), (-0.05, 0.05)]
 #        scale_range: [(-0.15, 0.15), (-0.15, 0.15), (-0.05, 0.05)]
@@ -54,7 +53,7 @@ transforms:
 #        std: 0.02
 
     - ToTensord:
-        keys: ["Image", "Mask", "Mask_OOF", "Skeleton", "Edge", "Cover"]
+        keys: ["Image", "Mask", "Mask_OOF", "C1", "C2", "C3"]
 
   val:
     - EnsureChannelFirstd:

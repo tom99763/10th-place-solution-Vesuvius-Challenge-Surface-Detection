@@ -1,20 +1,18 @@
 from torch.utils.data import Dataset, DataLoader
-import numpy as np
 import torch
-import pytorch_lightning as pl
-from ..procs.proc_data import *
 from pathlib import Path
+from ..procs.proc_data import generate_transforms, load_volume
 
 class ComposeDataset(Dataset):
-    def __init__(self, cfg, id_list, train):
+    def __init__(self, cfg, id_list, train: bool):
         super().__init__()
         self.cfg = cfg
         self.id_list = id_list
-        self.proc_data = generate_transforms(self.cfg.data.transforms.train if train else self.cfg.data.transforms.val)
-        self.data_path = Path(self.cfg.data_path)
-        self.nnunet_path = Path(self.cfg.nnunet_path)
-        self.compose_label_path = Path(self.cfg.compose_label_path)
         self.train = train
+        self.proc_data = generate_transforms(cfg.data.transforms.train if train else cfg.data.transforms.val)
+        self.data_path = Path(cfg.data_path)
+        self.compose_label_path = Path(cfg.compose_label_path)
+        self.oof_path = Path(cfg.oof_path1)
 
     def __len__(self):
         return len(self.id_list)
@@ -22,61 +20,65 @@ class ComposeDataset(Dataset):
     def __getitem__(self, idx):
         idx = self.id_list[idx]
         vol = load_volume(self.data_path / 'train_images' / f'{idx}.tif')
-        mask = load_volume(self.data_path/'train_labels'/f'{idx}.tif')
-        oof_mask = load_volume(Path(f'{self.cfg.oof_path1}/{idx}.tif'))
+        mask = load_volume(self.data_path / 'train_labels' / f'{idx}.tif')
+        oof_mask = load_volume(self.oof_path / f'{idx}.tif')
+
         if self.train:
-            skeleton_mask = load_volume(self.compose_label_path / f'skeleton3d_{idx}.tif')
-            edge_mask = load_volume(self.compose_label_path / f'edge3d_{idx}.tif')
-            cover_mask = load_volume(self.compose_label_path / f'cover3d_{idx}.tif')
+            c1 = load_volume(self.compose_label_path / f'C1_{idx}.tif')
+            c2 = load_volume(self.compose_label_path / f'C2_{idx}.tif')
+            c3 = load_volume(self.compose_label_path / f'C3_{idx}.tif')
 
-            raw = {"Image": vol, "Mask": mask, "Mask_OOF": oof_mask,
-                   "Skeleton": skeleton_mask,
-                   "Edge": edge_mask,
-                   "Cover": cover_mask
-                   }
+            raw = {
+                "Image": vol,
+                "Mask": mask,
+                "Mask_OOF": oof_mask,
+                "C1": c1,
+                "C2": c2,
+                "C3": c3
+            }
 
             data = self.proc_data(raw)
-            vol = torch.stack([_data['Image'] for _data in data], dim=0)
-            mask = torch.stack([_data['Mask'] for _data in data], dim=0)
-            mask_oof = torch.stack([_data['Mask_OOF'] for _data in data], dim=0)
-            skeleton_mask = torch.stack([_data['Skeleton'] for _data in data], dim=0)
-            edge_mask = torch.stack([_data['Edge'] for _data in data], dim=0)
-            cover_mask = torch.stack([_data['Cover'] for _data in data], dim=0)
-            return vol, mask, mask_oof, skeleton_mask, edge_mask, cover_mask
+            vol = torch.stack([d['Image'] for d in data], dim=0)
+            mask = torch.stack([d['Mask'] for d in data], dim=0)
+            mask_oof = torch.stack([d['Mask_OOF'] for d in data], dim=0)
+            c1 = torch.stack([d['C1'] for d in data], dim=0)
+            c2 = torch.stack([d['C2'] for d in data], dim=0)
+            c3 = torch.stack([d['C3'] for d in data], dim=0)
+
+            return vol, mask, mask_oof, c1, c2, c3
+
         else:
-            raw = {"Image": vol, "Mask": mask, "Mask_OOF": oof_mask,
-                   }
-
+            raw = {
+                "Image": vol,
+                "Mask": mask,
+                "Mask_OOF": oof_mask
+            }
             data = self.proc_data(raw)
-            vol, mask, mask_oof = data['Image'], data['Mask'], data['Mask_OOF']
+            vol = data['Image']
+            mask = data['Mask']
+            mask_oof = data['Mask_OOF']
             return vol, mask, mask_oof
 
 
 def collate_fn_train(batch):
-    """
-    batch: list of tuples (Image, Mask, Mask_OOF)
-    """
     images = torch.cat([item[0] for item in batch], dim=0)
     masks = torch.cat([item[1] for item in batch], dim=0)
     mask_oof = torch.cat([item[2] for item in batch], dim=0)
-    skeleton_masks = torch.cat([item[3] for item in batch], dim=0)
-    edge_masks = torch.cat([item[4] for item in batch], dim=0)
-    cover_masks = torch.cat([item[5] for item in batch], dim=0)
+    c1 = torch.cat([item[3] for item in batch], dim=0)
+    c2 = torch.cat([item[4] for item in batch], dim=0)
+    c3 = torch.cat([item[5] for item in batch], dim=0)
 
     return {
         "Image": images,
         "Mask": masks,
         "Mask_OOF": mask_oof,
-        "Skeleton": skeleton_masks,
-        "Edge": edge_masks,
-        "Cover": cover_masks
+        "C1": c1,
+        "C2": c2,
+        "C3": c3
     }
 
 
 def collate_fn_val(batch):
-    """
-    batch: list of tuples (Image, Mask, Mask_OOF)
-    """
     images = torch.stack([item[0] for item in batch], dim=0)
     masks = torch.stack([item[1] for item in batch], dim=0)
     mask_oof = torch.stack([item[2] for item in batch], dim=0)
@@ -84,7 +86,7 @@ def collate_fn_val(batch):
     return {
         "Image": images,
         "Mask": masks,
-        "Mask_OOF": mask_oof,
+        "Mask_OOF": mask_oof
     }
 
 
@@ -96,8 +98,8 @@ class TomoDataModule(pl.LightningDataModule):
         self.val_ids = ['1407735'] #val_ids
 
     def setup(self, stage: str = None):
-        self.train_dataset = ComposeDataset(self.cfg, self.train_ids, True)
-        self.val_dataset = ComposeDataset(self.cfg, self.val_ids, False)
+        self.train_dataset = ComposeDataset(self.cfg, self.train_ids, train=True)
+        self.val_dataset = ComposeDataset(self.cfg, self.val_ids, train=False)
 
     def train_dataloader(self):
         return DataLoader(
@@ -107,7 +109,7 @@ class TomoDataModule(pl.LightningDataModule):
             num_workers=self.cfg.num_workers,
             pin_memory=True,
             collate_fn=collate_fn_train,
-            persistent_workers = True
+            persistent_workers=True
         )
 
     def val_dataloader(self):
@@ -118,5 +120,5 @@ class TomoDataModule(pl.LightningDataModule):
             num_workers=self.cfg.num_workers,
             pin_memory=True,
             collate_fn=collate_fn_val,
-            persistent_workers = True
+            persistent_workers=True
         )
