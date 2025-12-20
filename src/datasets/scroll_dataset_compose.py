@@ -2,6 +2,7 @@ from torch.utils.data import Dataset, DataLoader
 import torch
 from pathlib import Path
 from ..procs.proc_data import generate_transforms, load_volume
+import numpy as np
 
 class ComposeDataset(Dataset):
     def __init__(self, cfg, id_list, train: bool):
@@ -24,9 +25,10 @@ class ComposeDataset(Dataset):
         oof_mask = load_volume(self.oof_path / f'{idx}.tif')
 
         if self.train:
-            c1 = load_volume(self.compose_label_path / f'C1_{idx}.tif')
-            c2 = load_volume(self.compose_label_path / f'C2_{idx}.tif')
-            c3 = load_volume(self.compose_label_path / f'C3_{idx}.tif')
+            c = np.load(self.compose_label_path / f'{idx}.npz', mmap_mode ='r')
+            c1 = c['thickness']
+            c2 = c['sdf']
+            c3 = c['normals']
 
             raw = {
                 "Image": vol,
