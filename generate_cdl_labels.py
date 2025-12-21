@@ -201,7 +201,7 @@ def main():
 
     # 1. CDL dictionary
     D, _, _ = cdl_sdt_with_betti1_ripser_deterministic(chosen_mask)
-    D[D<1e-8] = 0.
+    D[D.abs()<1e-8] = 0.
     D_np = D.cpu().numpy()
     save_sparse_tensor(D_np, str(save_path / "dictionary_sparse.npz"))
 
@@ -215,7 +215,7 @@ def main():
         mask = load_volume(mask_path)
         mask = mask * (mask != 2)
         Z = compute_sparse_code_from_mask(mask, D).cpu().numpy()[0]  # shape (K,D,H,W)
-        Z[Z<1e-8] = 0.
+        Z[Z.abs()<1e-8] = 0.
         save_sparse_tensor(Z, str(out_file))
 
 if __name__ == "__main__":
