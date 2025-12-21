@@ -102,6 +102,8 @@ class TomoDataModule(pl.LightningDataModule):
         super().__init__()
         self.cfg = cfg
         self.train_ids = train_ids
+        for idx in ["885730675"]:
+            self.train_ids.remove(idx)
         self.val_ids = ['1407735'] #val_ids
 
     def setup(self, stage: str = None):

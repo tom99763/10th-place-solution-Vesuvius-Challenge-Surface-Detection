@@ -26,6 +26,13 @@ def load_volume(path: Path) -> np.ndarray:
     except Exception as e:
         raise RuntimeError(f"Error loading TIFF {path}: {e}")
 
+def reconstruct_mask(Z, D):
+    K = D.shape[0]
+    pad = D.shape[2] // 2
+    sdf_hat = F.conv3d(Z, D, padding=pad, groups=K).sum(dim=1, keepdim=True)
+    mask_hat = sdf_hat>=0
+    return mask_hat
+
 
 def gaussian_kernel_3d(kernel_size=5, sigma=1.0, device="cuda"):
     """Returns a normalized 3D Gaussian kernel (1,1,K,K,K)."""

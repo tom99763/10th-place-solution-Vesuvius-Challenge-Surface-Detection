@@ -20,9 +20,10 @@ class ComposeCDLRefineModule(pl.LightningModule):
         self.model = model
         self.cfg = cfg
         self.lr = cfg.lr
+        self.D = torch.from_numpy(load_sparse_tensor(str(Path(self.cfg.dictionary_path) / 'dictionary.npz')))
 
         self.sliding_window_inferer = SlidingWindowInfererAdapt(
-            roi_size=cfg.input_size, sw_batch_size=2, overlap=0.5, mode="constant"
+            roi_size=cfg.input_size, sw_batch_size=2, overlap=0.5, mode="gaussian"
         )
 
         # Validation accumulators (scalar averages)
@@ -58,8 +59,9 @@ class ComposeCDLRefineModule(pl.LightningModule):
     def validation_step(self, batch, batch_idx):
         vol, mask = batch['Image'], batch['Mask']
         if self.current_epoch != 0:
-            prediction = self.sliding_window_inferer(vol, self.model)
-            prediction = prediction > self.cfg.threshold
+            prediction_Z = self.sliding_window_inferer(vol, self.model)
+            D = self.D.to(prediction_Z.device)
+            prediction = reconstruct_mask(prediction_Z, D)
         else:
             prediction = mask
 

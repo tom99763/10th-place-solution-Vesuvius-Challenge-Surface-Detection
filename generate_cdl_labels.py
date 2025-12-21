@@ -91,7 +91,8 @@ def cdl_sdt_with_betti1_ripser_deterministic(
     # -------------------------
     # 3. Training loop
     # -------------------------
-    for epoch in tqdm(range(n_epochs)):
+    loop = tqdm(range(n_epochs))
+    for epoch in loop:
 
         # --- sparse coding update ---
         for _ in range(5):
@@ -115,9 +116,7 @@ def cdl_sdt_with_betti1_ripser_deterministic(
         loss_D.backward()
         opt_D.step()
         dict_model.normalize()
-
-        if epoch % 20 == 0:
-            print(f"[{epoch:03d}] Recon={loss_recon.item():.4f}, Sparse={loss_sparse.item():.4f}")
+        loop.set_postfix(loss=f"[{epoch:03d}] Recon={loss_recon.item():.4f}, Sparse={loss_sparse.item():.4f}")
 
     # -------------------------
     # 4. Reconstruction & threshold
@@ -195,7 +194,7 @@ def save_sparse_tensor(tensor: np.ndarray, path: str):
 def main():
     df = pd.read_csv(data_path / 'train.csv')
     chosen_id = "1006462223"
-    chosen_path = data_path/'train_labels'/chosen_id
+    chosen_path = data_path/'train_labels'/f'{chosen_id}.tif'
     chosen_mask = load_volume(chosen_path)
     chosen_mask = chosen_mask * (chosen_mask != 2)
 
