@@ -50,6 +50,17 @@ def gaussian_blur_3d(x, kernel_size=7, sigma=10.0):
     return F.conv3d(x, kernel, padding=kernel_size // 2, groups=C)
 
 
+def load_sparse_tensor(path: str) -> np.ndarray:
+    """
+    Load a sparse tensor saved in index+value+shape format
+    Returns dense np.ndarray
+    """
+    data = np.load(path)
+    tensor = np.zeros(data['shape'], dtype=np.float32)
+    tensor[data['idx']] = data['values']
+    return tensor
+
+
 
 # def get_rough_mask(mask):
 #     mask_closed = ndi.binary_closing(mask, structure=np.ones((5 ,5 ,5)))

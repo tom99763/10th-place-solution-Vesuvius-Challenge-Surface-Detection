@@ -5,6 +5,17 @@ from hydra.utils import instantiate
 import numpy as np
 from pathlib import Path
 
+
+def load_sparse_tensor(path: str) -> np.ndarray:
+    """
+    Load a sparse tensor saved in index+value+shape format
+    Returns dense np.ndarray
+    """
+    data = np.load(path)
+    tensor = np.zeros(data['shape'], dtype=np.float32)
+    tensor[data['idx']] = data['values']
+    return tensor
+
 def reconstruct_mask(Z, D):
     K = D.shape[0]
     pad = D.shape[2] // 2
@@ -17,8 +28,7 @@ class ComposeCDL(nn.Module):
         super().__init__()
         self.predictor = instantiate(cfg.models)
         self.cfg = cfg
-        file = np.load(Path(self.cfg.dictionary_path)/'dictionary.npz', mmap_mode='r')
-        self.D = torch.from_numpy(file["D"])
+        self.D = torch.from_numpy(load_sparse_tensor(str(Path(self.cfg.dictionary_path)/'dictionary.npz')))
     def forward(self, x):
         Z_hat = self.predictor(x)
         if not self.training:

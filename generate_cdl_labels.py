@@ -9,6 +9,7 @@ from tqdm import tqdm
 from src.procs.proc_data import *
 import pandas as pd
 from pathlib import Path
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 
 def cdl_sdt_with_betti1_ripser_deterministic(
     binary_mask_np,
@@ -178,29 +179,44 @@ def reconstruct_mask(Z, D):
 data_path = Path('./data/vesuvius-challenge-surface-detection')
 save_path = Path('./data/train_cdl_labels')
 
+def save_sparse_tensor(tensor: np.ndarray, path: str):
+    """
+    Save a dense tensor as sparse format: indices, values, shape
+    tensor: np.ndarray (any shape)
+    path: file path to save .npz
+    """
+    idx = np.nonzero(tensor)
+    values = tensor[idx]
+    np.savez_compressed(path, idx=idx, values=values, shape=tensor.shape)
+
+# -----------------------------
+# Example usage in main()
+# -----------------------------
 def main():
     df = pd.read_csv(data_path / 'train.csv')
     chosen_id = "1006462223"
     chosen_path = data_path/'train_labels'/chosen_id
     chosen_mask = load_volume(chosen_path)
-    chosen_mask = chosen_mask * (chosen_mask!=2)
-    D, _, _ = cdl_sdt_with_betti1_ripser_deterministic(chosen_mask).cpu().numpy()
-    np.savez_compressed(
-        save_path / f"dictionary.npz",
-        D=D, #(K, 1, k, k, k)
-    )
-    for _, row in tqdm(df.iterrows(), total=len(df), desc="Generate Compressed NPZs"):
+    chosen_mask = chosen_mask * (chosen_mask != 2)
+
+    # 1. CDL dictionary
+    D, _, _ = cdl_sdt_with_betti1_ripser_deterministic(chosen_mask)
+    D[D<1e-8] = 0.
+    D_np = D.cpu().numpy()
+    save_sparse_tensor(D_np, str(save_path / "dictionary_sparse.npz"))
+
+    # 2. Sparse codes Z for each mask
+    for _, row in tqdm(df.iterrows(), total=len(df), desc="Generate Sparse Codes"):
         case_id = row['id']
-        if os.path.exists(save_path / f"{case_id}.npz"):
+        out_file = save_path / f"{case_id}.npz"
+        if out_file.exists():
             continue
         mask_path = data_path / 'train_labels' / f'{case_id}.tif'
         mask = load_volume(mask_path)
         mask = mask * (mask != 2)
-        Z = compute_sparse_code_from_mask(mask, D).cpu().numpy()[0]
-        np.savez_compressed(
-            save_path / f"{case_id}.npz",
-            z=Z, #(K, D, H, W)
-        )
+        Z = compute_sparse_code_from_mask(mask, D).cpu().numpy()[0]  # shape (K,D,H,W)
+        Z[Z<1e-8] = 0.
+        save_sparse_tensor(Z, str(out_file))
 
 if __name__ == "__main__":
     main()

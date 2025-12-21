@@ -1,7 +1,7 @@
 from torch.utils.data import Dataset, DataLoader
 import torch
 from pathlib import Path
-from ..procs.proc_data import generate_transforms, load_volume
+from ..procs.proc_data import generate_transforms, load_volume, load_sparse_tensor
 import numpy as np
 import pytorch_lightning as pl
 
@@ -13,8 +13,7 @@ class ComposeDataset(Dataset):
         self.train = train
         self.proc_data = generate_transforms(cfg.data.transforms.train if train else cfg.data.transforms.val)
         self.data_path = Path(cfg.data_path)
-        self.compose_label_path = Path(cfg.compose_label_path)
-        self.oof_path = Path(cfg.oof_path1)
+        self.cdl_label_path = Path(self.cfg.cdl_label_path)
 
     def __len__(self):
         return len(self.id_list)
@@ -23,77 +22,49 @@ class ComposeDataset(Dataset):
         idx = self.id_list[idx]
         vol = load_volume(self.data_path / 'train_images' / f'{idx}.tif')
         mask = load_volume(self.data_path / 'train_labels' / f'{idx}.tif')
-        oof_mask = load_volume(self.oof_path / f'{idx}.tif')
-
+        Z = load_sparse_tensor(str(self.cdl_label_path/f'{idx}.npz'))
         if self.train:
-            c = np.load(self.compose_label_path / f'{idx}.npz', mmap_mode ='r')
-            c1 = c['sdf']
-            c2 = c['thickness']
-            c3 = c['normals']
-
             raw = {
                 "Image": vol,
                 "Mask": mask,
-                "Mask_OOF": oof_mask,
-                "C1": c1,
-                "C2": c2,
-                "C30": c3[0],
-                "C31": c3[1],
-                "C32": c3[2]
+                "Z": Z
             }
-
             data = self.proc_data(raw)
             vol = torch.stack([d['Image'] for d in data], dim=0)
             mask = torch.stack([d['Mask'] for d in data], dim=0)
-            mask_oof = torch.stack([d['Mask_OOF'] for d in data], dim=0)
-            c1 = torch.stack([d['C1'] for d in data], dim=0)
-            c2 = torch.stack([d['C2'] for d in data], dim=0)
-            c30 = torch.stack([d['C30'] for d in data], dim=0)
-            c31 = torch.stack([d['C31'] for d in data], dim=0)
-            c32 = torch.stack([d['C32'] for d in data], dim=0)
-            c3 = torch.cat([c30, c31, c32], dim=1)
-            return vol, mask, mask_oof, c1, c2, c3
+            Z = torch.stack([d['Z'] for d in data], dim=0)
+            return vol, mask, Z
 
         else:
             raw = {
                 "Image": vol,
                 "Mask": mask,
-                "Mask_OOF": oof_mask
             }
             data = self.proc_data(raw)
             vol = data['Image']
             mask = data['Mask']
-            mask_oof = data['Mask_OOF']
-            return vol, mask, mask_oof
+            return vol, mask
 
 
 def collate_fn_train(batch):
     images = torch.cat([item[0] for item in batch], dim=0)
     masks = torch.cat([item[1] for item in batch], dim=0)
-    mask_oof = torch.cat([item[2] for item in batch], dim=0)
-    c1 = torch.cat([item[3] for item in batch], dim=0)
-    c2 = torch.cat([item[4] for item in batch], dim=0)
-    c3 = torch.cat([item[5] for item in batch], dim=0)
+    Z = torch.cat([item[2] for item in batch], dim=0)
 
     return {
         "Image": images,
         "Mask": masks,
-        "Mask_OOF": mask_oof,
-        "C1": c1,
-        "C2": c2,
-        "C3": c3
+        "Z": Z,
     }
 
 
 def collate_fn_val(batch):
     images = torch.stack([item[0] for item in batch], dim=0)
     masks = torch.stack([item[1] for item in batch], dim=0)
-    mask_oof = torch.stack([item[2] for item in batch], dim=0)
 
     return {
         "Image": images,
         "Mask": masks,
-        "Mask_OOF": mask_oof
     }
 
 

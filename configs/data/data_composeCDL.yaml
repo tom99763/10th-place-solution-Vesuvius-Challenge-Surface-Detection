@@ -1,11 +1,11 @@
 transforms:
   train:
     - EnsureChannelFirstd:
-        keys: ["Image", "Z"]
+        keys: ["Image", "Z", "Mask"]
         channel_dim: "no_channel"
 
     - EnsureTyped:
-        keys: ["Image", "Z"]
+        keys: ["Image", "Z", "Mask"]
         dtype: float32
 
     # === Intensity handling: exactly what nnUNet CTNormalization does ===
@@ -19,7 +19,7 @@ transforms:
 
     # === 3D patch extraction: exactly 3d_fullres ===
     - RandCropByPosNegLabeld:
-        keys: ["Image", "Z"]
+        keys: ["Image", "Z", "Mask"]
         label_key: "Z"
         spatial_size: ${input_size}   # ← exact patch_size from 3d_fullres
         pos: 2
@@ -30,20 +30,20 @@ transforms:
 
 #    # Optional light 3D augmentations (commented out)
 #    - Rand3DElasticd:
-#        keys: ["Image", "Z"]
+#        keys: ["Image", "Z", "Mask"]
 #        prob: 0.3
 #        sigma_range: [15, 25]
 #        magnitude_range: [100, 200]
 #        spatial_size: ${input_size}
-#        mode: ["bilinear", "nearest"]
+#        mode: ["bilinear", "nearest", "nearest"]
 #        padding_mode: "zeros"
 #
 #    - RandAffined:
-#        keys: ["Image", "Z"]
+#        keys: ["Image", "Z", "Mask"]
 #        prob: 0.3
 #        rotate_range: [(-0.26, 0.26), (-0.26, 0.26), (-0.05, 0.05)]
 #        scale_range: [(-0.15, 0.15), (-0.15, 0.15), (-0.05, 0.05)]
-#        mode: ["bilinear", "nearest"]
+#        mode: ["bilinear", "nearest", "nearest"]
 #        spatial_size:${input_size}
 #
 #    - RandGaussianNoised:
@@ -53,15 +53,15 @@ transforms:
 #        std: 0.02
 
     - ToTensord:
-        keys: ["Image", "Z"]
+        keys: ["Image", "Z", "Mask"]
 
   val:
     - EnsureChannelFirstd:
-        keys: ["Image", "Z"]
+        keys: ["Image", "Z", "Mask"]
         channel_dim: "no_channel"
 
     - EnsureTyped:
-        keys: ["Image", "Z"]
+        keys: ["Image", "Z", "Mask"]
         dtype: float32
 
     - ScaleIntensityRanged:
@@ -73,7 +73,7 @@ transforms:
         clip: true
 
     - ToTensord:
-        keys: ["Image", "Z"]
+        keys: ["Image", "Z", "Mask"]
 
   test:
     - EnsureChannelFirstd:
