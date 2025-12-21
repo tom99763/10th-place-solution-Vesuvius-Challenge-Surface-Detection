@@ -84,15 +84,17 @@ class ComposeRefineModule(pl.LightningModule):
     def validation_step(self, batch, batch_idx):
         vol, mask, mask_oof = batch['Image'], batch['Mask'], batch['Mask_OOF']
         if self.cfg.apply_gaussian:
-            x = torch.cat([vol, gaussian_blur_3d(mask_oof)], dim=1)
+            x = torch.cat([vol, gaussian_blur_3d(mask_oof, self.cfg.kernel_size, self.cfg.sigma)], dim=1)
         else:
             x = torch.cat([vol, mask_oof], dim=1)
 
-        if self.current_epoch != 0:
-            prediction = self.sliding_window_inferer(x, self.model)
-            prediction = prediction > self.cfg.threshold
-        else:
-            prediction = mask_oof
+        # if self.current_epoch != 0:
+        #     prediction = self.sliding_window_inferer(x, self.model)
+        #     prediction = prediction > self.cfg.threshold
+        # else:
+        #     prediction = mask_oof
+        prediction = self.sliding_window_inferer(x, self.model)
+        prediction = prediction > self.cfg.threshold
 
         #print(prediction)
         score = calc_score(mask.cpu().numpy()[0, 0] ,prediction.cpu().numpy()[0, 0])
