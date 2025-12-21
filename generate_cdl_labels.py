@@ -95,7 +95,7 @@ def cdl_sdt_with_betti1_ripser_deterministic(
     for epoch in loop:
 
         # --- sparse coding update ---
-        for _ in range(5):
+        for _ in tqdm(range(5)):
             opt_Z.zero_grad()
 
             # grouped conv: Z shape (1,K,D,H,W), D shape (K,1,k,k,k)
