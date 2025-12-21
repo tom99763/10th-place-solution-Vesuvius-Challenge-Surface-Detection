@@ -99,7 +99,7 @@ task_folder = f"Dataset{task_id:03d}_{task_name}"
 base_dir = BASE / task_folder
 imagesTr = base_dir / "imagesTs"
 results = base_dir / "results"
-selected_fold = 4
+selected_fold = 0 #modify this to run different fold
 
 # make folders
 imagesTr.mkdir(parents=True, exist_ok=True)
@@ -111,14 +111,14 @@ os.environ["nnUNet_results"] = "./nnunet"
 os.environ['nnUNet_compile'] = 'False'
 os.environ['torch.backends.cudnn.benchmark'] = 'True'
 
-
+#modify this to run different fold
 deformnet_ckpt_paths = [
     #'./vesuvius-codebase-v2/models/deform-dynunet-larger-patch-fold0-epoch=69-val_comp_metric=0.6536.ckpt',
     #'./vesuvius-codebase-v2/models/deform-dynunet-larger-patch-fold1-epoch=94-val_comp_metric=0.6511.ckpt',
     #'.vesuvius-codebase-v2/models/deform-dynunet-larger-patch-fold2-epoch=84-val_comp_metric=0.6536.ckpt',
     #'./vesuvius-codebase-v2/models/deform-dynunet-larger-patch-fold3-epoch=94-val_comp_metric=0.6535.ckpt',
-    './vesuvius-codebase-v2/models/deform-dynunet-larger-patch-fold4-epoch=74-val_comp_metric=0.6475.ckpt',
-    #'./vesuvius-codebase/models/deform-dynunet-fold0-epoch=114-val_comp_metric=0.6404.ckpt',
+    #'./vesuvius-codebase-v2/models/deform-dynunet-larger-patch-fold4-epoch=74-val_comp_metric=0.6475.ckpt',
+    './vesuvius-codebase/models/deform-dynunet-fold0-epoch=114-val_comp_metric=0.6404.ckpt',
     #'.vesuvius-codebase/models/deform-dynunet-fold1-epoch=114-val_comp_metric=0.6336.ckpt',
     #'./vesuvius-codebase/models/deform-dynunet-fold2-epoch=139-val_comp_metric=0.6399.ckpt',
     #'./vesuvius-codebase/models/deform-dynunet-fold3-epoch=74-val_comp_metric=0.6398.ckpt',
@@ -536,7 +536,7 @@ def main():
         '-f', '0', '1', '2', '3', '4',
     ]
 
-    SRC = Path("./vesuvius-codebase-v2/configs")
+    SRC = Path("./vesuvius-codebase/configs")
     DST = Path("./configs_")
     DST.mkdir(parents=True, exist_ok=True)
     shutil.copytree(SRC, DST, dirs_exist_ok=True)
