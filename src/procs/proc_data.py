@@ -26,12 +26,18 @@ def load_volume(path: Path) -> np.ndarray:
     except Exception as e:
         raise RuntimeError(f"Error loading TIFF {path}: {e}")
 
-def reconstruct_mask(Z, D):
-    K = D.shape[0]
+def upsample_mask(mask: torch.Tensor, factor: int) -> torch.Tensor:
+    if factor == 1:
+        return mask
+    x = mask[None, None]
+    x = F.interpolate(x, scale_factor=factor, mode="nearest")
+    return x[0, 0]
+
+def reconstruct_mask(Z, D, upsample_factor=2):
     pad = D.shape[2] // 2
-    sdf_hat = F.conv3d(Z, D, padding=pad, groups=K).sum(dim=1, keepdim=True)
-    mask_hat = sdf_hat>=0
-    return mask_hat
+    sdf = F.conv3d(Z, D, padding=pad, groups=D.shape[0]).sum(1)
+    mask = (sdf[0] >= 0).float()
+    return upsample_mask(mask, upsample_factor)
 
 
 def gaussian_kernel_3d(kernel_size=5, sigma=1.0, device="cuda"):
