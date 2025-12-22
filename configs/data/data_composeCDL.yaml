@@ -1,67 +1,44 @@
 transforms:
   train:
     - EnsureChannelFirstd:
-        keys: ["Image", "Z", "Mask"]
+        keys: ["Image", "Mask", "SDF", "Z"]
         channel_dim: "no_channel"
 
     - EnsureTyped:
-        keys: ["Image", "Z", "Mask"]
+        keys: ["Image", "Mask", "SDF", "Z"]
         dtype: float32
 
-    # === Intensity handling: exactly what nnUNet CTNormalization does ===
+    # === Intensity normalization (Image only) ===
     - ScaleIntensityRanged:
         keys: ["Image"]
-        a_min: 0.0          # percentile_00_5
-        a_max: 213.0        # percentile_99_5 → from your JSON!
+        a_min: 0.0
+        a_max: 213.0
         b_min: -5.0
         b_max: 5.0
         clip: true
 
-    # === 3D patch extraction: exactly 3d_fullres ===
+    # === Patch extraction (driven by Mask, not Z) ===
     - RandCropByPosNegLabeld:
-        keys: ["Image", "Z", "Mask"]
-        label_key: "Z"
-        spatial_size: ${input_size}   # ← exact patch_size from 3d_fullres
+        keys: ["Image", "Mask", "SDF", "Z"]
+        label_key: "Mask"
+        spatial_size: ${input_size}
         pos: 2
         neg: 0
         num_samples: 2
         image_key: "Image"
         image_threshold: 0.0
 
-#    # Optional light 3D augmentations (commented out)
-#    - Rand3DElasticd:
-#        keys: ["Image", "Z", "Mask"]
-#        prob: 0.3
-#        sigma_range: [15, 25]
-#        magnitude_range: [100, 200]
-#        spatial_size: ${input_size}
-#        mode: ["bilinear", "nearest", "nearest"]
-#        padding_mode: "zeros"
-#
-#    - RandAffined:
-#        keys: ["Image", "Z", "Mask"]
-#        prob: 0.3
-#        rotate_range: [(-0.26, 0.26), (-0.26, 0.26), (-0.05, 0.05)]
-#        scale_range: [(-0.15, 0.15), (-0.15, 0.15), (-0.05, 0.05)]
-#        mode: ["bilinear", "nearest", "nearest"]
-#        spatial_size:${input_size}
-#
-#    - RandGaussianNoised:
-#        keys: ["Image"]
-#        prob: 0.15
-#        mean: 0.0
-#        std: 0.02
-
     - ToTensord:
-        keys: ["Image", "Z", "Mask"]
+        keys: ["Image", "Mask", "SDF", "Z"]
+
 
   val:
     - EnsureChannelFirstd:
-        keys: ["Image", "Z", "Mask"]
+        keys: ["Image", "Mask"]
         channel_dim: "no_channel"
 
     - EnsureTyped:
-        keys: ["Image", "Z", "Mask"]
+        keys: ["Image", "Mask"]
         dtype: float32
 
     - ScaleIntensityRanged:
@@ -73,19 +50,19 @@ transforms:
         clip: true
 
     - ToTensord:
-        keys: ["Image", "Z", "Mask"]
+        keys: ["Image", "Mask"]
 
   test:
     - EnsureChannelFirstd:
-        keys: ["Image"]
+        keys: [ "Image" ]
         channel_dim: "no_channel"
 
     - EnsureTyped:
-        keys: ["Image"]
+        keys: [ "Image" ]
         dtype: float32
 
     - ScaleIntensityRanged:
-        keys: ["Image"]
+        keys: [ "Image" ]
         a_min: 0.0
         a_max: 213.0
         b_min: -5.0
@@ -93,4 +70,4 @@ transforms:
         clip: true
 
     - ToTensord:
-        keys: ["Image"]
+        keys: [ "Image" ]

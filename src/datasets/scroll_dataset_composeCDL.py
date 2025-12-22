@@ -1,9 +1,10 @@
 from torch.utils.data import Dataset, DataLoader
 import torch
 from pathlib import Path
-from ..procs.proc_data import generate_transforms, load_volume, load_sparse_tensor
+from ..procs.proc_data import generate_transforms, load_volume, load_sparse_tensor, compute_sdt, downsample_mask, downsample_volume_np
 import numpy as np
 import pytorch_lightning as pl
+from scipy.ndimage import zoom
 
 class ComposeDataset(Dataset):
     def __init__(self, cfg, id_list, train: bool):
@@ -20,22 +21,29 @@ class ComposeDataset(Dataset):
 
     def __getitem__(self, idx):
         idx = self.id_list[idx]
-        vol = load_volume(self.data_path / 'train_images' / f'{idx}.tif')
-        mask = load_volume(self.data_path / 'train_labels' / f'{idx}.tif')
-        Z = load_sparse_tensor(str(self.cdl_label_path/f'{idx}.npz'))
+        vol = load_volume(self.data_path / 'train_images' / f'{idx}.tif') #(D, H, W)
+        mask = load_volume(self.data_path / 'train_labels' / f'{idx}.tif') #(D, H, W)
         if self.train:
+            vol = downsample_volume_np(vol, factor=2)
+            mask = downsample_mask(mask, 2)
+            #scale down volume & mask
+            sdf = compute_sdt(mask * (mask != 2))
+            Z = load_sparse_tensor(str(self.cdl_label_path / f'{idx}.npz'))  # (D//2, H//2, W//2)
             raw = {
                 "Image": vol,
                 "Mask": mask,
-                "Z": Z
+                "Z": Z,
+                "SDF": sdf
             }
             data = self.proc_data(raw)
             vol = torch.stack([d['Image'] for d in data], dim=0)
             mask = torch.stack([d['Mask'] for d in data], dim=0)
             Z = torch.stack([d['Z'] for d in data], dim=0)
-            return vol, mask, Z
+            SDF = torch.stack([d['SDF'] for d in data], dim=0)
+            return vol, mask, Z, SDF
 
         else:
+            vol = downsample_volume_np(vol, factor=2)
             raw = {
                 "Image": vol,
                 "Mask": mask,

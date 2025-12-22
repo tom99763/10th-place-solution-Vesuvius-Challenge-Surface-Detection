@@ -10,6 +10,8 @@ from monai import transforms
 from monai.transforms import Compose
 import torch
 import torch.nn.functional as F
+from scipy.ndimage import distance_transform_edt
+from scipy.ndimage import zoom
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +34,13 @@ def upsample_mask(mask: torch.Tensor, factor: int) -> torch.Tensor:
     x = mask[None, None]
     x = F.interpolate(x, scale_factor=factor, mode="nearest")
     return x[0, 0]
+
+def downsample_mask(mask: np.ndarray, factor: int) -> np.ndarray:
+    if factor == 1:
+        return mask
+    x = torch.tensor(mask, dtype=torch.float32)[None, None]
+    x = F.max_pool3d(x, factor, factor)
+    return x[0, 0].numpy()
 
 def reconstruct_mask(Z, D, upsample_factor=2):
     pad = D.shape[2] // 2
@@ -72,6 +81,15 @@ def load_sparse_tensor(path: str) -> np.ndarray:
     tensor = np.zeros(data['shape'], dtype=np.float32)
     tensor[data['idx']] = data['values']
     return tensor
+
+
+def compute_sdt(mask: np.ndarray, clip: float = 20.0) -> np.ndarray:
+    sdt = distance_transform_edt(mask) - distance_transform_edt(1 - mask)
+    return np.clip(sdt, -clip, clip)
+
+
+def downsample_volume_np(vol, factor=2):
+    return zoom(vol, zoom=1/factor, order=1)
 
 
 

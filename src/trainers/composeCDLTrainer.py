@@ -10,6 +10,7 @@ import torch.nn as nn
 import sys
 sys.path.append('../../')
 from cv import calc_score
+from src.models.composeCDL import from_sdf
 
 # ---------------------
 # Lightning Module
@@ -21,9 +22,9 @@ class ComposeCDLRefineModule(pl.LightningModule):
         self.cfg = cfg
         self.lr = cfg.lr
 
-        # self.sliding_window_inferer = SlidingWindowInfererAdapt(
-        #     roi_size=cfg.input_size, sw_batch_size=2, overlap=0.5, mode="gaussian"
-        # )
+        self.sliding_window_inferer = SlidingWindowInfererAdapt(
+            roi_size=cfg.input_size, sw_batch_size=2, overlap=0.5, mode="gaussian"
+        )
 
         # Validation accumulators (scalar averages)
         self.scores = []
@@ -41,11 +42,11 @@ class ComposeCDLRefineModule(pl.LightningModule):
     # TRAINING
     # -------------------------------------------------
     def training_step(self, batch, batch_idx):
-        vol, Z_gt = batch["Image"], batch["Z"]  # Z_gt: (B,K,D,H,W)
-        Z_hat = self.model(vol)
+        vol, Z_gt, mask, sdf = batch["Image"], batch["Z"], batch["Mask"], batch['SDF']
+        SDF_hat, Z_hat = self.model(vol)
+        ignore_mask = mask!=2
 
-        # Loss: MSE between predicted and target Z
-        loss = F.mse_loss(Z_hat, Z_gt)
+        loss = F.mse_loss(SDF_hat * ignore_mask, sdf * ignore_mask)
 
         # Optional sparsity regularization
         if getattr(self.cfg, "lambda_sparse", 0) > 0:
@@ -58,7 +59,8 @@ class ComposeCDLRefineModule(pl.LightningModule):
     def validation_step(self, batch, batch_idx):
         vol, mask = batch['Image'], batch['Mask']
         if self.current_epoch != 0:
-            prediction = self.model(vol)
+            SDF_hat = self.sliding_window_inferer(vol, self.model)
+            prediction = from_sdf(SDF_hat)
         else:
             prediction = mask
 

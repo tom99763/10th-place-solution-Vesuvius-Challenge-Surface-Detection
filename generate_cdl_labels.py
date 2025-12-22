@@ -119,7 +119,7 @@ def load_sparse_z(path: Path, device):
 def train_dictionary(
     mask: np.ndarray,
     device="cuda",
-    K=32,
+    K=64,
     kernel_size=18,
     downsample_factor=2,
     n_epochs=200,
@@ -142,6 +142,7 @@ def train_dictionary(
 
     D = ConvDictionary(K, k, device, seed)
     Z = nn.Parameter(torch.randn(1, K, *X.shape[2:], device=device) * 0.01)
+    print(f'Dictionary size: {D.D.detach().shape} -- Z size: {Z.shape}')
 
     opt_D = torch.optim.Adam([D.D], lr=1e-3)
     opt_Z = torch.optim.Adam([Z], lr=1e-2)
@@ -216,7 +217,13 @@ def sparse_code(
 # RECONSTRUCTION FROM SPARSE Z
 # ============================================================
 
-def reconstruct_mask_from_sparse(Z, D, upsample_factor=2):
+def reconstruct_mask_from_sparse(
+    idx, vals, shape, D, upsample_factor=2
+):
+    device = D.device
+    Z = torch.zeros((1, *shape), device=device)
+    Z[0, idx[:, 0], idx[:, 1], idx[:, 2], idx[:, 3]] = vals
+
     pad = D.shape[2] // 2
     sdf = F.conv3d(Z, D, padding=pad, groups=D.shape[0]).sum(1)
     mask = (sdf[0] >= 0).float()

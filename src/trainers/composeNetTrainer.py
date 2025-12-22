@@ -88,11 +88,14 @@ class ComposeRefineModule(pl.LightningModule):
         else:
             x = torch.cat([vol, mask_oof], dim=1)
 
-        if self.current_epoch != 0:
-            prediction = self.sliding_window_inferer(x, self.model)
-            prediction = prediction > self.cfg.threshold
-        else:
-            prediction = mask_oof
+        # if self.current_epoch != 0:
+        #     prediction = self.sliding_window_inferer(x, self.model)
+        #     prediction = prediction > self.cfg.threshold
+        # else:
+        #     prediction = mask_oof
+
+        prediction = self.sliding_window_inferer(x, self.model)
+        prediction = prediction > self.cfg.threshold
 
         #print(prediction)
         score = calc_score(mask.cpu().numpy()[0, 0] ,prediction.cpu().numpy()[0, 0])
