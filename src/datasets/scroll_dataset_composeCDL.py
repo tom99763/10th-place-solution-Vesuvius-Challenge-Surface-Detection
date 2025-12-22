@@ -73,7 +73,7 @@ class TomoDataModule(pl.LightningDataModule):
         super().__init__()
         self.cfg = cfg
         self.train_ids = train_ids
-        self.val_ids = ['1407735'] #val_ids
+        self.val_ids = val_ids[:5]
 
     def setup(self, stage: str = None):
         self.train_dataset = ComposeDataset(self.cfg, self.train_ids, train=True)

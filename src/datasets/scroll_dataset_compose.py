@@ -104,7 +104,7 @@ class TomoDataModule(pl.LightningDataModule):
         self.train_ids = train_ids
         for idx in ["885730675"]:
             self.train_ids.remove(idx)
-        self.val_ids = ['1407735'] #val_ids
+        self.val_ids = val_ids[:5]
 
     def setup(self, stage: str = None):
         self.train_dataset = ComposeDataset(self.cfg, self.train_ids, train=True)
