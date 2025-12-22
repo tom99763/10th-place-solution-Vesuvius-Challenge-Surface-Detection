@@ -46,6 +46,7 @@ class ComposeCDLRefineModule(pl.LightningModule):
         SDF_hat, Z_hat = self.model(vol)
         ignore_mask = mask!=2
 
+        #implicitly modeling Z
         loss = F.mse_loss(SDF_hat * ignore_mask, sdf * ignore_mask)
 
         # Optional sparsity regularization
