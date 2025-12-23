@@ -1,6 +1,7 @@
 import numpy as np
 from PIL import Image, ImageSequence
 from pathlib import Path
+
 # from skimage.filters import threshold_otsu
 # from skimage.morphology import remove_small_objects, remove_small_holes
 # from skimage.measure import label
@@ -90,6 +91,30 @@ def compute_sdt(mask: np.ndarray, clip: float = 20.0) -> np.ndarray:
 
 def downsample_volume_np(vol, factor=2):
     return zoom(vol, zoom=1/factor, order=1)
+
+
+deprecated_ids = [
+    "1407735",
+    "1641318781",
+    "2268221981",
+    "2996066940",
+    "3241425466",
+    "808135176",
+    "1924200298",
+    "2376256768",
+    "3012554500",
+    "3398456664",
+    "862434992",
+    "1951193117",
+    "2573842867",
+    "3110212378",
+    "3470951309",
+    "885379642",
+    "2075542469",
+    "2791137336",
+    "3215721649",
+    "3518241476"
+]
 
 
 

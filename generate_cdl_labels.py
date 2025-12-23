@@ -9,10 +9,10 @@ from tqdm import tqdm
 from pathlib import Path
 import pandas as pd
 
-from src.procs.proc_data import load_volume
+from src.procs.proc_data import load_volume, deprecated_ids
 # from cv import calc_score   # optional
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
 
 # ============================================================
@@ -103,13 +103,18 @@ def save_sparse_z(path: Path, idx, vals, shape):
     )
 
 
-def load_sparse_z(path: Path, device):
+def load_sparse_z(path: Path, device=None):
+    """Load sparse .npz and return dense tensor on given device."""
     d = np.load(path)
-    return (
-        torch.tensor(d["idx"], device=device),
-        torch.tensor(d["vals"], device=device),
-        tuple(d["shape"]),
-    )
+    idx = torch.tensor(d["idx"], dtype=torch.long)
+    vals = torch.tensor(d["vals"], dtype=torch.float32)
+    shape = tuple(d["shape"])
+
+    D = torch.zeros(shape, dtype=vals.dtype, requires_grad=False)
+    D[idx[:, 0], idx[:, 1], idx[:, 2], idx[:, 3]] = vals
+    if device:
+        D = D.to(device)
+    return D
 
 
 # ============================================================
@@ -241,6 +246,7 @@ save_path.mkdir(parents=True, exist_ok=True)
 
 def main():
     df = pd.read_csv(data_path / "train.csv")
+    df = df[~df["id"].astype(str).isin(deprecated_ids)]
     device = "cuda"
 
     # ---- train dictionary once ----
@@ -248,9 +254,13 @@ def main():
     mask = load_volume(data_path / "train_labels" / f"{ref_id}.tif")
     mask = mask * (mask != 2)
 
-    D = train_dictionary(mask, device=device)
-    save_sparse_z(save_path / "dictionary.npz",
-                  *dense_to_sparse(D[None], 0.0))
+    if os.path.exists(save_path / "dictionary.npz"):
+        D = load_sparse_z(save_path / "dictionary.npz", device)
+        print('load pretrained Dictionary')
+    else:
+        D = train_dictionary(mask, device=device)
+        save_sparse_z(save_path / "dictionary.npz",
+                      *dense_to_sparse(D[None], 0.0))
 
     # ---- sparse code all cases ----
     for _, row in tqdm(df.iterrows(), total=len(df)):

@@ -77,8 +77,16 @@ class TomoDataModule(pl.LightningDataModule):
     def __init__(self, cfg, train_ids, val_ids):
         super().__init__()
         self.cfg = cfg
+        for idx in deprecated_ids:
+            if idx in train_ids:
+                train_ids.remove(idx)
+
+        for idx in deprecated_ids:
+            if idx in val_ids:
+                val_ids.remove(idx)
+
         self.train_ids = train_ids
-        self.val_ids = val_ids
+        self.val_ids = val_ids[:5]
 
     def setup(self, stage: str = None):
         self.train_dataset = DeformDataset(self.cfg, self.train_ids, True)

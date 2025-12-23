@@ -1,10 +1,10 @@
 project_name: vesurvius-challenge
-exp_name: deform-dynunet-128-patch-hard
+exp_name: deform-dynunet-128-patch-gaussian-r2
 data_path: ./data/vesuvius-challenge-surface-detection
-oof_path : ./nnunet/nnUNet_results/Dataset900_VesuviusScroll/nnUNetTrainer__nnUNetResEncUNetMPlans__3d_fullres/oof
+oof_path : ./nnunet/nnUNet_results/Dataset900_VesuviusScroll/nnUNetTrainer__nnUNetResEncUNetMPlans__3d_fullres/oof_deform_gaussian/oof
 oof_path2: '' #./nnunet/nnUNet_results/Dataset900_VesuviusScroll/nnUNetTrainer__nnUNetResEncUNetMPlans__3d_fullres/oof_deform_prob
 nnunet_path: ./nnunet
-petrained_ckpt_path: './models/deform-dynunet-128-patch-hard-fold2-epoch=174-val_comp_metric=0.6326.ckpt'
+petrained_ckpt_path: './models/deform-dynunet-larger-patch-fold0-epoch=69-val_comp_metric=0.6536.ckpt'
 data_split_path: ./splits_final.json
 batch_size: 1
 num_workers: 4
@@ -15,9 +15,9 @@ n_splits: 5
 seed: 42
 input_size: [-1, 128, 128]
 threshold: 0.5
-selected_fold: ''
+selected_fold: 0
 is_prob_oof_mask: false
-apply_gaussian: false
+apply_gaussian: true
 
 #model config
 max_v: 3.0
@@ -26,6 +26,9 @@ lambda_jac: 1.0
 lambda_smooth: 0.1
 lambda_ce: 0.1
 lambda_dice: 0.9
+kernel_size: 3
+sigma: 5
+
 
 
 defaults:
