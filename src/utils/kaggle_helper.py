@@ -2,14 +2,14 @@
 import os
 import json
 import argparse
+import zipfile
 from kaggle.api.kaggle_api_extended import KaggleApi
 
 '''
 Download or upload Kaggle datasets or competitions.
-This is for kaggle==1.15.6, due to issue with download competitions in latest vesrions.
+This is for kaggle==1.15.6, due to issue with download competitions in latest versions.
 Will have to only modify the kaggle.json path to ~/.config/kaggle/kaggle.json for newer versions.
 '''
-
 
 # ---------------------------------------------------------
 # Set up Kaggle credentials
@@ -29,22 +29,51 @@ def setup_kaggle_credentials():
 
 
 # ---------------------------------------------------------
-# Download competition
+# Extract all zip files in a directory
+# ---------------------------------------------------------
+def extract_zips(folder, remove_zip=True):
+    for fname in os.listdir(folder):
+        if fname.endswith(".zip"):
+            zip_path = os.path.join(folder, fname)
+            print(f"↳ Extracting {fname}")
+            with zipfile.ZipFile(zip_path, "r") as z:
+                z.extractall(folder)
+
+            if remove_zip:
+                os.remove(zip_path)
+                print(f"  ✗ Removed {fname}")
+
+
+# ---------------------------------------------------------
+# Download competition (with auto-extract)
 # ---------------------------------------------------------
 def download_competition(api, competition, out):
     os.makedirs(out, exist_ok=True)
     print(f"↓ Downloading competition '{competition}' → {out}")
-    api.competition_download_files(competition, path=out)
-    print("✓ Done")
+
+    api.competition_download_files(
+        competition,
+        path=out,
+        quiet=False
+    )
+
+    extract_zips(out)
+    print("✓ Done (downloaded + extracted)")
 
 
 # ---------------------------------------------------------
-# Download dataset
+# Download dataset (already supports unzip)
 # ---------------------------------------------------------
 def download_dataset(api, dataset, out):
     os.makedirs(out, exist_ok=True)
     print(f"↓ Downloading dataset '{dataset}' → {out}")
-    api.dataset_download_files(dataset, path=out, unzip=True)
+
+    api.dataset_download_files(
+        dataset,
+        path=out,
+        unzip=True
+    )
+
     print("✓ Done")
 
 
@@ -55,7 +84,6 @@ def upload_dataset(api, folder, username, dataset_name, version_notes):
     os.makedirs(folder, exist_ok=True)
     metadata_path = os.path.join(folder, "dataset-metadata.json")
 
-    # Prepare metadata
     metadata = {
         "title": dataset_name,
         "id": f"{username}/{dataset_name}",
@@ -65,7 +93,6 @@ def upload_dataset(api, folder, username, dataset_name, version_notes):
     with open(metadata_path, "w") as f:
         json.dump(metadata, f, indent=2)
 
-    # Attempt creation first, fallback to updating
     try:
         print("↑ Creating new dataset…")
         api.dataset_create_new(folder, convert_to_csv=False, dir_mode="tar")
@@ -91,30 +118,19 @@ def main():
 
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    # ----------------- download competition -----------------
     dl_comp = subparsers.add_parser("download-competition")
-    dl_comp.add_argument("--competition", required=True,
-                         help="Competition slug (e.g. vesuvius-challenge-surface-detection)")
-    dl_comp.add_argument("--out", default="data/",
-                         help="Output folder")
+    dl_comp.add_argument("--competition", required=True)
+    dl_comp.add_argument("--out", default="data/")
 
-    # ----------------- download dataset -----------------
     dl_ds = subparsers.add_parser("download-dataset")
-    dl_ds.add_argument("--dataset", required=True,
-                       help="Dataset slug (e.g. username/dataset-name)")
-    dl_ds.add_argument("--out", default="data/",
-                       help="Output folder")
+    dl_ds.add_argument("--dataset", required=True)
+    dl_ds.add_argument("--out", default="data/")
 
-    # ----------------- upload dataset -----------------
     up = subparsers.add_parser("upload-dataset")
-    up.add_argument("--folder", required=True,
-                    help="Folder that contains files to upload")
-    up.add_argument("--username", required=True,
-                    help="Your Kaggle username")
-    up.add_argument("--dataset_name", required=True,
-                    help="Dataset ID name (e.g. my-dataset)")
-    up.add_argument("--notes", default="Update",
-                    help="Version notes")
+    up.add_argument("--folder", required=True)
+    up.add_argument("--username", required=True)
+    up.add_argument("--dataset_name", required=True)
+    up.add_argument("--notes", default="Update")
 
     args = parser.parse_args()
 
