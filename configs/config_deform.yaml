@@ -4,7 +4,7 @@ data_path: ./data/vesuvius-challenge-surface-detection
 oof_path : ./nnunet/nnUNet_results/Dataset900_VesuviusScroll/nnUNetTrainer__nnUNetResEncUNetMPlans__3d_fullres/oof_deform_gaussian/oof
 oof_path2: '' #./nnunet/nnUNet_results/Dataset900_VesuviusScroll/nnUNetTrainer__nnUNetResEncUNetMPlans__3d_fullres/oof_deform_prob
 nnunet_path: ./nnunet
-petrained_ckpt_path: './models/deform-dynunet-larger-patch-fold0-epoch=69-val_comp_metric=0.6536.ckpt'
+petrained_ckpt_path: './models/deform-dynunet-larger-patch-fold4-epoch=74-val_comp_metric=0.6475.ckpt'
 data_split_path: ./splits_final.json
 batch_size: 1
 num_workers: 4
@@ -15,7 +15,7 @@ n_splits: 5
 seed: 42
 input_size: [-1, 128, 128]
 threshold: 0.5
-selected_fold: 0
+selected_fold: 4
 is_prob_oof_mask: false
 apply_gaussian: true
 
