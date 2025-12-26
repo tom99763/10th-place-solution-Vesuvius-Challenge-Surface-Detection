@@ -69,6 +69,9 @@ class ComposeCDLRefineModule(pl.LightningModule):
         else:
             prediction = mask
 
+        # SDF_hat = self.sliding_window_inferer(vol, self.model)
+        # prediction = from_sdf(SDF_hat)
+
         score = calc_score(mask.cpu().numpy()[0, 0], prediction.cpu().numpy()[0, 0])
         self.val_num_samples += vol.shape[0]
         self.scores.append(score.score)

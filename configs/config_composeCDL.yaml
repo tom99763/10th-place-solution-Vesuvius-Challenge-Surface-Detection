@@ -16,6 +16,7 @@ seed: 42
 input_size: [-1, 128, 128]
 threshold: 0.5
 selected_fold: ''
+num_subset_samples: 5
 
 #model config
 lambda_sparse: 1.0
