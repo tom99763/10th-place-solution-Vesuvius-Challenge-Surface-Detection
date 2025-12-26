@@ -148,6 +148,19 @@ deprecated_ids = [
 #
 #     return final_mask, rough_mask
 
+def load_sparse_z(path: Path, device=None):
+    """Load sparse .npz and return dense tensor on given device."""
+    d = np.load(path)
+    idx = torch.tensor(d["idx"], dtype=torch.long)
+    vals = torch.tensor(d["vals"], dtype=torch.float32)
+    shape = tuple(d["shape"])
+
+    D = torch.zeros(shape, dtype=vals.dtype, requires_grad=False)
+    D[idx[:, 0], idx[:, 1], idx[:, 2], idx[:, 3]] = vals
+    if device:
+        D = D.to(device)
+    return D
+
 
 def generate_transforms(
     transforms_config: list[dict],

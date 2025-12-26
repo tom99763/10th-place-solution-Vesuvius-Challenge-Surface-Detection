@@ -24,6 +24,6 @@ lambda_sparse: 1.0
 defaults:
   - models: composeCDL
   - optimizers: AdamW
-  - data: data_CDL
+  - data: data_composeCDL
   - trainer: composeCDLTrainer
   - _self_

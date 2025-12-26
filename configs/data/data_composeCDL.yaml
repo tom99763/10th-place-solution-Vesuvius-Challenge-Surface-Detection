@@ -1,7 +1,7 @@
 transforms:
   train:
     - EnsureChannelFirstd:
-        keys: ["Image", "Mask", "SDF", "Z"]
+        keys: ["Image", "Mask", "SDF"]
         channel_dim: "no_channel"
 
     - EnsureTyped:
