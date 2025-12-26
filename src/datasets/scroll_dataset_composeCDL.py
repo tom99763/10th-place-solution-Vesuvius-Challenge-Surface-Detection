@@ -1,10 +1,11 @@
 from torch.utils.data import Dataset, DataLoader
 import torch
 from pathlib import Path
-from ..procs.proc_data import generate_transforms, load_volume, load_sparse_tensor, compute_sdt, downsample_mask, downsample_volume_np
+from ..procs.proc_data import *
 import numpy as np
 import pytorch_lightning as pl
 from scipy.ndimage import zoom
+from src.procs.proc_data import deprecated_ids
 
 class ComposeDataset(Dataset):
     def __init__(self, cfg, id_list, train: bool):
@@ -27,8 +28,9 @@ class ComposeDataset(Dataset):
             vol = downsample_volume_np(vol, factor=2)
             mask = downsample_mask(mask, 2)
             #scale down volume & mask
-            sdf = compute_sdt(mask * (mask != 2))
-            Z = load_sparse_tensor(str(self.cdl_label_path / f'{idx}.npz'))  # (D//2, H//2, W//2)
+            #sdf = compute_sdt(mask * (mask != 2))
+            sdf = np.load(f'./data/train_sdf_labels/{idx}_sdf.tif')['sdt']
+            Z = load_sparse_z(str(self.cdl_label_path / f'{idx}.npz'))  # (D//2, H//2, W//2)
             raw = {
                 "Image": vol,
                 "Mask": mask,
@@ -58,11 +60,13 @@ def collate_fn_train(batch):
     images = torch.cat([item[0] for item in batch], dim=0)
     masks = torch.cat([item[1] for item in batch], dim=0)
     Z = torch.cat([item[2] for item in batch], dim=0)
+    SDF = torch.cat([item[3] for item in batch], dim=0)
 
     return {
         "Image": images,
         "Mask": masks,
         "Z": Z,
+        'SDF': SDF
     }
 
 
@@ -80,8 +84,16 @@ class TomoDataModule(pl.LightningDataModule):
     def __init__(self, cfg, train_ids, val_ids):
         super().__init__()
         self.cfg = cfg
+        for idx in deprecated_ids:
+            if idx in train_ids:
+                train_ids.remove(idx)
+
+        for idx in deprecated_ids:
+            if idx in val_ids:
+                val_ids.remove(idx)
+
         self.train_ids = train_ids
-        self.val_ids = val_ids[:5]
+        self.val_ids = val_ids
 
     def setup(self, stage: str = None):
         self.train_dataset = ComposeDataset(self.cfg, self.train_ids, train=True)
