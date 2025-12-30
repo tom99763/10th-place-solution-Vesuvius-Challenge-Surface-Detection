@@ -18,9 +18,9 @@ warnings.filterwarnings("ignore", category=UserWarning, module="fft_conv_pytorch
 
 sys.path.append('./src/nnUNet')
 
-os.environ["nnUNet_raw"] = "../../nnunet/nnUNet_raw_data_base/nnUNet_raw"
-os.environ["nnUNet_preprocessed"] = "../../nnunet/preprocessed"
-os.environ["nnUNet_results"] = "../../nnunet/nnUNet_results"
+os.environ["nnUNet_raw"] = "./nnunet/nnUNet_raw_data_base/nnUNet_raw"
+os.environ["nnUNet_preprocessed"] = "./nnunet/preprocessed"
+os.environ["nnUNet_results"] = "./nnunet/nnUNet_results"
 
 #configs
 plt.ion()   # interactive mode
@@ -44,7 +44,7 @@ dataset_json = {
      "ignore" : 2
   },
   "file_ending": ".tif",
-  "numTraining": 806,
+  "numTraining": 786,
 }
 
 
@@ -66,16 +66,40 @@ def run_cmd(cmd_list):
     return result
 
 
+deprecated_ids = [
+    1407735,
+    1641318781,
+    2268221981,
+    2996066940,
+    3241425466,
+    808135176,
+    1924200298,
+    2376256768,
+    3012554500,
+    3398456664,
+    862434992,
+    1951193117,
+    2573842867,
+    3110212378,
+    3470951309,
+    885379642,
+    2075542469,
+    2791137336,
+    3215721649,
+    3518241476,
+]
+
+
 
 def main():
     # --- INPUT DATA ---
-    DATA_DIR = Path("../../data/vesuvius-challenge-surface-detection")
+    DATA_DIR = Path("./data/vesuvius-challenge-surface-detection")
     CSV_PATH = DATA_DIR / "train.csv"
     IMG_DIR = DATA_DIR / "train_images"
     LBL_DIR = DATA_DIR / "train_labels"
     REPO_DIR = 'nnunet_repo'
     # --- OUTPUT NNUNET DIR ---
-    BASE = Path("../../nnunet/nnUNet_raw_data_base/nnUNet_raw")
+    BASE = Path("./nnunet/nnUNet_raw_data_base/nnUNet_raw")
     task_id = 900
     task_name = "VesuviusScroll"
     task_folder = f"Dataset{task_id:03d}_{task_name}"
@@ -90,6 +114,7 @@ def main():
     base_dir.mkdir(parents=True, exist_ok=True)
 
     df = pd.read_csv(CSV_PATH)
+    df = df[~df.id.isin(deprecated_ids)]
 
     for _, row in tqdm(df.iterrows(), total=len(df), desc="Copying TIFFs"):
         case_id = str(row["id"])
