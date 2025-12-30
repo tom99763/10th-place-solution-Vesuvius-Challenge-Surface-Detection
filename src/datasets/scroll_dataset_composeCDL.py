@@ -29,7 +29,7 @@ class ComposeDataset(Dataset):
             mask = downsample_mask(mask, 2)
             #scale down volume & mask
             #sdf = compute_sdt(mask * (mask != 2))
-            sdf = np.load(f'./data/train_sdf_labels/{idx}_sdf.npz')['sdt']
+            sdf = np.load(f'./data/train_sdf_labels/{idx}_sdf.npz', mmap_mode='r')['sdt']
             Z = load_sparse_z(str(self.cdl_label_path / f'{idx}.npz'))  # (D//2, H//2, W//2)
             raw = {
                 "Image": vol,

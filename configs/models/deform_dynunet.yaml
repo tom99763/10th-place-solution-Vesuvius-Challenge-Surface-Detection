@@ -1,11 +1,58 @@
+#_target_: "monai.networks.nets.DynUNet"
+#in_channels: 2
+#out_channels: 3
+#spatial_dims: 3
+#strides: [[1, 1, 1], [2, 2, 2], [2, 2, 2], [2, 2, 2], [2, 2, 2], [2, 2, 2]]
+#kernel_size: [[3, 3, 3], [3, 3, 3], [3, 3, 3], [3, 3, 3], [3, 3, 3], [3, 3, 3]]
+#upsample_kernel_size: [[2, 2, 2], [2, 2, 2], [2, 2, 2], [2, 2, 2], [2, 2, 2]]
+#filters: [32, 64, 128, 256, 320, 320]
+#res_block: True
+#norm_name: "INSTANCE"
+#deep_supervision: false
+
+
 _target_: "monai.networks.nets.DynUNet"
+spatial_dims: 3
 in_channels: 2
 out_channels: 3
-spatial_dims: 3
-strides: [[1, 1, 1], [2, 2, 2], [2, 2, 2], [2, 2, 2], [2, 2, 2], [2, 2, 2]]
-kernel_size: [[3, 3, 3], [3, 3, 3], [3, 3, 3], [3, 3, 3], [3, 3, 3], [3, 3, 3]]
-upsample_kernel_size: [[2, 2, 2], [2, 2, 2], [2, 2, 2], [2, 2, 2], [2, 2, 2]]
-filters: [32, 64, 128, 256, 320, 320]
-res_block: True
+
+# 7-level encoder
+strides:
+  - [1, 1, 1]
+  - [2, 2, 2]
+  - [2, 2, 2]
+  - [2, 2, 2]
+  - [2, 2, 2]
+  - [2, 2, 2]
+  - [2, 2, 2]
+
+kernel_size:
+  - [3, 3, 3]
+  - [3, 3, 3]
+  - [3, 3, 3]
+  - [3, 3, 3]
+  - [3, 3, 3]
+  - [3, 3, 3]
+  - [3, 3, 3]
+
+upsample_kernel_size:
+  - [2, 2, 2]
+  - [2, 2, 2]
+  - [2, 2, 2]
+  - [2, 2, 2]
+  - [2, 2, 2]
+  - [2, 2, 2]
+
+# Wider + smoother channel scaling
+filters:
+  - 48
+  - 96
+  - 192
+  - 384
+  - 512
+  - 768
+  - 1024
+
+res_block: true
 norm_name: "INSTANCE"
 deep_supervision: false

@@ -4,7 +4,7 @@ data_path: ./data/vesuvius-challenge-surface-detection
 cdl_label_path: ./data/train_cdl_labels
 dictionary_path: ./data/train_cdl_labels
 nnunet_path: ./nnunet
-petrained_ckpt_path: ''
+petrained_ckpt_path: './models/cdl-dynunet-fold0-epoch=09-val_comp_metric=0.2870.ckpt'
 data_split_path: ./splits_final.json
 batch_size: 1
 num_workers: 4

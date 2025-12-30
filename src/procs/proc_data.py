@@ -150,7 +150,7 @@ deprecated_ids = [
 
 def load_sparse_z(path: Path, device=None):
     """Load sparse .npz and return dense tensor on given device."""
-    d = np.load(path)
+    d = np.load(path, mmap_mode='r')
     idx = torch.tensor(d["idx"], dtype=torch.long)
     vals = torch.tensor(d["vals"], dtype=torch.float32)
     shape = tuple(d["shape"])
