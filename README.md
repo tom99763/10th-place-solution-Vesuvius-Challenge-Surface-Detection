@@ -19,7 +19,7 @@ python kaggle_helper.py download-dataset \
 python kaggle_helper.py upload-dataset \
     --folder /kaggle/dataset \
     --username p4rallax \
-    --dataset-name vesuvius-models-v2 \
+    --dataset_name vesuvius-models-v2 \
     --notes "Add new model checkpoints"
 ```
 

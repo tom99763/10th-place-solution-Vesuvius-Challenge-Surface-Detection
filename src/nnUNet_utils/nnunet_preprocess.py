@@ -27,7 +27,7 @@ import subprocess
 import warnings
 warnings.filterwarnings("ignore", category=UserWarning, module="fft_conv_pytorch")
 
-sys.path.append('/kaggle/Vesuvius-challenge-Codebase/src/nnUNet')
+sys.path.append('/kaggle/Vesuvius-challenge-Codebase/src/vesuvius_nnunet/nnunet')
 os.environ["nnUNet_raw"] = "/kaggle/Vesuvius-challenge-Codebase/nnunet/nnUNet_raw_data_base/nnUNet_raw"
 os.environ["nnUNet_preprocessed"] = "/kaggle/Vesuvius-challenge-Codebase/nnunet/preprocessed"
 os.environ["nnUNet_results"] = "/kaggle/Vesuvius-challenge-Codebase/nnunet/nnUNet_results"
@@ -61,14 +61,14 @@ def main():
 
 
     # all steps together cna be ignored
-    # run_cmd([
+    run_cmd([
         
-    #     "nnUNetv2_plan_and_preprocess",
-    #     "-d","900",
-    #     "-c","3d_fullres",
-    #     "-pl", "nnUNetPlannerResEncM",
-    #     "--verify_dataset_integrity"
-
+        "nnUNetv2_plan_and_preprocess",
+        "-d","900",
+        "-c","3d_fullres",
+        "-pl", "nnUNetPlannerResEncL",
+        "--verify_dataset_integrity"
+    ])
     #2. only generate pplans  
     # ])
     # # Only generate plans
@@ -85,15 +85,15 @@ def main():
   
   
   # 3. only preprocess
-    run_cmd([
+    # run_cmd([
         
-        "nnUNetv2_preprocess",
-        "-d","900",
-        "-c","3d_fullres",
-        "-pl", "nnUNetResEncUNetMPlans_30G",
+    #     "nnUNetv2_preprocess",
+    #     "-d","900",
+    #     "-c","3d_fullres",
+    #     "-pl", "nnUNetResEncUNetMPlans_30G",
         
         
-    ])
+    # ])
 
 
 if __name__ == '__main__':
