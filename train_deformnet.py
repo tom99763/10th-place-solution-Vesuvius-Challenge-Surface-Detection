@@ -41,8 +41,8 @@ def run(cfg: DictConfig):
             continue
         print(f'training fold {i}')
         set_seed(cfg.seed)
-        train_ids = val_splits[i]['train']
-        val_ids = val_splits[i]['val']
+        train_ids = list(map(lambda x: str(x), val_splits[i]['train']))
+        val_ids = list(map(lambda x: str(x), val_splits[i]['val']))
         datamodule = TomoDataModule(cfg, train_ids, val_ids)
         model = DeformDynUnet(cfg)
         if cfg.petrained_ckpt_path != '':

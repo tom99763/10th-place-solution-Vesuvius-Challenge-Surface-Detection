@@ -144,11 +144,30 @@ class DiffeoRefineModule(pl.LightningModule):
         self.val_num_samples = 0
 
     def configure_optimizers(self):
-        return torch.optim.AdamW(
+        optimizer = torch.optim.AdamW(
             self.parameters(),
             lr=self.lr,
             weight_decay=1e-2
         )
+
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+            optimizer,
+            mode="max",
+            factor=0.5,
+            patience=5,
+            min_lr=1e-6,
+        )
+
+        return {
+            "optimizer": optimizer,
+            "lr_scheduler": {
+                "scheduler": scheduler,
+                "monitor": "val_comp_metric",
+                "interval": "epoch",
+                "frequency": 1,
+                "strict": True,
+            },
+        }
 
 
 class ICDiffeoRefineModule(DiffeoRefineModule):

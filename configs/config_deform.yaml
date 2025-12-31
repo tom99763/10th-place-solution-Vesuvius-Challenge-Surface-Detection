@@ -5,7 +5,7 @@ oof_path : ./nnunet/nnUNet_results/Dataset900_VesuviusScroll/nnUNetTrainer__nnUN
 oof_path2: '' #./nnunet/nnUNet_results/Dataset900_VesuviusScroll/nnUNetTrainer__nnUNetResEncUNetMPlans__3d_fullres/oof_deform_prob
 nnunet_path: ./nnunet
 petrained_ckpt_path: ''
-data_split_path: ./splits_final.json
+data_split_path: ./splits.json
 batch_size: 1
 num_workers: 4
 lr: 1e-3
