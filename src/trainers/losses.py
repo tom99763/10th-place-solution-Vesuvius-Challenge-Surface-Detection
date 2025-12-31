@@ -212,3 +212,31 @@ def calc_gradient_penalty(netD, real_data, fake_data, LAMBDA, device):
 def kl_criterion(mu, logvar):
     KLD = -0.5 * (1 + logvar - mu.pow(2) - logvar.exp())
     return KLD.mean()
+
+class SkeletonRecallLoss(nn.Module):
+    """
+    Ensures the model 'recalls' the thin centerline/skeleton of the sheet.
+    """
+
+    def __init__(self, ignore_index=2, smooth=1e-5):
+        super().__init__()
+        self.ignore_index = ignore_index
+        self.smooth = smooth
+
+    def forward(self, probs, target_skeleton, original_labels):
+        # Create mask to exclude ignore_index pixels from loss
+        mask = (original_labels != self.ignore_index).float()
+
+        # We only care about the recall on the skeleton voxels
+        # skeleton is 1-voxel thin, so we want the model to be high there
+        # We multiply by mask to ensure we don't penalize in ignore regions
+        active_skeleton = target_skeleton * mask
+
+        # Weighted recall: focus only on skeleton points
+        numerator = torch.sum(probs * active_skeleton, dim=(1, 2, 3, 4))
+        denominator = torch.sum(active_skeleton, dim=(1, 2, 3, 4))
+
+        # Avoid division by zero if a patch has no skeleton
+        recall = (numerator + self.smooth) / (denominator + self.smooth)
+
+        return 1.0 - recall.mean()
