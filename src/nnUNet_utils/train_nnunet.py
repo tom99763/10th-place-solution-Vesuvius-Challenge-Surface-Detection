@@ -72,8 +72,8 @@ def main():
             "900",
             "3d_fullres",
             str(i),
-            "-p", "nnUNetResEncUNetMPlans_30G",
-            "-tr" , "RSNA2025TrainerSwinUNETR"
+            "-p", "nnUNetResEncUNetLPlans",
+            "-tr" , "nnUNetTrainerMedialSurfaceRecallNoTube"
         ])
 
 
