@@ -22,7 +22,7 @@ class DeformDataset(Dataset):
         idx = self.id_list[idx]
         vol = load_volume(self.data_path / 'train_images' / f'{idx}.tif')
         mask = load_volume(self.data_path/'train_labels'/f'{idx}.tif')
-        skel = load_volume(self.data_path/'train_skeletons_npy'/f'{idx}.tif')
+        skel = np.load(self.data_path/'train_skeletons_npy'/f'{idx}.npy')
         if self.cfg.is_prob_oof_mask:
             pred_mask = np.load(f'{self.cfg.oof_path}/{idx}.npz', mmap_mode='r')
             pred_mask = pred_mask['probabilities'][1] #(d, h, w)
@@ -66,10 +66,10 @@ def collate_fn_val(batch):
     """
     batch: list of tuples (Image, Mask, Mask_OOF)
     """
-    images = torch.cat([item[0] for item in batch], dim=0)
-    masks = torch.cat([item[1] for item in batch], dim=0)
-    mask_oof = torch.cat([item[2] for item in batch], dim=0)
-    skel = torch.cat([item[3] for item in batch], dim=0)
+    images = torch.stack([item[0] for item in batch], dim=0)
+    masks = torch.stack([item[1] for item in batch], dim=0)
+    mask_oof = torch.stack([item[2] for item in batch], dim=0)
+    skel = torch.stack([item[3] for item in batch], dim=0)
 
     return {
         "Image": images,

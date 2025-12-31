@@ -1,89 +1,88 @@
 transforms:
-  transforms:
-    train:
-      - EnsureChannelFirstd:
-          keys: [ "Image", "Mask", "Mask_OOF", "Skel" ]
-          channel_dim: "no_channel"
+  train:
+    - EnsureChannelFirstd:
+        keys: [ "Image", "Mask", "Mask_OOF", "Skel" ]
+        channel_dim: "no_channel"
 
-      - EnsureTyped:
-          keys: [ "Image", "Mask", "Mask_OOF", "Skel" ]
-          dtype: float32
+    - EnsureTyped:
+        keys: [ "Image", "Mask", "Mask_OOF", "Skel" ]
+        dtype: float32
 
-      # === Intensity normalization (nnUNet style) ===
-      - ScaleIntensityRanged:
-          keys: [ "Image" ]
-          a_min: 0.0
-          a_max: 213.0
-          b_min: -5.0
-          b_max: 5.0
-          clip: true
+    # === Intensity normalization (nnUNet style) ===
+    - ScaleIntensityRanged:
+        keys: [ "Image" ]
+        a_min: 0.0
+        a_max: 213.0
+        b_min: -5.0
+        b_max: 5.0
+        clip: true
 
-      # === 3D patch extraction ===
-      - RandCropByPosNegLabeld:
-          keys: [ "Image", "Mask", "Mask_OOF", "Skel" ]
-          label_key: "Mask"
-          spatial_size: ${input_size}
-          pos: 2
-          neg: 0
-          num_samples: 2
-          image_key: "Image"
-          image_threshold: 0.0
+    # === 3D patch extraction ===
+    - RandCropByPosNegLabeld:
+        keys: [ "Image", "Mask", "Mask_OOF", "Skel" ]
+        label_key: "Mask"
+        spatial_size: ${input_size}
+        pos: 2
+        neg: 0
+        num_samples: 2
+        image_key: "Image"
+        image_threshold: 0.0
 
-      # === Spatial augmentations (applied to all keys) ===
-      - RandFlipd:
-          keys: [ "Image", "Mask", "Mask_OOF", "Skel" ]
-          prob: 0.5
-          spatial_axis: 0
-      - RandFlipd:
-          keys: [ "Image", "Mask", "Mask_OOF", "Skel" ]
-          prob: 0.5
-          spatial_axis: 1
-      - RandFlipd:
-          keys: [ "Image", "Mask", "Mask_OOF", "Skel" ]
-          prob: 0.5
-          spatial_axis: 2
-      - RandRotate90d:
-          keys: [ "Image", "Mask", "Mask_OOF", "Skel" ]
-          prob: 0.2
-          max_k: 3
-          spatial_axes: [ 1, 2 ]
-      - RandZoomd:
-          keys: [ "Image", "Mask", "Mask_OOF", "Skel" ]
-          prob: 0.2
-          min_zoom: 0.7
-          max_zoom: 1.4
-          mode: [ "trilinear", "nearest", "nearest", "nearest" ]
+    # === Spatial augmentations (applied to all keys) ===
+    - RandFlipd:
+        keys: [ "Image", "Mask", "Mask_OOF", "Skel" ]
+        prob: 0.5
+        spatial_axis: 0
+    - RandFlipd:
+        keys: [ "Image", "Mask", "Mask_OOF", "Skel" ]
+        prob: 0.5
+        spatial_axis: 1
+    - RandFlipd:
+        keys: [ "Image", "Mask", "Mask_OOF", "Skel" ]
+        prob: 0.5
+        spatial_axis: 2
+    - RandRotate90d:
+        keys: [ "Image", "Mask", "Mask_OOF", "Skel" ]
+        prob: 0.2
+        max_k: 3
+        spatial_axes: [ 1, 2 ]
+    - RandZoomd:
+        keys: [ "Image", "Mask", "Mask_OOF", "Skel" ]
+        prob: 0.2
+        min_zoom: 0.7
+        max_zoom: 1.4
+        mode: [ "trilinear", "nearest", "nearest", "nearest" ]
 
-      # === Intensity augmentations (image only) ===
-      - RandGaussianNoised:
-          keys: [ "Image" ]
-          prob: 0.1
-          std: 0.1
-      - RandGaussianSmoothd:
-          keys: [ "Image" ]
-          sigma_x: [ 0.5, 1.0 ]
-          sigma_y: [ 0.5, 1.0 ]
-          sigma_z: [ 0.5, 1.0 ]
-          prob: 0.2
-      - RandScaleIntensityd:
-          keys: [ "Image" ]
-          factors: 0.25
-          prob: 0.15
-      - RandAdjustContrastd:
-          keys: [ "Image" ]
-          gamma: [ 0.75, 1.25 ]
-          prob: 0.15
-      - RandSimulateLowResolutiond:
-          keys: [ "Image" ]
-          prob: 0.25
-          zoom_range: [ 0.5, 1.0 ]
-      - RandShiftIntensityd:
-          keys: [ "Image" ]
-          offsets: 0.1
-          prob: 0.3
+    # === Intensity augmentations (image only) ===
+    - RandGaussianNoised:
+        keys: [ "Image" ]
+        prob: 0.1
+        std: 0.1
+    - RandGaussianSmoothd:
+        keys: [ "Image" ]
+        sigma_x: [ 0.5, 1.0 ]
+        sigma_y: [ 0.5, 1.0 ]
+        sigma_z: [ 0.5, 1.0 ]
+        prob: 0.2
+    - RandScaleIntensityd:
+        keys: [ "Image" ]
+        factors: 0.25
+        prob: 0.15
+    - RandAdjustContrastd:
+        keys: [ "Image" ]
+        gamma: [ 0.75, 1.25 ]
+        prob: 0.15
+    - RandSimulateLowResolutiond:
+        keys: [ "Image" ]
+        prob: 0.25
+        zoom_range: [ 0.5, 1.0 ]
+    - RandShiftIntensityd:
+        keys: [ "Image" ]
+        offsets: 0.1
+        prob: 0.3
 
-      - ToTensord:
-          keys: [ "Image", "Mask", "Mask_OOF", "Skel" ]
+    - ToTensord:
+        keys: [ "Image", "Mask", "Mask_OOF", "Skel" ]
 
   val:
     - EnsureChannelFirstd:

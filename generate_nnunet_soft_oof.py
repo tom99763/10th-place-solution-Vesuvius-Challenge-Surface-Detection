@@ -30,7 +30,7 @@ def run_cmd(cmd_list):
 
 #run_cmd(cmd)
 
-for i in range(5):
+for i in range(1):
     run_cmd([
         sys.executable,
         "-m", "nnunetv2.run.run_training",
@@ -39,5 +39,5 @@ for i in range(5):
         str(i),
         "-num_gpus", "1",
         "-p", "nnUNetResEncUNetMPlans",
-        "--val", "--npz"
+        "--val" #, "--npz"
     ])

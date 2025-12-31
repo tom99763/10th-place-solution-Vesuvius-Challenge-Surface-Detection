@@ -59,7 +59,7 @@ def main():
     ])
 
 
-    for i in range(5):
+    for i in range(1, 5):
         run_cmd([
             sys.executable,
             "-m", "nnunetv2.run.run_training",
