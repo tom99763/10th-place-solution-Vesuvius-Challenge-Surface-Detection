@@ -1,4 +1,4 @@
-max_epochs: 70
+max_epochs: 250
 accelerator: gpu
 devices: [0]
 precision: "bf16-mixed"
