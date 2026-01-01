@@ -68,7 +68,8 @@ def run(cfg: DictConfig):
             dirpath="./models",
             filename=f"{cfg.exp_name}-fold{i}"
                      + "-{epoch:02d}-{val_comp_metric:.4f}",
-            save_top_k=1
+            save_top_k=2,
+            save_last=True
         )
         lr_monitor = pl.callbacks.LearningRateMonitor(logging_interval="epoch")
 

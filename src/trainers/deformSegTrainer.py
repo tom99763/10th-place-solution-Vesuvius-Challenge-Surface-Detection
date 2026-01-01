@@ -117,6 +117,17 @@ class DiffeoRefineModule(pl.LightningModule):
         self.surface_scores.append(score.surface_dice)
         return None
 
+    def on_train_epoch_end(self):
+        optimizer = self.optimizers()
+        lr = optimizer.param_groups[0]["lr"]
+        self.log(
+            "lr",
+            lr,
+            prog_bar=True,
+            on_epoch=True,
+            sync_dist=True,
+        )
+
     def on_validation_epoch_end(self):
         comp_score = np.stack(self.scores).sum() / self.val_num_samples
         topo_score = np.stack(self.topo_scores).sum() / self.val_num_samples
@@ -152,17 +163,17 @@ class DiffeoRefineModule(pl.LightningModule):
 
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
             optimizer,
-            mode="max",
+            mode="min",
             factor=0.5,
-            patience=5,
-            min_lr=1e-6,
+            patience=10,
+            min_lr=5e-5,
         )
 
         return {
             "optimizer": optimizer,
             "lr_scheduler": {
                 "scheduler": scheduler,
-                "monitor": "val_comp_metric",
+                "monitor": "loss",
                 "interval": "epoch",
                 "frequency": 1,
                 "strict": True,
