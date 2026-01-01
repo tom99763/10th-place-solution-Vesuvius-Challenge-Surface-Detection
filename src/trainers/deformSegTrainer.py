@@ -64,9 +64,9 @@ class DiffeoRefineModule(pl.LightningModule):
     # TRAINING STEP
     # ----------------------------------------
     def training_step(self, batch, batch_idx):
-        vol, mask, mask_oof, skel = batch['Image'], batch['Mask'], batch['Mask_OOF'], batch['Skel']
+        vol, mask, mask_oof = batch['Image'], batch['Mask'], batch['Mask_OOF']
         if self.cfg.apply_gaussian:
-            x = torch.cat([vol, gaussian_blur_3d(mask_oof, self.cfg.kernel_size, self.cfg.sigma)], dim=1)
+            x = torch.cat([vol, gaussian_blur_3d(mask_oof)], dim=1)
         else:
             x = torch.cat([vol, mask_oof], dim=1)
         pred_warped, v, phi = self(x, return_params=True)
@@ -74,7 +74,8 @@ class DiffeoRefineModule(pl.LightningModule):
 
         # segmentation loss using MONAI DiceCE
         L_seg = self.seg_loss(pred_warped * ignore_mask, mask * ignore_mask)
-        L_skel = self.skel_loss(pred_warped, skel, mask)
+        L_topo = self.topo_loss(pred_warped * ignore_mask, mask * ignore_mask)
+        L_surf = self.soft_surf_loss(pred_warped * ignore_mask, mask * ignore_mask)
 
         # smoothness regularizer
         L_smooth = self.svf_smoothness(v)
@@ -84,7 +85,7 @@ class DiffeoRefineModule(pl.LightningModule):
         # L_jac = torch.relu(-det).mean()
         L_jac = jacobian_log_barrier(phi)
 
-        loss = L_seg + L_skel + self.lambda_smooth * L_smooth + self.lambda_jac * L_jac
+        loss = L_seg + 0.5 * L_topo + 0.5 * L_surf + self.lambda_smooth * L_smooth + self.lambda_jac * L_jac
 
         self.log("loss", loss, prog_bar=True)
         self.log("seg", L_seg, prog_bar=True)
@@ -155,30 +156,7 @@ class DiffeoRefineModule(pl.LightningModule):
         self.val_num_samples = 0
 
     def configure_optimizers(self):
-        optimizer = torch.optim.AdamW(
-            self.parameters(),
-            lr=self.lr,
-            weight_decay=1e-2
-        )
-
-        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-            optimizer,
-            mode="min",
-            factor=0.5,
-            patience=10,
-            min_lr=5e-5,
-        )
-
-        return {
-            "optimizer": optimizer,
-            "lr_scheduler": {
-                "scheduler": scheduler,
-                "monitor": "loss",
-                "interval": "epoch",
-                "frequency": 1,
-                "strict": True,
-            },
-        }
+        return torch.optim.AdamW(self.parameters(), lr=self.cfg.lr, weight_decay=1e-2)
 
 
 class ICDiffeoRefineModule(DiffeoRefineModule):
