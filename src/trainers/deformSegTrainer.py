@@ -66,7 +66,7 @@ class DiffeoRefineModule(pl.LightningModule):
     def training_step(self, batch, batch_idx):
         vol, mask, mask_oof = batch['Image'], batch['Mask'], batch['Mask_OOF']
         if self.cfg.apply_gaussian:
-            x = torch.cat([vol, gaussian_blur_3d(mask_oof)], dim=1)
+            x = torch.cat([vol, gaussian_blur_3d(mask_oof, self.cfg.kernel_size, self.cfg.sigma)], dim=1)
         else:
             x = torch.cat([vol, mask_oof], dim=1)
         pred_warped, v, phi = self(x, return_params=True)
