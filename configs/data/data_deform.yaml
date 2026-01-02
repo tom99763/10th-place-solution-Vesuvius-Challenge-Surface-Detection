@@ -1,11 +1,11 @@
 transforms:
   train:
     - EnsureChannelFirstd:
-        keys: ["Image", "Mask", "Mask_OOF", "Skel"]
+        keys: ["Image", "Mask", "Mask_OOF"]
         channel_dim: "no_channel"
 
     - EnsureTyped:
-        keys: ["Image", "Mask", "Mask_OOF", "Skel"]
+        keys: ["Image", "Mask", "Mask_OOF"]
         dtype: float32
 
     # === Intensity normalization (nnUNet style) ===
@@ -19,7 +19,7 @@ transforms:
 
     # === 3D patch extraction ===
     - RandCropByPosNegLabeld:
-        keys: ["Image", "Mask", "Mask_OOF", "Skel"]
+        keys: ["Image", "Mask", "Mask_OOF"]
         label_key: "Mask"
         spatial_size: ${input_size}
         pos: 2
@@ -28,23 +28,23 @@ transforms:
         image_key: "Image"
         image_threshold: 0.0
 
-    # === Spatial augmentations (if enabled, Skel is already covered) ===
+    # === Spatial augmentations (if enabled) ===
     # - RandFlipd:
-    #     keys: ["Image", "Mask", "Mask_OOF", "Skel"]
+    #     keys: ["Image", "Mask", "Mask_OOF"]
     #     prob: 0.5
     #     spatial_axis: 0
     # ...
 
     - ToTensord:
-        keys: ["Image", "Mask", "Mask_OOF", "Skel"]
+        keys: ["Image", "Mask", "Mask_OOF"]
 
   val:
     - EnsureChannelFirstd:
-        keys: ["Image", "Mask", "Mask_OOF", "Skel"]
+        keys: ["Image", "Mask", "Mask_OOF"]
         channel_dim: "no_channel"
 
     - EnsureTyped:
-        keys: ["Image", "Mask", "Mask_OOF", "Skel"]
+        keys: ["Image", "Mask", "Mask_OOF"]
         dtype: float32
 
     - ScaleIntensityRanged:
@@ -56,7 +56,7 @@ transforms:
         clip: true
 
     - ToTensord:
-        keys: ["Image", "Mask", "Mask_OOF", "Skel"]
+        keys: ["Image", "Mask", "Mask_OOF"]
 
   test:
     - EnsureChannelFirstd:
