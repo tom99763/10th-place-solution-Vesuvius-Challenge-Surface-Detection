@@ -1,5 +1,5 @@
 project_name: vesurvius-challenge
-exp_name: deform-dynunet-resenc-v${max_v}-s${n_steps}
+exp_name: deform-dynunet-k${kernel_size}-s${sigma}
 data_path: ./data/vesuvius-challenge-surface-detection
 oof_path : ./nnunet/nnUNet_results/Dataset900_VesuviusScroll/nnUNetTrainer__nnUNetResEncUNetMPlans__3d_fullres/oof
 oof_path2: '' #./nnunet/nnUNet_results/Dataset900_VesuviusScroll/nnUNetTrainer__nnUNetResEncUNetMPlans__3d_fullres/oof_deform_prob
@@ -15,20 +15,20 @@ n_splits: 5
 seed: 42
 input_size: [-1, 128, 128]
 threshold: 0.5
-selected_fold: 0
+selected_fold: ''
 is_prob_oof_mask: false
 apply_gaussian: true
 
 #model config
-use_resenc: true
+use_resenc: false
 max_v: 3.0
 n_steps: 5
 lambda_jac: 1.0
 lambda_smooth: 0.1
 lambda_ce: 0.1
 lambda_dice: 0.9
-kernel_size: 3
-sigma: 1
+kernel_size: 5
+sigma: 10
 
 
 defaults:
