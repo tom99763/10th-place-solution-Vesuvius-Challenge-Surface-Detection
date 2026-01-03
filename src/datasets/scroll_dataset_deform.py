@@ -22,6 +22,8 @@ class DeformDataset(Dataset):
         idx = self.id_list[idx]
         vol = load_volume(self.data_path / 'train_images' / f'{idx}.tif')
         mask = load_volume(self.data_path/'train_labels'/f'{idx}.tif')
+        # skel = np.load(self.data_path/'train_skeletons_npy'/f'{idx}.npy')
+        skel = np.load(f'../../vesuvius_challenge/vesuvius_challenge/train_skeletons_npy/{idx}.npy')
         if self.cfg.is_prob_oof_mask:
             pred_mask = np.load(f'{self.cfg.oof_path}/{idx}.npz', mmap_mode='r')
             pred_mask = pred_mask['probabilities'][1] #(d, h, w)
@@ -32,15 +34,16 @@ class DeformDataset(Dataset):
             pred_mask2 = load_volume(Path(f'{self.cfg.oof_path2}/{idx}.tif'))
             pred_mask = np.logical_or(pred_mask, pred_mask2)
 
-        raw = {"Image": vol, "Mask": mask, "Mask_OOF": pred_mask}
+        raw = {"Image": vol, "Mask": mask, "Mask_OOF": pred_mask, "Skel": skel}
         data = self.proc_data(raw)
         if self.train:
             vol = torch.stack([_data['Image'] for _data in data], dim=0)
             mask = torch.stack([_data['Mask'] for _data in data], dim=0)
             mask_oof = torch.stack([_data['Mask_OOF'] for _data in data], dim=0)
+            skel = torch.stack([_data['Skel'] for _data in data], dim=0)
         else:
-            vol, mask, mask_oof = data['Image'], data['Mask'], data['Mask_OOF']
-        return vol, mask, mask_oof
+            vol, mask, mask_oof, skel = data['Image'], data['Mask'], data['Mask_OOF'], data['Skel']
+        return vol, mask, mask_oof, skel
 
 
 def collate_fn_train(batch):
@@ -50,11 +53,13 @@ def collate_fn_train(batch):
     images = torch.cat([item[0] for item in batch], dim=0)
     masks = torch.cat([item[1] for item in batch], dim=0)
     mask_oof = torch.cat([item[2] for item in batch], dim=0)
+    skel = torch.cat([item[3] for item in batch], dim=0)
 
     return {
         "Image": images,
         "Mask": masks,
         "Mask_OOF": mask_oof,
+        "Skel": skel
     }
 
 
@@ -65,11 +70,13 @@ def collate_fn_val(batch):
     images = torch.stack([item[0] for item in batch], dim=0)
     masks = torch.stack([item[1] for item in batch], dim=0)
     mask_oof = torch.stack([item[2] for item in batch], dim=0)
+    skel = torch.stack([item[3] for item in batch], dim=0)
 
     return {
         "Image": images,
         "Mask": masks,
         "Mask_OOF": mask_oof,
+        "Skel": skel
     }
 
 

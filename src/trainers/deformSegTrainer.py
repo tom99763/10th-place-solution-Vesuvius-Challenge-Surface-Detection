@@ -64,7 +64,7 @@ class DiffeoRefineModule(pl.LightningModule):
     # TRAINING STEP
     # ----------------------------------------
     def training_step(self, batch, batch_idx):
-        vol, mask, mask_oof = batch['Image'], batch['Mask'], batch['Mask_OOF']
+        vol, mask, mask_oof, skel = batch['Image'], batch['Mask'], batch['Mask_OOF'], batch['Skel']
         if self.cfg.apply_gaussian:
             x = torch.cat([vol, gaussian_blur_3d(mask_oof, self.cfg.kernel_size, self.cfg.sigma)], dim=1)
         else:
@@ -74,6 +74,7 @@ class DiffeoRefineModule(pl.LightningModule):
 
         # segmentation loss using MONAI DiceCE
         L_seg = self.seg_loss(pred_warped * ignore_mask, mask * ignore_mask)
+        L_skel = self.skel_loss(pred_warped, skel, mask)
         L_topo = self.topo_loss(pred_warped * ignore_mask, mask * ignore_mask)
         L_surf = self.soft_surf_loss(pred_warped * ignore_mask, mask * ignore_mask)
 
@@ -85,7 +86,7 @@ class DiffeoRefineModule(pl.LightningModule):
         # L_jac = torch.relu(-det).mean()
         L_jac = jacobian_log_barrier(phi)
 
-        loss = L_seg + 0.5 * L_topo + 0.5 * L_surf + self.lambda_smooth * L_smooth + self.lambda_jac * L_jac
+        loss = L_seg + 0.1 * L_skel + 0.5 * L_topo + 0.5 * L_surf + self.lambda_smooth * L_smooth + self.lambda_jac * L_jac
 
         self.log("loss", loss, prog_bar=True)
         self.log("seg", L_seg, prog_bar=True)
