@@ -28,7 +28,7 @@ lambda_smooth: 0.1
 lambda_ce: 0.1
 lambda_dice: 0.9
 kernel_size: 3
-sigma: 1
+sigma: 10
 
 
 defaults:

@@ -13,8 +13,26 @@ import torch
 import torch.nn.functional as F
 from scipy.ndimage import distance_transform_edt
 from scipy.ndimage import zoom
+from skimage.morphology import binary_dilation, square
 
 logger = logging.getLogger(__name__)
+
+def pad_skeleton_2d(skel_2d, pad=1):
+    """
+    skel_2d: (H, W) binary skeleton
+    pad=1 → 3x3 padding
+    """
+    selem = square(2 * pad + 1)
+    return binary_dilation(skel_2d, selem)
+
+
+def pad_skeleton_3d(mask, pad = 1):
+    D, H, W = mask.shape
+    output_mask = np.zeros_like(mask)
+    for i in range(D):
+        padded_skel = pad_skeleton_2d(mask[i], pad)
+        output_mask[i] = padded_skel
+    return output_mask
 
 
 def load_volume(path: Path) -> np.ndarray:
