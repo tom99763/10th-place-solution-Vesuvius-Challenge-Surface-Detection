@@ -31,7 +31,7 @@ class DiffeoRefineModule(pl.LightningModule):
             lambda_dice=cfg.lambda_dice,
         )
         self.sliding_window_inferer = SlidingWindowInfererAdapt(
-            roi_size=cfg.input_size, sw_batch_size=2, overlap=0, mode="constant"
+            roi_size=cfg.input_size, sw_batch_size=2, overlap=0.5, mode="gaussian"
         )
         self.topo_loss = FastClDiceLoss()  # ← main topology driver
         self.soft_surf_loss = SoftSDFLoss()
