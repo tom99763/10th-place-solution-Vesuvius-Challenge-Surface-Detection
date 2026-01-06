@@ -14,6 +14,7 @@ import torch.nn.functional as F
 from scipy.ndimage import distance_transform_edt
 from scipy.ndimage import zoom
 from skimage.morphology import binary_dilation, square
+import cc3d
 
 logger = logging.getLogger(__name__)
 
@@ -197,3 +198,69 @@ def generate_transforms(
         )  # type: ignore
         transform_list.append(transform)
     return Compose(transform_list)  # type: ignore
+
+
+
+def filter_cc_by_gt_ratio(
+    pred_2d: np.ndarray,
+    gt_2d: np.ndarray,
+    tau: float = 0.001,
+    connectivity: int = 8,
+    thr: float = 0.5,
+):
+    """
+    For each connected component in pred_2d, compute:
+        ratio = (# GT==1 inside the component) / (component size)
+
+    If ratio > tau -> remove component
+    Else           -> keep component
+
+    Args:
+        pred_2d: (H, W) prediction (float or binary)
+        gt_2d:   (H, W) ground truth binary mask
+        tau:     threshold in [0, 1]
+        connectivity: 4 or 8 for 2D CC
+        thr:     threshold to binarize pred_2d
+
+    Returns:
+        filtered_mask: (H, W) binary mask after filtering
+        kept_labels:   list of kept CC ids
+        removed_labels:list of removed CC ids
+        ratios:        dict {cc_id: ratio}
+    """
+
+    # --- binarize ---
+    pred_bin = (pred_2d > thr).astype(np.uint8)
+    gt_bin = (gt_2d > 0).astype(np.uint8)
+
+    # --- connected components ---
+    labels, num_cc = cc3d.connected_components(
+        pred_bin,
+        connectivity=connectivity,
+        return_N=True
+    )
+
+    filtered_mask = np.zeros_like(pred_bin, dtype=np.uint8)
+    kept_labels, removed_labels = [], []
+    ratios = {}
+
+    # --- per-component processing ---
+    for k in range(1, num_cc + 1):
+        cc_mask = (labels == k)
+        cc_size = cc_mask.sum()
+
+        if cc_size == 0:
+            continue
+
+        # GT ratio *inside* the component
+        gt_inside = gt_bin[cc_mask].sum()
+        ratio = gt_inside / cc_size
+        ratios[k] = ratio
+
+        if ratio > tau:
+            removed_labels.append(k)
+        else:
+            filtered_mask[cc_mask] = 1
+            kept_labels.append(k)
+
+    return filtered_mask, kept_labels, removed_labels, ratios
