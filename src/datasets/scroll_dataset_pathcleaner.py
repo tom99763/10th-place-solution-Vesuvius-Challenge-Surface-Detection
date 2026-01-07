@@ -23,16 +23,7 @@ class CleanerDataset(Dataset):
         vol = np.load(f'../../vesuvius_challenge/vesuvius_challenge/train_images_npy/{idx}.npy')
         mask = np.load(f'../../vesuvius_challenge/vesuvius_challenge/train_labels_npy/{idx}.npy')
         invalid_mask = np.load(f'{self.cfg.oof_path}/invalid_labels/{idx}.npy')
-        if self.cfg.is_prob_oof_mask:
-            pred_mask = np.load(f'{self.cfg.oof_path}/{idx}.npz', mmap_mode='r')
-            pred_mask = pred_mask['probabilities'][1] #(d, h, w)
-        else:
-            pred_mask = load_volume(Path(f'{self.cfg.oof_path}/{idx}.tif'))
-            #pred_mask = np.load(Path(f'{self.cfg.oof_path}/{idx}.npy'))
-
-        if self.cfg.oof_path2 != '':
-            pred_mask2 = load_volume(Path(f'{self.cfg.oof_path2}/{idx}.tif'))
-            pred_mask = np.logical_or(pred_mask, pred_mask2)
+        pred_mask = load_volume(Path(f'{self.cfg.oof_path}/oof/{idx}.tif'))
 
         raw = {"Image": vol, "Mask": mask, "Mask_OOF": pred_mask, "Invalid_Mask": invalid_mask}
         data = self.proc_data(raw)

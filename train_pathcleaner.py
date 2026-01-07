@@ -29,7 +29,7 @@ def set_seed(seed=42):
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
 
-@hydra.main(config_path="./configs", config_name="config_deform", version_base=None)
+@hydra.main(config_path="./configs", config_name="config_pathcleaner", version_base=None)
 def run(cfg: DictConfig):
     nnunet_path = Path(cfg.nnunet_path)
     with open(cfg.data_split_path, "r") as f:

@@ -16,7 +16,6 @@ class CleanerRefineModule(pl.LightningModule):
         super().__init__()
         self.model = model
         self.lr = cfg.lr
-        self.lambda_smooth = cfg.lambda_smooth
         self.cfg = cfg
 
         # Loss
