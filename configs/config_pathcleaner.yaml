@@ -17,14 +17,9 @@ input_size: [160, 160, 160]
 threshold: 0.5
 selected_fold: ''
 is_prob_oof_mask: false
-apply_gaussian: true
 
 #model config
 use_resenc: true
-max_v: 3.0 #Max instantaneous displacement ≈ v voxels
-n_steps: 5
-lambda_jac: 1.0
-lambda_smooth: 0.1
 lambda_ce: 0.1
 lambda_dice: 0.9
 
