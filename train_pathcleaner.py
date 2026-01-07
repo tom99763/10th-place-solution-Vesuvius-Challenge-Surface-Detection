@@ -16,7 +16,7 @@ import json
 from src.models.pathcleaner import *
 import torch.multiprocessing as mp
 mp.set_start_method("spawn", force=True)
-os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
 
 def set_seed(seed=42):

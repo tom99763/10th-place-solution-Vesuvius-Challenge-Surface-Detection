@@ -15,7 +15,7 @@ n_splits: 5
 seed: 42
 input_size: [160, 160, 160]
 threshold: 0.5
-selected_fold: ''
+selected_fold: 2
 is_prob_oof_mask: false
 apply_gaussian: true
 
@@ -27,7 +27,7 @@ lambda_jac: 1.0
 lambda_smooth: 0.1
 lambda_ce: 0.1
 lambda_dice: 0.9
-kernel_size: 5
+kernel_size: 3
 sigma: 10
 
 
