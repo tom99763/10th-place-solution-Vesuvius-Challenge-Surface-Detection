@@ -2,7 +2,7 @@ from monai.inferers.inferer import SlidingWindowInfererAdapt
 from monai.metrics import DiceMetric
 import pytorch_lightning as pl
 from src.trainers.losses import *
-from monai.losses import DiceCELoss
+from monai.losses import DiceCELoss, TverskyLoss
 from src.procs.proc_data import *
 import sys
 sys.path.append('../../')
@@ -21,7 +21,17 @@ class DiffeoRefineModule(pl.LightningModule):
         self.cfg = cfg
 
         # Loss
-        self.seg_loss = DiceCELoss(
+        # self.seg_loss = DiceCELoss(
+        #     sigmoid=False,  # ← critical fix
+        #     to_onehot_y=True,  # because your labels are integer class indices
+        #     softmax=False,
+        #     reduction="mean",
+        #     squared_pred=True,
+        #     lambda_ce=cfg.lambda_ce,
+        #     lambda_dice=cfg.lambda_dice,
+        # )
+
+        self.seg_loss = TverskyLoss(
             sigmoid=False,  # ← critical fix
             to_onehot_y=True,  # because your labels are integer class indices
             softmax=False,
