@@ -1,551 +1,597 @@
-import pandas as pd
-import json
-from tqdm import tqdm
-import numpy as np
-import gc
-import tifffile
-import zipfile
-import subprocess
-import sys
-import argparse
-sys.path.append('/kaggle/working/nnunet')
 import os
-os.environ["OMP_NUM_THREADS"] = "1"
-os.environ["MKL_NUM_THREADS"] = "1"
-os.environ["OPENBLAS_NUM_THREADS"] = "1"
-os.environ["NUMEXPR_NUM_THREADS"] = "1"
-os.environ["VECLIB_MAXIMUM_THREADS"] = "1"
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
-from queue import Queue
-from threading import Thread
-from typing import Tuple, Union, List
-from queue import Queue, Empty
-from omegaconf import DictConfig, OmegaConf
-from threading import Thread
-import itertools
-import time
+import sys
 import numpy as np
-import torch
-sys.path.append('./src/nnUNet')
-sys.path.append('./src/nnUNet/nnunetv2')
-from acvl_utils.cropping_and_padding.padding import pad_nd_image
-from batchgenerators.utilities.file_and_folder_operations import load_json, join, isfile, subdirs
-from batchgenerators.dataloading.data_loader import DataLoader
-from torch._dynamo import OptimizedModule
-from tqdm import tqdm
-import copy
-import traceback
-from scipy.ndimage import gaussian_filter
-import nnunetv2
-from nnunetv2.configuration import default_num_processes
-from nnunetv2.inference.sliding_window_prediction import compute_steps_for_sliding_window
-from nnunetv2.utilities.find_class_by_name import recursive_find_python_class
-from nnunetv2.utilities.helpers import empty_cache, dummy_context
-from nnunetv2.utilities.label_handling.label_handling import determine_num_input_channels
-from nnunetv2.utilities.plans_handling.plans_handler import PlansManager
-from nnunetv2.inference.predict_from_raw_data import nnUNetPredictor
-from batchgenerators.utilities.file_and_folder_operations import load_json, join, isfile, maybe_mkdir_p, isdir, subdirs, \
-    save_json
-from nnunetv2.utilities.file_path_utilities import get_output_folder, check_workers_alive_and_busy
-from nnunetv2.inference.export_prediction import convert_predicted_logits_to_segmentation_with_correct_shape #,export_prediction_from_logits
-from nnunetv2.utilities.json_export import recursive_fix_for_json_export
-from batchgenerators.dataloading.multi_threaded_augmenter import MultiThreadedAugmenter
-from nnunetv2.inference.sliding_window_prediction import compute_gaussian, \
-    compute_steps_for_sliding_window
-from batchgenerators.utilities.file_and_folder_operations import load_json, save_pickle
-from nnunetv2.configuration import default_num_processes
-from nnunetv2.training.dataloading.nnunet_dataset import nnUNetDatasetBlosc2
-from nnunetv2.utilities.label_handling.label_handling import LabelManager
-from nnunetv2.utilities.plans_handling.plans_handler import PlansManager, ConfigurationManager
-from collections import OrderedDict
-import inspect
-from copy import deepcopy
-import multiprocessing
-from monai import transforms
-import hydra
-from hydra import initialize, compose
-from omegaconf import OmegaConf
-from PIL import Image, ImageSequence
-import yaml
+import pandas as pd
+import matplotlib.pyplot as plt
+import tifffile as tiff
 from pathlib import Path
-from src.nnUNet_utils.export_custom import *
-from monai.inferers.inferer import SlidingWindowInfererAdapt
-from scipy.ndimage import (
-    distance_transform_edt,
-    maximum_filter,
-    binary_fill_holes,
-    label,
-    find_objects,
-)
-from skimage.morphology import remove_small_objects, closing, ball
-from skimage.segmentation import watershed
-from scipy.ndimage import gaussian_filter
-import cc3d
-from src.models.deformNet3d import *
-import shutil
-torch.set_num_threads(1)
-torch.set_num_interop_threads(1)
-
-#file paths
-SPACING = [1, 1, 1]  # change if needed
-CSV_PATH = './data/vesuvius-challenge-surface-detection/train.csv'
-IMG_DIR = Path('./data/vesuvius-challenge-surface-detection/train_images')
-BASE = Path("./nnUNet_raw_data_base/nnUNet_raw")
-OUT_PATH = './submission.zip'
-task_id = 900
-task_name = "VesuviusScroll"
-task_folder = f"Dataset{task_id:03d}_{task_name}"
-
-base_dir = BASE / task_folder
-imagesTr = base_dir / "imagesTs"
-results = base_dir / "results"
-selected_fold = 0 #modify this to run different fold
-
-# make folders
-imagesTr.mkdir(parents=True, exist_ok=True)
-results.mkdir(parents=True,exist_ok=True)
-
-#os.environ["nnUNet_raw"] = str(BASE) #"/kaggle/working/nnUNet_raw_data_base/nnUNet_raw"
-os.environ["nnUNet_preprocessed"] = "./ft_nnunet/nnUNet/nnunet/preprocessed"
-os.environ["nnUNet_results"] = "./nnunet"
-os.environ['nnUNet_compile'] = 'False'
-os.environ['torch.backends.cudnn.benchmark'] = 'True'
-
-#modify this to run different fold
-deformnet_ckpt_paths = [
-    #'./vesuvius-codebase-v2/models/deform-dynunet-larger-patch-fold0-epoch=69-val_comp_metric=0.6536.ckpt',
-    #'./vesuvius-codebase-v2/models/deform-dynunet-larger-patch-fold1-epoch=94-val_comp_metric=0.6511.ckpt',
-    #'.vesuvius-codebase-v2/models/deform-dynunet-larger-patch-fold2-epoch=84-val_comp_metric=0.6536.ckpt',
-    #'./vesuvius-codebase-v2/models/deform-dynunet-larger-patch-fold3-epoch=94-val_comp_metric=0.6535.ckpt',
-    #'./vesuvius-codebase-v2/models/deform-dynunet-larger-patch-fold4-epoch=74-val_comp_metric=0.6475.ckpt',
-    './vesuvius-codebase/models/deform-dynunet-fold0-epoch=114-val_comp_metric=0.6404.ckpt',
-    #'.vesuvius-codebase/models/deform-dynunet-fold1-epoch=114-val_comp_metric=0.6336.ckpt',
-    #'./vesuvius-codebase/models/deform-dynunet-fold2-epoch=139-val_comp_metric=0.6399.ckpt',
-    #'./vesuvius-codebase/models/deform-dynunet-fold3-epoch=74-val_comp_metric=0.6398.ckpt',
-    #'./vesuvius-codebase/models/deform-dynunet-fold4-epoch=99-val_comp_metric=0.6394.ckpt'
-]
-overlap = 0.5
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from torch.utils.data import Dataset, DataLoader
+from tqdm import tqdm
+from monai.networks.nets import UNet
+from monai.inferers import SlidingWindowInferer
+import pytorch_lightning as pl
+from dataclasses import dataclass
+from typing import List, Tuple, Union
+import warnings
+warnings.filterwarnings('ignore')
+import torch.nn as nn
+from dynamic_network_architectures.architectures.unet import ResidualEncoderUNet
+import timm
+# import timm_3d
+from monai.networks.blocks import UnetResBlock
+import numpy as np
+import json
 
 
-def _getDefaultValue(env: str, dtype: type, default: any,) -> any:
-    try:
-        val = dtype(os.environ.get(env) or default)
-    except:
-        val = default
-    return val
-
-def get_parser():
-    parser = argparse.ArgumentParser(description='Use this to run inference with nnU-Net. This function is used when '
-                                                 'you want to manually specify a folder containing a trained nnU-Net '
-                                                 'model. This is useful when the nnunet environment variables '
-                                                 '(nnUNet_results) are not set.')
-    parser.add_argument('-i', type=str, required=True,
-                        help='input folder. Remember to use the correct channel numberings for your files (_0000 etc). '
-                             'File endings must be the same as the training dataset!')
-    parser.add_argument('-o', type=str, required=True,
-                        help='Output folder. If it does not exist it will be created. Predicted segmentations will '
-                             'have the same name as their source images.')
-    parser.add_argument('-m', type=str, required=True,
-                        help='Folder in which the trained model is. Must have subfolders fold_X for the different '
-                             'folds you trained')
-    parser.add_argument('-f', nargs='+', type=str, required=False, default=(0, 1, 2, 3, 4),
-                        help='Specify the folds of the trained model that should be used for prediction. '
-                             'Default: (0, 1, 2, 3, 4)')
-    parser.add_argument('-step_size', type=float, required=False, default=0.5,
-                        help='Step size for sliding window prediction. The larger it is the faster but less accurate '
-                             'the prediction. Default: 0.5. Cannot be larger than 1. We recommend the default.')
-    parser.add_argument('--disable_tta', action='store_true', required=False, default=False,
-                        help='Set this flag to disable test time data augmentation in the form of mirroring. Faster, '
-                             'but less accurate inference. Not recommended.')
-    parser.add_argument('--verbose', action='store_true', help="Set this if you like being talked to. You will have "
-                                                               "to be a good listener/reader.")
-    parser.add_argument('--save_probabilities', action='store_true',
-                        help='Set this to export predicted class "probabilities". Required if you want to ensemble '
-                             'multiple configurations.')
-    parser.add_argument('--continue_prediction', '--c', action='store_true',
-                        help='Continue an aborted previous prediction (will not overwrite existing files)')
-    parser.add_argument('-chk', type=str, required=False, default='checkpoint_final.pth',
-                        help='Name of the checkpoint you want to use. Default: checkpoint_final.pth')
-    parser.add_argument('-npp', type=int, required=False, default=3,
-                        help='Number of processes used for preprocessing. More is not always better. Beware of '
-                             'out-of-RAM issues. Default: 3')
-    parser.add_argument('-nps', type=int, required=False, default=3,
-                        help='Number of processes used for segmentation export. More is not always better. Beware of '
-                             'out-of-RAM issues. Default: 3')
-    parser.add_argument('-prev_stage_predictions', type=str, required=False, default=None,
-                        help='Folder containing the predictions of the previous stage. Required for cascaded models.')
-    parser.add_argument('-device', type=str, default='cuda', required=False,
-                        help="Use this to set the device the inference should run with. Available options are 'cuda' "
-                             "(GPU), 'cpu' (CPU) and 'mps' (Apple M1/M2). Do NOT use this to set which GPU ID! "
-                             "Use CUDA_VISIBLE_DEVICES=X nnUNetv2_predict [...] instead!")
-    parser.add_argument('--disable_progress_bar', action='store_true', required=False, default=False,
-                        help='Set this flag to disable progress bar. Recommended for HPC environments (non interactive '
-                             'jobs)')
-    return parser.parse_args()
+def get_conv(spatial_dims):
+    return nn.Conv3d if spatial_dims == 3 else nn.Conv2d
 
 
-def load_model_from_checkpoint(model, ckpt_path):
-    ckpt = torch.load(ckpt_path, weights_only=False)
-    state_dict = ckpt['state_dict']
-    new_state_dict = OrderedDict()
-
-    for k, v in state_dict.items():
-        new_key = k.replace("model.", "") if k.startswith("model.") else k
-        new_state_dict[new_key] = v
-    model.load_state_dict(new_state_dict)
+def get_convtrans(spatial_dims):
+    return nn.ConvTranspose3d if spatial_dims == 3 else nn.ConvTranspose2d
 
 
-def load_volume(path: Path) -> np.ndarray:
-    """
-    Load a multi-page TIFF into a 3D NumPy array: (slices, H, W)
-    """
-    try:
-        with Image.open(path) as img:
-            frames = [np.array(frame) for frame in ImageSequence.Iterator(img)]
-        volume = np.stack(frames)
-        return volume
-    except Exception as e:
-        raise RuntimeError(f"Error loading TIFF {path}: {e}")
+def upsample(x, size=None, spatial_dims=2):
+    mode = "trilinear" if spatial_dims == 3 else "bilinear"
+    return F.interpolate(x, size=size, mode=mode, align_corners=False)
 
-
-def generate_transforms(
-        transforms_config: list[dict],
-) -> list[transforms.Transform]:
-    transform_list = []
-    # logger.debug(f"Generating {len(transforms_config)} transforms")
-
-    for transform_config in transforms_config:
-        transform_name = next(iter(transform_config))
-        transform_kwargs = transform_config[transform_name]
-        # logger.debug(
-        #     f"Generating transform {transform_name} with kwargs {transform_kwargs}"
-        # )
-        transform: transforms.Transform = getattr(transforms, transform_name)(
-            **transform_kwargs
-        )  # type: ignore
-        transform_list.append(transform)
-    return transforms.Compose(transform_list)
-
-
-def gaussian_kernel_3d(kernel_size=5, sigma=1.0, device="cuda"):
-    """Returns a normalized 3D Gaussian kernel (1,1,K,K,K)."""
-    ax = torch.arange(kernel_size, device=device) - kernel_size // 2
-    xx, yy, zz = torch.meshgrid(ax, ax, ax, indexing='ij')
-    kernel = torch.exp(-(xx**2 + yy**2 + zz**2) / (2 * sigma**2))
-    kernel = kernel / kernel.sum()
-    return kernel
-
-
-def gaussian_blur_3d(x, kernel_size=7, sigma=10.0):
-    """
-    x: (B, C, D, H, W)
-    """
-    B, C, D, H, W = x.shape
-    kernel = gaussian_kernel_3d(kernel_size, sigma, device=x.device)
-
-    # shape: (C, 1, K, K, K)
-    kernel = kernel.expand(C, 1, kernel_size, kernel_size, kernel_size)
-
-    # depthwise convolution
-    return F.conv3d(x, kernel, padding=kernel_size // 2, groups=C)
-
-
-class DeformNNUnetPredictor3D(nnUNetPredictor):
-    def __init__(self, deformnet_cfg=None, **kwargs):
-        super().__init__(**kwargs)
-        self.deformnet_cfg = deformnet_cfg
-
-    def init_deformnet_and_transforms(self):
-        self.deformnet_list = []
-        for ckpt_path in deformnet_ckpt_paths:
-            m = DeformDynUnet(self.deformnet_cfg).to(self.device)
-            m.eval()
-            load_model_from_checkpoint(m, ckpt_path)
-            self.deformnet_list.append(m)
-        self.deformnet_transforms = generate_transforms(self.deformnet_cfg.data.transforms.test)
-        self.sliding_window_inferer = SlidingWindowInfererAdapt(
-            roi_size=self.deformnet_cfg.input_size, sw_batch_size=1, overlap=overlap, mode="constant",
-            progress=True
+class DecoderBlock(nn.Module):
+    def __init__(self, in_ch, skip_ch, out_ch, spatial_dims):
+        super().__init__()
+        ConvTrans = get_convtrans(spatial_dims)
+        self.up = ConvTrans(in_ch, in_ch, kernel_size=2, stride=2)
+        self.conv_block = UnetResBlock(
+            spatial_dims=spatial_dims,
+            in_channels=in_ch + skip_ch,
+            out_channels=out_ch,
+            kernel_size=3,
+            stride=1,
+            norm_name="batch"
         )
 
-    @torch.inference_mode()
-    def predict_and_export_with_deformnet(self,
-                                          ret,
-                                          output_file_truncated,
-                                          properties_dict,
-                                          plans_manager,
-                                          dataset_json_dict_or_file
-                                          ):
-        prob_mask = ret.get()[0][1][1]  # (d, h, w)
-        case_id = output_file_truncated.split('/')[-1]
-        _data_path = IMG_DIR / f'{case_id}.tif'
-        vol = load_volume(_data_path)
-        raw = {"Image": vol, "Mask_OOF": prob_mask}
-        _data = self.deformnet_transforms(raw)
-        vol, prob_mask = _data['Image'][None,], _data['Mask_OOF'][None,]
-        vol = vol.to(self.device)
-        prob_mask = prob_mask.to(self.device)
-        prev_mask_pred = (prob_mask > self.deformnet_cfg.threshold).float()
-        prev_mask_pred = gaussian_blur_3d(prev_mask_pred)
-        x = torch.cat([vol, prev_mask_pred], dim=1)
-        predictions = []
-        for m in self.deformnet_list:
-            pred_warped = self.sliding_window_inferer(x, m)
-            predictions.append(pred_warped)
-        prediction_avg = torch.cat(predictions, dim=0).mean(dim=0)  # (b, c, d, h, w)
-        segmentation_final = prediction_avg > self.deformnet_cfg.threshold
-        segmentation_final = segmentation_final[0].cpu().numpy()  # .astype('uint8')
-        segmentation_prob = prediction_avg[0].cpu().numpy()
-        # segmentation_final = postprocess_mask(segmentation_final)
-        del vol, prob_mask, pred_warped
-
-        # export
-        if isinstance(dataset_json_dict_or_file, str):
-            dataset_json_dict_or_file = load_json(dataset_json_dict_or_file)
-        rw = plans_manager.image_reader_writer_class()
-        rw.write_seg(segmentation_final,
-                     output_file_truncated + dataset_json_dict_or_file['file_ending'],
-                     properties_dict)
-        np.savez(
-            output_file_truncated + '.npz',
-            prob=segmentation_prob
-        )
-        del segmentation_final, segmentation_prob
-        torch.cuda.empty_cache()
-
-    def predict_from_data_iterator(self,
-                                   data_iterator,
-                                   save_probabilities: bool = False,
-                                   num_processes_segmentation_export: int = default_num_processes):
-        """
-        each element returned by data_iterator must be a dict with 'data', 'ofile' and 'data_properties' keys!
-        If 'ofile' is None, the result will be returned instead of written to a file
-        """
-        with multiprocessing.get_context("spawn").Pool(num_processes_segmentation_export) as export_pool:
-            worker_list = [i for i in export_pool._pool]
-            r = []
-            for preprocessed in data_iterator:
-                data = preprocessed['data']
-                if isinstance(data, str):
-                    delfile = data
-                    data = torch.from_numpy(np.load(data))
-                    os.remove(delfile)
-
-                ofile = preprocessed['ofile']
-                print('**ofile**: ', ofile)
-                if ofile is not None:
-                    print(f'\nPredicting {os.path.basename(ofile)}:')
-                else:
-                    print(f'\nPredicting image of shape {data.shape}:')
-
-                print(f'perform_everything_on_device: {self.perform_everything_on_device}')
-
-                properties = preprocessed['data_properties']
-
-                # let's not get into a runaway situation where the GPU predicts so fast that the disk has to be swamped with
-                # npy files
-                proceed = not check_workers_alive_and_busy(export_pool, worker_list, r, allowed_num_queued=2)
-                while not proceed:
-                    time.sleep(0.1)
-                    proceed = not check_workers_alive_and_busy(export_pool, worker_list, r, allowed_num_queued=2)
-
-                # convert to numpy to prevent uncatchable memory alignment errors from multiprocessing serialization of torch tensors
-                prediction = self.predict_logits_from_preprocessed_data(data).cpu().detach().numpy()
-
-                ret = export_pool.starmap_async(
-                    export_prediction_from_logits,
-                    ((prediction, properties, self.configuration_manager, self.plans_manager,
-                      self.dataset_json, ofile, save_probabilities),)
-                )
-
-                self.predict_and_export_with_deformnet(ret, ofile, properties,
-                                                       self.plans_manager, self.dataset_json
-                                                       )
-
-                if ofile is not None:
-                    print(f'done with {os.path.basename(ofile)}')
-                else:
-                    print(f'\nDone with image of shape {data.shape}:')
-            # _ret = [i.get()[0] for i in r]
-
-        if isinstance(data_iterator, MultiThreadedAugmenter):
-            data_iterator._finish()
-
-        # clear lru cache
-        compute_gaussian.cache_clear()
-        # clear device cache
-        empty_cache(self.device)
-
-    def predict_from_files(self,
-                           list_of_lists_or_source_folder: Union[str, List[List[str]]],
-                           output_folder_or_list_of_truncated_output_files: Union[str, None, List[str]],
-                           save_probabilities: bool = False,
-                           overwrite: bool = True,
-                           num_processes_preprocessing: int = default_num_processes,
-                           num_processes_segmentation_export: int = default_num_processes,
-                           folder_with_segs_from_prev_stage: str = None,
-                           num_parts: int = 1,
-                           part_id: int = 0):
-        """
-        This is nnU-Net's default function for making predictions. It works best for batch predictions
-        (predicting many images at once).
-        """
-        assert part_id <= num_parts, ("Part ID must be smaller than num_parts. Remember that we start counting with 0. "
-                                      "So if there are 3 parts then valid part IDs are 0, 1, 2")
-        if isinstance(output_folder_or_list_of_truncated_output_files, str):
-            output_folder = output_folder_or_list_of_truncated_output_files
-        elif isinstance(output_folder_or_list_of_truncated_output_files, list):
-            output_folder = os.path.dirname(output_folder_or_list_of_truncated_output_files[0])
-        else:
-            output_folder = None
-
-        ########################
-        # let's store the input arguments so that its clear what was used to generate the prediction
-        if output_folder is not None:
-            my_init_kwargs = {}
-            for k in inspect.signature(self.predict_from_files).parameters.keys():
-                my_init_kwargs[k] = locals()[k]
-            my_init_kwargs = deepcopy(
-                my_init_kwargs)  # let's not unintentionally change anything in-place. Take this as a
-            recursive_fix_for_json_export(my_init_kwargs)
-            maybe_mkdir_p(output_folder)
-            save_json(my_init_kwargs, join(output_folder, 'predict_from_raw_data_args.json'))
-
-            # we need these two if we want to do things with the predictions like for example apply postprocessing
-            save_json(self.dataset_json, join(output_folder, 'dataset.json'), sort_keys=False)
-            save_json(self.plans_manager.plans, join(output_folder, 'plans.json'), sort_keys=False)
-        #######################
-
-        # check if we need a prediction from the previous stage
-        if self.configuration_manager.previous_stage_name is not None:
-            assert folder_with_segs_from_prev_stage is not None, \
-                f'The requested configuration is a cascaded network. It requires the segmentations of the previous ' \
-                f'stage ({self.configuration_manager.previous_stage_name}) as input. Please provide the folder where' \
-                f' they are located via folder_with_segs_from_prev_stage'
-
-        # sort out input and output filenames
-        list_of_lists_or_source_folder, output_filename_truncated, seg_from_prev_stage_files = \
-            self._manage_input_and_output_lists(list_of_lists_or_source_folder,
-                                                output_folder_or_list_of_truncated_output_files,
-                                                folder_with_segs_from_prev_stage, overwrite, part_id, num_parts,
-                                                save_probabilities)
-        if len(list_of_lists_or_source_folder) == 0:
-            return
-
-        data_iterator = self._internal_get_data_iterator_from_lists_of_filenames(list_of_lists_or_source_folder,
-                                                                                 seg_from_prev_stage_files,
-                                                                                 output_filename_truncated,
-                                                                                 num_processes_preprocessing)
-
-        self.predict_from_data_iterator(data_iterator, save_probabilities, num_processes_segmentation_export)
+    def forward(self, x, skip=None):
+        x = self.up(x)
+        if skip is not None:
+            if x.shape[2:] != skip.shape[2:]:
+                x = upsample(x, size=skip.shape[2:], spatial_dims=3 if x.dim() == 5 else 2)
+            x = torch.cat([x, skip], dim=1)
+        return self.conv_block(x)
 
 
+class UNetDecoder(nn.Module):
+    def __init__(self, encoder_channels, decoder_channels, n_classes, spatial_dims):
+        super().__init__()
+        self.spatial_dims = spatial_dims
+        enc = list(reversed(encoder_channels))
+        self.blocks = nn.ModuleList()
+        in_ch = enc[0]
+        for i, out_ch in enumerate(decoder_channels):
+            skip_ch = enc[i + 1] if (i + 1) < len(enc) else 0
+            self.blocks.append(DecoderBlock(in_ch, skip_ch, out_ch, spatial_dims))
+            in_ch = out_ch
+        Conv = get_conv(spatial_dims)
+        self.final = Conv(in_ch, n_classes, kernel_size=1)
 
-def predict(cfg):
-    args = get_parser()
-    args.f = [i if i == 'all' else int(i) for i in args.f]
-    #model_folder = get_output_folder(args.d, args.tr, args.p, args.c)
+    def forward(self, features, original_size=None):
+        feats = list(reversed(features))
+        x = feats[0]
+        for i, block in enumerate(self.blocks):
+            skip = feats[i + 1] if (i + 1) < len(feats) else None
+            x = block(x, skip)
+        x = self.final(x)
+        if original_size is not None and x.shape[2:] != original_size:
+            x = upsample(x, size=original_size, spatial_dims=self.spatial_dims)
+        return x
 
-    if not isdir(args.o):
-        maybe_mkdir_p(args.o)
+def create_residual_unet(
+        in_channels=1,
+        out_channels=2,
+        channels=(32, 64, 128, 256, 320, 320),
+        strides=(1, 2, 2, 2, 2, 2),
+        n_blocks_per_stage=(1, 3, 4, 6, 6, 6),
+        deep_supervision=False,
+):
+    """Create ResidualEncoderUNet matching nnUNet 3d_fullres configuration.
 
-    assert args.device in ['cpu', 'cuda',
-                           'mps'], f'-device must be either cpu, mps or cuda. Other devices are not tested/supported. Got: {args.device}.'
-    if args.device == 'cpu':
-        # let's allow torch to use hella threads
-        import multiprocessing
-        torch.set_num_threads(multiprocessing.cpu_count())
-        device = torch.device('cpu')
-    elif args.device == 'cuda':
-        # multithreading in torch doesn't help nnU-Net if run on GPU
-        #torch.set_num_threads(1)
-        #torch.set_num_interop_threads(1)
-        device = torch.device('cuda')
-    else:
-        device = torch.device('mps')
+    Args:
+        in_channels: Input channels (default: 1)
+        out_channels: Output channels (default: 2)
+        channels: Feature channels at each level (tuple of ints)
+        strides: Strides for downsampling at each level (tuple of ints)
+        n_blocks_per_stage: Number of residual blocks per stage (tuple of ints)
+        deep_supervision: Whether to use deep supervision
 
-    predictor = DeformNNUnetPredictor3D(tile_step_size=args.step_size,
-                                        use_gaussian=True,
-                                        use_mirroring=not args.disable_tta,
-                                        perform_everything_on_device=True,
-                                        device=device,
-                                        verbose=args.verbose,
-                                        verbose_preprocessing=args.verbose,
-                                        allow_tqdm=not args.disable_progress_bar,
-                                        deformnet_cfg = cfg
-                                       )
-    predictor.initialize_from_trained_model_folder(
-        args.m,
-        args.f,
-        checkpoint_name=args.chk
+    Returns:
+        ResidualEncoderUNet model
+    """
+    # Number of stages in decoder is len(channels) - 1
+    n_conv_per_stage_decoder = [1] * (len(channels) - 1)
+
+    model = ResidualEncoderUNet(
+        input_channels=in_channels,
+        n_stages=len(channels),
+        features_per_stage=channels,
+        conv_op=nn.Conv3d,
+        kernel_sizes=3,
+        strides=strides,
+        n_blocks_per_stage=n_blocks_per_stage,
+        num_classes=out_channels,
+        n_conv_per_stage_decoder=n_conv_per_stage_decoder,
+        conv_bias=True,
+        norm_op=nn.InstanceNorm3d,
+        norm_op_kwargs={},
+        dropout_op=None,
+        nonlin=nn.LeakyReLU,
+        nonlin_kwargs={'inplace': True},
+        deep_supervision=deep_supervision,
     )
-    predictor.init_deformnet_and_transforms()
-    predictor.predict_from_files(args.i, args.o, save_probabilities=args.save_probabilities,
-                                    overwrite=not args.continue_prediction,
-                                    num_processes_preprocessing=args.npp,
-                                    num_processes_segmentation_export=args.nps,
-                                    folder_with_segs_from_prev_stage=args.prev_stage_predictions,
-                                    num_parts=1,
-                                    part_id=0
-                                )
+    return model
 
-def main():
-    json_path = './splits_final.json'
-    with open(json_path, 'r') as f:
-        val_splits = json.load(f)
-    val_ids = val_splits[selected_fold]['val']
-    val_ids = list(map(lambda x: int(x), val_ids))
-    df = pd.read_csv(CSV_PATH)
-    df = df[df.id.isin(val_ids)]
 
-    for _, row in tqdm(df.iterrows(), total=len(df), desc="Copying TIFFs"):
-        case_id = str(row["id"])
-        scroll_id = str(row["scroll_id"])
+# ==============================================================================
+# SegmentationModule - matches training code structure
+# ==============================================================================
+class SegmentationModule(pl.LightningModule):
+    """
+    Lightning module matching training code structure.
+    Supports both 'unet' and 'flex_unet' model types.
+    Uses self.model (not self.model1) to match checkpoint keys.
+    """
 
-        img_path = IMG_DIR / f"{case_id}.tif"
-        # lbl_path = LBL_DIR / f"{case_id}.tif"
+    def __init__(
+            self,
+            in_channels=1,
+            out_channels=2,
+            channels=(32, 64, 128, 256),
+            strides=(2, 2, 1),
+            dropout=0.1,
+            model_type="unet",  # 'unet' or 'flex_unet'
+            # FlexibleUNet parameters
+            backbone="resnet18",
+            pretrained_backbone=False,
+            drop_path_rate=0.0,
+            **kwargs  # Accept extra hparams from checkpoint
+    ):
+        super().__init__()
+        self.save_hyperparameters()
 
-        if not img_path.exists():
-            print(f"Skipping missing pair: {scroll_id}")
-            continue
+        # Match training code: uses self.model
+        if model_type == "unet":
+            self.model = UNet(
+                spatial_dims=3,
+                in_channels=in_channels,
+                out_channels=out_channels,
+                channels=channels,
+                strides=strides,
+                num_res_units=2,
+                dropout=dropout,
+                norm='instance',
+                act='relu',
+            )
+        elif model_type == "flex_unet":
+            self.model = FlexibleUNet(
+                backbone=backbone,
+                in_channels=in_channels,
+                n_classes=out_channels,
+                is_3d=True,
+                pretrained=pretrained_backbone,
+                drop_path_rate=drop_path_rate,
+            )
+        elif model_type == "res_unet":
+            if create_residual_unet is None:
+                raise ImportError("res_unet requires src.models.residual_unet and dynamic_network_architectures")
 
-        # destination names for nnUNet
-        img_dst = imagesTr / f"{case_id}_0000.tif"
-        # lbl_dst = labelsTr / f"{case_id}.tif"
+            # Extract specific parameters for ResidualUNet
+            n_blocks = kwargs.get('n_blocks_per_stage', (1, 3, 4, 6, 6, 6))
+            use_ds = kwargs.get('use_deep_supervision', False)
 
-        json_dst_img = imagesTr / f"{case_id}.json"
-        # json_dst_lbl = labelsTr / f"{case_id}.json"
+            self.model = create_residual_unet(
+                in_channels=in_channels,
+                out_channels=out_channels,
+                channels=channels,
+                strides=strides,
+                n_blocks_per_stage=n_blocks,
+                deep_supervision=use_ds
+            )
+        else:
+            raise ValueError(f"Invalid model type: {model_type}. Use 'unet', 'flex_unet' or 'res_unet'")
 
-        # ---- COPY FILES (FAST) ----
-        shutil.copy2(img_path, img_dst)
-        # shutil.copy2(lbl_path, lbl_dst)
+    def forward(self, x):
+        return self.model(x)
 
-        # ---- WRITE SPACING JSON ----
-        spacing_info = {"spacing": SPACING}
 
-        with open(json_dst_img, "w") as f:
-            json.dump(spacing_info, f)
+class CFG:
+    # Data directories
+    TEST_IMG_DIR = Path("./data/vesuvius-challenge-surface-detection/train_images")
+    MODEL_DIR = Path("")
 
-    sys.argv = [
-        'predict.py',  # dummy script name
-        '-i', './nnUNet_raw_data_base/nnUNet_raw/Dataset900_VesuviusScroll/imagesTs',
-        '-o', './nnUNet_raw_data_base/nnUNet_raw/Dataset900_VesuviusScroll/results',
-        '-m', 'nnunet/nnUNet_results/Dataset900_VesuviusScroll/nnUNetTrainer__nnUNetResEncUNetMPlans__3d_fullres',
-        '--disable_tta',
-        '--save_probabilities',
-        '-f', '0', '1', '2', '3', '4',
+    # Inference settings - sliding window
+    ROI_SIZE = (160, 160, 160)  # Sliding window ROI size
+    SW_BATCH_SIZE = 1  # Batch size for sliding window
+    OVERLAP = 0.5  # Overlap ratio for sliding window
+    SW_MODE = "gaussian"  # Mode: "constant", "gaussian"
+    PADDING_MODE = "reflect"  # Padding mode
+
+    # TTA settings
+    USE_TTA = True  # Enable Test-Time Augmentation
+    TTA_FLIPS = True  # Use flip augmentations
+    TTA_ROTATIONS = True  # Use 90-degree rotations (warning: slower and memory intensive)
+
+    # Model ensemble settings
+    THRESHOLD = 0.1
+
+    # Output settings
+    OUTPUT_DIR = Path("./predictions")
+    SAVE_VISUALIZATIONS = True  # Set to True to save visualization images
+
+    # Post-processing settings
+    USE_POST_PROCESSING = False  # Enable mesh-based post-processing
+    POST_PROCESS_MIN_CC_VOLUME = 3000  # Minimum connected component volume to keep
+
+    # Device
+    DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+
+
+# Create output directories
+CFG.OUTPUT_DIR.mkdir(exist_ok=True, parents=True)
+(CFG.OUTPUT_DIR / "submission_tifs").mkdir(exist_ok=True, parents=True)
+
+print(f"Device: {CFG.DEVICE}")
+print(f"Threshold: {CFG.THRESHOLD}")
+print(f"ROI Size: {CFG.ROI_SIZE}")
+print(f"Overlap: {CFG.OVERLAP}")
+print(f"Mode: {CFG.SW_MODE}")
+print(f"TTA Enabled: {CFG.USE_TTA}")
+if CFG.USE_TTA:
+    print(f"  - Flips: {CFG.TTA_FLIPS}")
+    print(f"  - Rotations: {CFG.TTA_ROTATIONS}")
+print(f"Post-processing: {CFG.USE_POST_PROCESSING}")
+if CFG.USE_POST_PROCESSING:
+    print(f"  - Min CC Volume: {CFG.POST_PROCESS_MIN_CC_VOLUME}")
+print(f"Visualizations: {CFG.SAVE_VISUALIZATIONS}")
+
+
+def load_array(path, fmt):
+    """Load array from various formats"""
+    if fmt == "tiff" or fmt == "tif":
+        return tiff.imread(path)
+    elif fmt == "npy":
+        return np.load(path)
+    elif fmt == "npz":
+        return np.load(path)["arr_0"]
+    elif fmt == "rle":
+        rle = np.load(path)
+        shape = tuple(rle["shape"])
+        vals = rle["vals"]
+        runs = rle["runs"]
+        flat = np.repeat(vals, runs)
+        return flat.reshape(shape)
+    else:
+        raise ValueError(f"Unsupported format: {fmt}")
+
+
+def normalize_volume(volume):
+    volume = volume.astype(np.float32)
+
+    volume = volume / 255.0
+
+    return volume
+
+
+def rle_encode(mask):
+    """Run-length encoding for submission"""
+    pixels = mask.flatten()
+    pixels = np.concatenate([[0], pixels, [0]])
+    runs = np.where(pixels[1:] != pixels[:-1])[0] + 1
+    runs[1::2] -= runs[::2]
+    return ' '.join(str(x) for x in runs)
+
+
+def apply_tta_transform(volume, flip_dims=None, rotation_k=0):
+    """
+    Apply TTA transformation to volume.
+
+    Args:
+        volume: Input volume tensor (1, 1, D, H, W)
+        flip_dims: List of dimensions to flip (e.g., [2, 3, 4] for D, H, W)
+        rotation_k: Number of 90-degree rotations (0-3) on H-W plane
+
+    Returns:
+        Transformed volume
+    """
+    transformed = volume.clone()
+
+    # Apply flips
+    if flip_dims:
+        for dim in flip_dims:
+            transformed = torch.flip(transformed, dims=[dim])
+
+    # Apply rotation on H-W plane (dims 3 and 4)
+    if rotation_k > 0:
+        transformed = torch.rot90(transformed, k=rotation_k, dims=[3, 4])
+
+    return transformed
+
+
+def reverse_tta_transform(prediction, flip_dims=None, rotation_k=0):
+    """
+    Reverse TTA transformation on prediction.
+
+    Args:
+        prediction: Prediction tensor (D, H, W) or (1, D, H, W)
+        flip_dims: List of dimensions to flip (adjusted for prediction dims)
+        rotation_k: Number of 90-degree rotations to reverse
+
+    Returns:
+        Reversed prediction
+    """
+    # Handle both (D, H, W) and (1, D, H, W) shapes
+    if prediction.ndim == 3:
+        pred = torch.from_numpy(prediction).unsqueeze(0)  # (1, D, H, W)
+        squeeze_output = True
+    else:
+        pred = torch.from_numpy(prediction)
+        squeeze_output = False
+
+    # Reverse rotation first (opposite direction)
+    if rotation_k > 0:
+        pred = torch.rot90(pred, k=(4 - rotation_k), dims=[2, 3])
+
+    # Reverse flips
+    if flip_dims:
+        # Adjust flip dims for (1, D, H, W) shape
+        adjusted_dims = [d - 1 for d in flip_dims] if flip_dims else None
+        if adjusted_dims:
+            for dim in adjusted_dims:
+                pred = torch.flip(pred, dims=[dim])
+
+    result = pred.squeeze(0).numpy() if squeeze_output else pred.numpy()
+    return result
+
+
+def get_tta_transforms():
+    """
+    Get list of TTA transformations to apply.
+
+    Returns:
+        List of (flip_dims, rotation_k) tuples
+    """
+    transforms = [
+        (None, 0),  # Original (no transform)
     ]
 
-    SRC = Path("./vesuvius-codebase/configs")
-    DST = Path("./configs_")
-    DST.mkdir(parents=True, exist_ok=True)
-    shutil.copytree(SRC, DST, dirs_exist_ok=True)
+    if CFG.TTA_FLIPS:
+        transforms.extend([
+            ([2], 0),  # Flip D
+            # ([3], 0),      # Flip H
+            # ([4], 0),      # Flip W
+            # ([2, 3], 0),   # Flip D+H
+            # ([2, 4], 0),   # Flip D+W
+            # ([3, 4], 0),   # Flip H+W
+            # ([2, 3, 4], 0) # Flip all
+        ])
 
-    with initialize(version_base=None, config_path="configs_"):
-        cfg = compose(config_name="config_deform")
+    if CFG.TTA_ROTATIONS:
+        # Add rotation augmentations (90, 180, 270 degrees)
+        transforms.extend([
+            (None, 1),  # 90° rotation
+            # (None, 2),  # 180° rotation
+            # (None, 3),  # 270° rotation
+        ])
 
-    predict(cfg)
+    return transforms
 
 
-if __name__ == "__main__":
-    main()
+def load_models_simple(model_paths, device):
+    """Load models using Lightning's built-in checkpoint loading."""
+    models = []
+    for path in model_paths:
+        print(f"Loading: {path}")
+        # Lightning handles hyperparameters automatically
+        # Force offline/backbone weights to avoid internet downloads
+        model = SegmentationModule.load_from_checkpoint(
+            path,
+            map_location=device,
+            pretrained_backbone=False,  # ensure timm does not download
+        )
+        model.to(device)
+        model.eval()
+
+        # Print model info
+        model_type = getattr(model.hparams, 'model_type', 'unet')
+        print(f"  Model type: {model_type}")
+        if model_type == 'flex_unet':
+            backbone = getattr(model.hparams, 'backbone', 'resnet18')
+            print(f"  Backbone: {backbone}")
+
+        models.append(model)
+        print(f"  ✓ Loaded successfully")
+    print(f"\n✓ Total models loaded: {len(models)}")
+    return models
+
+
+class InferenceDataset(Dataset):
+    """Dataset for inference on test volumes - no resizing"""
+
+    def __init__(self, image_paths):
+        self.image_paths = image_paths
+
+    def __len__(self):
+        return len(self.image_paths)
+
+    def __getitem__(self, idx):
+        img_path = self.image_paths[idx]
+
+        # Load original volume
+        vol = load_array(img_path, "tif")
+        vol_shape = vol.shape  # Get actual input shape
+
+        # Normalize volume (no resizing)
+        vol_normalized = normalize_volume(vol)
+
+        # Convert to tensor (add channel dimension)
+        vol_tensor = torch.from_numpy(vol_normalized).float().unsqueeze(0)  # (1, D, H, W)
+
+        return {
+            'volume': vol_tensor,
+            'shape': vol_shape,
+            'filename': img_path.name
+        }
+
+
+def custom_collate_fn(batch):
+    """Custom collate function"""
+    item = batch[0]
+    return {
+        'volume': item['volume'].unsqueeze(0),  # Add batch dimension
+        'shape': torch.tensor([item['shape']]),
+        'filename': [item['filename']]
+    }
+
+
+@torch.no_grad()
+def predict_volume_sliding_window(models, volume_tensor, device, use_tta=False):
+    """
+    Predict using ensemble of models with sliding window inference and optional TTA.
+
+    Args:
+        models: List of models
+        volume_tensor: Input volume tensor (1, 1, D, H, W)
+        device: Device to run inference on
+        use_tta: Whether to use test-time augmentation
+
+    Returns:
+        Ensemble prediction probability map (D, H, W)
+    """
+    all_predictions = []
+
+    # Create sliding window inferer
+    inferer = SlidingWindowInferer(
+        roi_size=CFG.ROI_SIZE,
+        sw_batch_size=CFG.SW_BATCH_SIZE,
+        overlap=CFG.OVERLAP,
+        mode=CFG.SW_MODE,
+        padding_mode=CFG.PADDING_MODE,
+    )
+
+    # Get TTA transforms
+    tta_transforms = get_tta_transforms() if use_tta else [(None, 0)]
+
+    # Get predictions from each model
+    for i, model in enumerate(models):
+        model.eval()
+
+        # TTA loop
+        tta_predictions = []
+        for flip_dims, rotation_k in tta_transforms:
+            # Apply TTA transform
+            transformed_volume = apply_tta_transform(volume_tensor, flip_dims, rotation_k)
+
+            # Move volume to device
+            transformed_volume = transformed_volume.to(device)
+
+            # Run sliding window inference
+            with torch.amp.autocast(device_type='cuda' if 'cuda' in device else 'cpu'):
+                logits = inferer(transformed_volume, model)  # (1, 2, D, H, W) or list/tuple for deep supervision
+            # deep supervision
+            if isinstance(logits, (list, tuple)):
+                logits = logits[0]
+            # Apply softmax and get class 1 probability
+            probs = torch.softmax(logits, dim=1)[:, 1]  # (1, D, H, W)
+            probs = probs.squeeze(0).cpu().numpy()  # (D, H, W)
+
+            # Reverse TTA transform
+            probs_reversed = reverse_tta_transform(probs, flip_dims, rotation_k)
+            tta_predictions.append(probs_reversed)
+
+            # Free memory
+            del transformed_volume, logits, probs
+            torch.cuda.empty_cache() if torch.cuda.is_available() else None
+
+        # Average TTA predictions for this model
+        model_pred = np.mean(tta_predictions, axis=0)
+        all_predictions.append(model_pred)
+
+    # Ensemble: average predictions from all models
+    if len(all_predictions) > 1:
+        ensemble_pred = np.mean(all_predictions, axis=0)
+    else:
+        ensemble_pred = all_predictions[0]
+
+    return ensemble_pred
+
+
+
+# ==============================================================================
+# Model Loading - Simple approach using Lightning's load_from_checkpoint
+# ==============================================================================
+
+MODEL_PATHS = [
+    './models/best-epoch=294-val_loss=0.3704-val_dice=0.5835.ckpt', #fold4
+    './models/best-epoch=319-val_loss=0.3839-val_dice=0.5731.ckpt', #fold1
+    './models/best-epoch=349-val_loss=0.3495-val_dice=0.6044.ckpt', #fold3
+    './models/best-epoch=419-val_loss=0.3670-val_dice=0.5841.ckpt', #fold2
+    './models/best-epoch449-val_loss0.3746-val_dice0.5755.ckpt' #fold0
+]
+
+def main():
+    with open('./splits.json', "r") as f:
+        val_splits = json.load(f)
+
+    models = load_models_simple(MODEL_PATHS, CFG.DEVICE) if MODEL_PATHS else []
+    selected_ids = [str(x) for x in val_splits[0]['val']]
+
+    # Get test image files (.tif files)
+    if CFG.TEST_IMG_DIR.exists():
+        test_files = sorted([f for f in CFG.TEST_IMG_DIR.glob("*.tif")])
+        test_files = [x for x in test_files if str(x).split('/')[-1].split('.tif')[0] in selected_ids]
+        print(f"Found {len(test_files)} test .tif files")
+
+        if len(test_files) > 0:
+            print("\nTest files:")
+            for f in test_files[:5]:
+                print(f"  - {f.name}")
+            if len(test_files) > 5:
+                print(f"  ... and {len(test_files) - 5} more")
+    else:
+        print(f"Warning: Test directory not found at {CFG.TEST_IMG_DIR}")
+        print("Please update CFG.TEST_IMG_DIR to point to the correct directory")
+        test_files = []
+
+    # Run inference and save predictions directly to .tif files
+    if len(test_files) > 0 and len(models) > 0:
+        tif_dir = CFG.OUTPUT_DIR / "submission_tifs"
+        processed_count = 0
+
+        # Create dataset and dataloader
+        test_dataset = InferenceDataset(test_files)
+        test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=0, collate_fn=custom_collate_fn)
+
+        tta_status = "WITH TTA" if CFG.USE_TTA else "(no TTA)"
+        print(f"\nRunning inference with sliding window {tta_status}...\n")
+
+        if CFG.USE_TTA:
+            tta_count = len(get_tta_transforms())
+            print(f"Using {tta_count} TTA transforms per model")
+            print(f"Total predictions per volume: {len(models)} models × {tta_count} TTA = {len(models) * tta_count}\n")
+
+        for batch in tqdm(test_loader, desc="Processing volumes"):
+            volume = batch['volume']  # (1, 1, D, H, W)
+            vol_shape = tuple(batch['shape'][0].numpy())
+            filename = batch['filename'][0]
+            scroll_id = filename.replace('.tif', '')
+
+            # Get ensemble prediction using sliding window (with optional TTA)
+            ensemble_pred = predict_volume_sliding_window(models, volume, CFG.DEVICE, use_tta=CFG.USE_TTA)
+
+            np.savez_compressed(f"{scroll_id}.tif", prob = ensemble_pred)
+
+            # Free memory
+            del ensemble_pred
+            torch.cuda.empty_cache() if torch.cuda.is_available() else None
+
+        print(f"\n✓ Inference complete! Saved {processed_count} .tif files to {tif_dir}")
+
