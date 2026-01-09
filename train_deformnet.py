@@ -17,7 +17,7 @@ from src.models.deformNet3d import *
 from src.trainers.deformSegTrainer import *
 import torch.multiprocessing as mp
 mp.set_start_method("spawn", force=True)
-os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
 
 def set_seed(seed=42):
@@ -36,7 +36,7 @@ def run(cfg: DictConfig):
     with open(cfg.data_split_path, "r") as f:
         val_splits = json.load(f)
 
-    for i in range(1, len(val_splits)):
+    for i in range(len(val_splits)):
         if cfg.selected_fold!='' and i!=cfg.selected_fold:
             continue
         print(f'training fold {i}')

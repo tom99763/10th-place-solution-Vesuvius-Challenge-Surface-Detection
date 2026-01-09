@@ -36,9 +36,8 @@ class DiffeoRefineModule(pl.LightningModule):
             to_onehot_y=True,  # because your labels are integer class indices
             softmax=False,
             reduction="mean",
-            squared_pred=True,
-            lambda_ce=cfg.lambda_ce,
-            lambda_dice=cfg.lambda_dice,
+            alpha=cfg.alpha,
+            beta=cfg.beta
         )
         self.sliding_window_inferer = SlidingWindowInfererAdapt(
             roi_size=cfg.input_size, sw_batch_size=2, overlap=0.5, mode="gaussian"
