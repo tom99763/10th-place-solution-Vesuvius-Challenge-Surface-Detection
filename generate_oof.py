@@ -205,7 +205,7 @@ class SegmentationModule(pl.LightningModule):
 
 class CFG:
     # Data directories
-    TEST_IMG_DIR = Path("./data/vesuvius-challenge-surface-detection/train_images")
+    TEST_IMG_DIR = Path("data/vesuvius-challenge-surface-detection/train_images")
     MODEL_DIR = Path("")
 
     # Inference settings - sliding window
@@ -224,7 +224,7 @@ class CFG:
     THRESHOLD = 0.1
 
     # Output settings
-    OUTPUT_DIR = Path("./predictions")
+    OUTPUT_DIR = Path("./data/prob_predictions")
     SAVE_VISUALIZATIONS = True  # Set to True to save visualization images
 
     # Post-processing settings
@@ -530,68 +530,69 @@ def predict_volume_sliding_window(models, volume_tensor, device, use_tta=False):
 # ==============================================================================
 
 MODEL_PATHS = [
-    './models/best-epoch=294-val_loss=0.3704-val_dice=0.5835.ckpt', #fold4
+    './models/best-epoch369-val_loss0.3769-val_dice0.5727.ckpt', #fold0
     './models/best-epoch=319-val_loss=0.3839-val_dice=0.5731.ckpt', #fold1
-    './models/best-epoch=349-val_loss=0.3495-val_dice=0.6044.ckpt', #fold3
     './models/best-epoch=419-val_loss=0.3670-val_dice=0.5841.ckpt', #fold2
-    './models/best-epoch449-val_loss0.3746-val_dice0.5755.ckpt' #fold0
+    './models/best-epoch=349-val_loss=0.3495-val_dice=0.6044.ckpt', #fold3
+    './models/best-epoch=294-val_loss=0.3704-val_dice=0.5835.ckpt', #fold4
 ]
 
 def main():
     with open('./splits.json', "r") as f:
         val_splits = json.load(f)
 
-    models = load_models_simple(MODEL_PATHS, CFG.DEVICE) if MODEL_PATHS else []
-    selected_ids = [str(x) for x in val_splits[0]['val']]
+    for i in range(len(MODEL_PATHS)):
+        print(f'fold {i}.......')
+        models = load_models_simple([MODEL_PATHS[i]], CFG.DEVICE) if MODEL_PATHS else []
+        selected_ids = [str(x) for x in val_splits[0]['val']]
 
-    # Get test image files (.tif files)
-    if CFG.TEST_IMG_DIR.exists():
-        test_files = sorted([f for f in CFG.TEST_IMG_DIR.glob("*.tif")])
-        test_files = [x for x in test_files if str(x).split('/')[-1].split('.tif')[0] in selected_ids]
-        print(f"Found {len(test_files)} test .tif files")
+        # Get test image files (.tif files)
+        if CFG.TEST_IMG_DIR.exists():
+            test_files = sorted([f for f in CFG.TEST_IMG_DIR.glob("*.tif")])
+            test_files = [x for x in test_files if str(x).split("\\")[-1].split('.tif')[0] in selected_ids]
+            print(f"Found {len(test_files)} test .tif files")
 
-        if len(test_files) > 0:
-            print("\nTest files:")
-            for f in test_files[:5]:
-                print(f"  - {f.name}")
-            if len(test_files) > 5:
-                print(f"  ... and {len(test_files) - 5} more")
-    else:
-        print(f"Warning: Test directory not found at {CFG.TEST_IMG_DIR}")
-        print("Please update CFG.TEST_IMG_DIR to point to the correct directory")
-        test_files = []
+            if len(test_files) > 0:
+                print("\nTest files:")
+                for f in test_files[:5]:
+                    print(f"  - {f.name}")
+                if len(test_files) > 5:
+                    print(f"  ... and {len(test_files) - 5} more")
+        else:
+            print(f"Warning: Test directory not found at {CFG.TEST_IMG_DIR}")
+            print("Please update CFG.TEST_IMG_DIR to point to the correct directory")
+            test_files = []
 
-    # Run inference and save predictions directly to .tif files
-    if len(test_files) > 0 and len(models) > 0:
-        tif_dir = CFG.OUTPUT_DIR / "submission_tifs"
-        processed_count = 0
+        # Run inference and save predictions directly to .tif files
+        if len(test_files) > 0 and len(models) > 0:
+            # Create dataset and dataloader
+            test_dataset = InferenceDataset(test_files)
+            test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=0, collate_fn=custom_collate_fn)
 
-        # Create dataset and dataloader
-        test_dataset = InferenceDataset(test_files)
-        test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=0, collate_fn=custom_collate_fn)
+            tta_status = "WITH TTA" if CFG.USE_TTA else "(no TTA)"
+            print(f"\nRunning inference with sliding window {tta_status}...\n")
 
-        tta_status = "WITH TTA" if CFG.USE_TTA else "(no TTA)"
-        print(f"\nRunning inference with sliding window {tta_status}...\n")
+            if CFG.USE_TTA:
+                tta_count = len(get_tta_transforms())
+                print(f"Using {tta_count} TTA transforms per model")
+                print(f"Total predictions per volume: {len(models)} models × {tta_count} TTA = {len(models) * tta_count}\n")
 
-        if CFG.USE_TTA:
-            tta_count = len(get_tta_transforms())
-            print(f"Using {tta_count} TTA transforms per model")
-            print(f"Total predictions per volume: {len(models)} models × {tta_count} TTA = {len(models) * tta_count}\n")
+            for batch in tqdm(test_loader, desc="Processing volumes"):
+                volume = batch['volume']  # (1, 1, D, H, W)
+                vol_shape = tuple(batch['shape'][0].numpy())
+                filename = batch['filename'][0]
+                scroll_id = filename.replace('.tif', '')
 
-        for batch in tqdm(test_loader, desc="Processing volumes"):
-            volume = batch['volume']  # (1, 1, D, H, W)
-            vol_shape = tuple(batch['shape'][0].numpy())
-            filename = batch['filename'][0]
-            scroll_id = filename.replace('.tif', '')
+                # Get ensemble prediction using sliding window (with optional TTA)
+                ensemble_pred = predict_volume_sliding_window(models, volume, CFG.DEVICE, use_tta=CFG.USE_TTA)
 
-            # Get ensemble prediction using sliding window (with optional TTA)
-            ensemble_pred = predict_volume_sliding_window(models, volume, CFG.DEVICE, use_tta=CFG.USE_TTA)
+                np.savez_compressed(CFG.OUTPUT_DIR/f"{scroll_id}.tif", prob = ensemble_pred)
 
-            np.savez_compressed(f"{scroll_id}.tif", prob = ensemble_pred)
+                # Free memory
+                del ensemble_pred
+                torch.cuda.empty_cache() if torch.cuda.is_available() else None
 
-            # Free memory
-            del ensemble_pred
-            torch.cuda.empty_cache() if torch.cuda.is_available() else None
 
-        print(f"\n✓ Inference complete! Saved {processed_count} .tif files to {tif_dir}")
+if __name__ == '__main__':
+    main()
 
