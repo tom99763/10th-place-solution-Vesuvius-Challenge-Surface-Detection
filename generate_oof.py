@@ -24,7 +24,7 @@ import timm
 from monai.networks.blocks import UnetResBlock
 import numpy as np
 import json
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 
 
 def get_conv(spatial_dims):
@@ -542,7 +542,7 @@ def main():
     with open('./splits.json', "r") as f:
         val_splits = json.load(f)
 
-    for i in range(3):
+    for i in range(3,5):
         print(f'fold {i}.......')
         models = load_models_simple([MODEL_PATHS[i]], CFG.DEVICE) if MODEL_PATHS else []
         selected_ids = [str(x) for x in val_splits[i]['val']]
