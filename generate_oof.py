@@ -586,7 +586,7 @@ def main():
                 # Get ensemble prediction using sliding window (with optional TTA)
                 ensemble_pred = predict_volume_sliding_window(models, volume, CFG.DEVICE, use_tta=CFG.USE_TTA)
 
-                np.savez_compressed(CFG.OUTPUT_DIR/f"{scroll_id}.tif", prob = ensemble_pred)
+                np.savez_compressed(CFG.OUTPUT_DIR/f"{scroll_id}.npz", prob = ensemble_pred)
 
                 # Free memory
                 del ensemble_pred
