@@ -25,14 +25,10 @@ class DeformDataset(Dataset):
         skel = np.load(f'../../vesuvius_challenge/vesuvius_challenge/train_skeletons_npy/{idx}.npy')
         if self.cfg.is_prob_oof_mask:
             pred_mask = np.load(f'{self.cfg.oof_path}/{idx}.npz', mmap_mode='r')
-            pred_mask = pred_mask['probabilities'][1] #(d, h, w)
+            pred_mask = pred_mask['prob'] #(d, h, w)
         else:
             pred_mask = load_volume(Path(f'{self.cfg.oof_path}/{idx}.tif'))
             #pred_mask = np.load(Path(f'{self.cfg.oof_path}/{idx}.npy'))
-
-        if self.cfg.oof_path2 != '':
-            pred_mask2 = load_volume(Path(f'{self.cfg.oof_path2}/{idx}.tif'))
-            pred_mask = np.logical_or(pred_mask, pred_mask2)
 
         #pred_mask = pad_skeleton_3d(pred_mask)
 

@@ -1,7 +1,7 @@
 project_name: vesurvius-challenge
-exp_name: deform-dynunet-k${kernel_size}-s${sigma}-TverskyLoss
+exp_name: deform-dynunet-k${kernel_size}-s${sigma}-TverskyLoss-prob
 data_path: ./data/vesuvius-challenge-surface-detection
-oof_path : ./data/nnunet_oof/oof
+oof_path : ./data/prob_predictions
 oof_path2: '' #./nnunet/nnUNet_results/Dataset900_VesuviusScroll/nnUNetTrainer__nnUNetResEncUNetMPlans__3d_fullres/oof_deform_prob
 nnunet_path: ./nnunet
 petrained_ckpt_path: ''
@@ -16,8 +16,8 @@ seed: 42
 input_size: [160, 160, 160]
 threshold: 0.5
 selected_fold: 0
-is_prob_oof_mask: false
-apply_gaussian: true
+is_prob_oof_mask: true
+apply_gaussian: false
 
 #model config
 use_resenc: true
