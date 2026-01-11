@@ -4,6 +4,8 @@ import torch
 import pytorch_lightning as pl
 from ..procs.proc_data import *
 from pathlib import Path
+import random
+
 
 class DeformDataset(Dataset):
     def __init__(self, cfg, id_list, train):
@@ -91,6 +93,16 @@ class TomoDataModule(pl.LightningDataModule):
                 val_ids.remove(idx)
 
         self.train_ids = train_ids
+
+        #fold0
+        # self.val_ids = [
+        #     '114235076',
+        #     '193365288',
+        #     '324225693',
+        #     '398977019',
+        #     '1823626595'
+        # ]
+
         self.val_ids = val_ids[:5]
 
     def setup(self, stage: str = None):

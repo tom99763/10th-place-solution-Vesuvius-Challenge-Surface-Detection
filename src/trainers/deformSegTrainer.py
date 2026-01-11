@@ -21,24 +21,24 @@ class DiffeoRefineModule(pl.LightningModule):
         self.cfg = cfg
 
         # Loss
-        # self.seg_loss = DiceCELoss(
-        #     sigmoid=False,  # ← critical fix
-        #     to_onehot_y=True,  # because your labels are integer class indices
-        #     softmax=False,
-        #     reduction="mean",
-        #     squared_pred=True,
-        #     lambda_ce=cfg.lambda_ce,
-        #     lambda_dice=cfg.lambda_dice,
-        # )
-
-        self.seg_loss = TverskyLoss(
+        self.seg_loss = DiceCELoss(
             sigmoid=False,  # ← critical fix
             to_onehot_y=True,  # because your labels are integer class indices
             softmax=False,
             reduction="mean",
-            alpha=cfg.alpha,
-            beta=cfg.beta
+            squared_pred=True,
+            lambda_ce=cfg.lambda_ce,
+            lambda_dice=cfg.lambda_dice,
         )
+
+        # self.seg_loss = TverskyLoss(
+        #     sigmoid=False,  # ← critical fix
+        #     to_onehot_y=True,  # because your labels are integer class indices
+        #     softmax=False,
+        #     reduction="mean",
+        #     alpha=cfg.alpha,
+        #     beta=cfg.beta
+        # )
         self.sliding_window_inferer = SlidingWindowInfererAdapt(
             roi_size=cfg.input_size, sw_batch_size=2, overlap=0.5, mode="gaussian"
         )
@@ -166,12 +166,31 @@ class DiffeoRefineModule(pl.LightningModule):
         self.val_num_samples = 0
 
     def configure_optimizers(self):
-        return torch.optim.AdamW(
+        optimizer = torch.optim.AdamW(
             self.parameters(),
             lr=self.lr,
-            weight_decay=1e-2
+            weight_decay=1e-2,
         )
 
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+            optimizer,
+            mode="max",
+            factor=0.5,
+            patience=10,
+            threshold=1e-4,
+            cooldown=2,
+            min_lr=1e-4,
+        )
+
+        return {
+            "optimizer": optimizer,
+            "lr_scheduler": {
+                "scheduler": scheduler,
+                "monitor": "loss",
+                "interval": "epoch",
+                "frequency": 1,
+            },
+        }
 
 class ICDiffeoRefineModule(DiffeoRefineModule):
     def __init__(self, model, cfg):
