@@ -1,5 +1,5 @@
 project_name: vesurvius-challenge
-exp_name: deform-dynunet-k${kernel_size}-s${sigma}-160-patch-with-augs
+exp_name: deform-dynunet-k${kernel_size}-s${sigma}-160-patch-with-augs-v2
 data_path: ./data/vesuvius-challenge-surface-detection
 oof_path : ./data/nnunet_oof/oof
 oof_path2: ''

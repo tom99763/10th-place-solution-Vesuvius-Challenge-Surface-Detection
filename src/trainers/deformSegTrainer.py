@@ -174,7 +174,7 @@ class DiffeoRefineModule(pl.LightningModule):
 
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
             optimizer,
-            mode="max",
+            mode="min",
             factor=0.5,
             patience=10,
             threshold=1e-4,

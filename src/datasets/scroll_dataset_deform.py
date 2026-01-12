@@ -93,16 +93,6 @@ class TomoDataModule(pl.LightningDataModule):
                 val_ids.remove(idx)
 
         self.train_ids = train_ids
-
-        #fold0
-        # self.val_ids = [
-        #     '114235076',
-        #     '193365288',
-        #     '324225693',
-        #     '398977019',
-        #     '1823626595'
-        # ]
-
         self.val_ids = val_ids[:5]
 
     def setup(self, stage: str = None):

@@ -8,7 +8,6 @@ transforms:
         keys: ["Image", "Mask", "Mask_OOF", "Skel"]
         dtype: float32
 
-    # === Intensity normalization (nnUNet style) ===
     - ScaleIntensityRanged:
         keys: ["Image"]
         a_min: 0.0
@@ -17,7 +16,6 @@ transforms:
         b_max: 5.0
         clip: true
 
-    # === 3D patch extraction ===
     - RandCropByPosNegLabeld:
         keys: ["Image", "Mask", "Mask_OOF", "Skel"]
         label_key: "Mask"
@@ -28,27 +26,48 @@ transforms:
         image_key: "Image"
         image_threshold: 0.0
 
-    # === Spatial augmentations (if enabled, Skel is already covered) ===
     - RandAffined:
         keys: [ "Image", "Mask", "Mask_OOF", "Skel" ]
-        prob: 0.3
-        rotate_range: [ 0.05, 0.05, 0.05 ]   # radians (~3°)
-        shear_range: [ 0.02, 0.02, 0.02 ]
-        scale_range: [ 0.05, 0.05, 0.05 ]
-        translate_range: [3, 3, 3]
+        prob: 0.6
+        rotate_range: [ 0.15, 0.15, 0.15 ]     # ~8–9°
+        shear_range: [ 0.08, 0.08, 0.08 ]     # much stronger shear
+        scale_range: [ 0.15, 0.15, 0.15 ]     # ±15% zoom
+        translate_range: [ 10, 10, 10 ]        # larger spatial shifts
         mode: [ "bilinear", "nearest", "bilinear", "nearest" ]
         padding_mode: "border"
 
     - RandCoarseDropoutd:
         keys: [ "Mask_OOF" ]
-        prob: 0.2
-        holes: 6
-        spatial_size: [ 10, 10, 10 ]
+        prob: 0.4
+        holes: 12
+        spatial_size: [ 20, 20, 20 ]
         fill_value: 0.0
 
+    - RandGaussianNoised:
+        keys: [ "Mask_OOF" ]
+        prob: 0.4
+        mean: 0.0
+        std: 0.25
+
+    - RandShiftIntensityd:
+        keys: ["Image"]
+        offsets: 0.1
+        prob: 0.2
+
+    - RandHistogramShiftd:
+        keys: ["Image"]
+        num_control_points: 10
+        prob: 0.15
+
+    # --------------------------------------------------
+    # 9. Final tensor conversion
+    # --------------------------------------------------
     - ToTensord:
         keys: ["Image", "Mask", "Mask_OOF", "Skel"]
 
+  # ==================================================
+  # VALIDATION (no geometry corruption)
+  # ==================================================
   val:
     - EnsureChannelFirstd:
         keys: ["Image", "Mask", "Mask_OOF", "Skel"]
@@ -69,6 +88,9 @@ transforms:
     - ToTensord:
         keys: ["Image", "Mask", "Mask_OOF", "Skel"]
 
+  # ==================================================
+  # TEST (image + noisy mask only)
+  # ==================================================
   test:
     - EnsureChannelFirstd:
         keys: ["Image", "Mask_OOF"]
