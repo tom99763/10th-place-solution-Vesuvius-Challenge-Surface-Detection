@@ -102,68 +102,49 @@ class DeformDynUnet(nn.Module):
 # --------------------
 # --------------------
 class ICDeformDynUnet(DeformDynUnet):
-    """
-    Iterative inverse-compositional deformable warper for 3D masks.
-    Predictor: shared network that predicts a small SVF (B,3,D,H,W) given [vol, warped_mask]
-    At each iteration:
-      - delta_v = predictor([vol, warped_mask])  (small SVF)
-      - delta_phi = exp(delta_v)  (scaling-and-squaring)
-      - inv_delta_phi = exp(-delta_v)  (exact inverse in SVF group)
-      - phi <- inv_delta_phi + warp(phi, inv_delta_phi)  (IC composition: phi <- phi ∘ Δφ^{-1})
-      - warped_mask = warp(orig_mask, phi)
-    Notes:
-      - We always sample the mask from the original template (deferred warping).
-      - warp_displacement(field, by_disp) warps `field` by `by_disp`.
-    """
-    def __init__(self, cfg, predictor=None):
+    def __init__(self, cfg):
         super().__init__(cfg)
-        # predictor already set by parent (instantiate(cfg.models))
-        self.num_iters = getattr(cfg, "num_iters", 3)
-        self.max_delta_v = getattr(cfg, "max_delta_v", cfg.max_v if hasattr(cfg, "max_v") else 1.0)
-        self.n_steps = getattr(cfg, "n_steps", cfg.n_steps if hasattr(cfg, "n_steps") else 6)
+        self.num_iters = getattr(cfg, "num_iters", 2)
+        self.max_delta_v = getattr(cfg, "max_delta_v", 0.6)
+        self.n_steps = getattr(cfg, "n_steps", 4)  # ↓ from 6
 
     def forward(self, x, return_params=False):
         """
-        x is concatenation of vol and mask: B, 2, D, H, W
-        returns warped_mask; if return_params=True also returns list of phis and final phi
+        Optimized IC forward:
+        - Incremental mask warping
+        - Fewer exp calls
+        - No redundant recomputation
         """
         vol, mask = x[:, 0:1], x[:, 1:2]
         B, _, D, H, W = mask.shape
         device = mask.device
 
-        # initialize phi = zero displacement (identity)
+        # identity deformation
         phi = torch.zeros(B, 3, D, H, W, device=device, dtype=mask.dtype)
 
-        orig_mask = mask
-        warped_mask = orig_mask  # initial
-
+        warped_mask = mask  # incremental warp
         phis = []
 
-        for it in range(self.num_iters):
-            # predictor input: volume and current warped mask
-            inp = torch.cat([vol, warped_mask], dim=1)  # B, C_img + C_mask, D,H,W
-            raw_delta_v = self.predictor(inp)  # expected B,3,D,H,W
+        for _ in range(self.num_iters):
+            # predictor input
+            inp = torch.cat([vol, warped_mask], dim=1)
 
-            if raw_delta_v.shape[1] != 3:
-                raise RuntimeError(f"predictor must output 3 channels for voxel SVF, got {raw_delta_v.shape}")
+            # predict incremental SVF
+            delta_v = torch.tanh(self.predictor(inp)) * self.max_delta_v
 
-            # small incremental SVF
-            delta_v = torch.tanh(raw_delta_v) * self.max_delta_v  # keep small
+            # exp(-Δv)
+            inv_delta_phi = scaling_and_squaring(
+                -delta_v, n_steps=self.n_steps
+            )
 
-            # exponentiate to delta_phi and inverse via -delta_v
-            # Δφ = exp(Δv); Δφ^{-1} = exp(-Δv) exactly in SVF paramization
-            # We compute only inv_delta_phi explicitly (that's what IC uses)
-            inv_delta_phi = scaling_and_squaring(-delta_v, n_steps=self.n_steps)
+            # φ ← Δφ⁻¹ ∘ φ
+            phi = inv_delta_phi + warp_displacement(phi, inv_delta_phi)
 
-            # INVERSE-COMPOSITION (left composition by inv_delta_phi):
-            # phi_new = inv_delta_phi + warp(phi, inv_delta_phi)
-            warped_phi = warp_displacement(phi, inv_delta_phi)  # sample phi at positions after inv_delta_phi
-            phi = inv_delta_phi + warped_phi
+            # incremental mask warp (FAST)
+            warped_mask = warp_vol_using_disp(warped_mask, inv_delta_phi)
 
-            # update the warped mask by applying updated phi to the original mask (deferred warping)
-            warped_mask = warp_vol_using_disp(orig_mask, phi)
-
-            phis.append(phi)
+            if return_params:
+                phis.append(phi)
 
         if return_params:
             return warped_mask, phis, phi

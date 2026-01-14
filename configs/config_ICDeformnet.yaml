@@ -13,25 +13,28 @@ offline: true
 fold_id: 0
 n_splits: 5
 seed: 42
-input_size: [-1, 128, 128]
+input_size: [160, 160, 160]
 threshold: 0.5
 selected_fold: 0
 is_prob_oof_mask: true
 apply_gaussian: true
 
 #model config
-use_resenc: true
-lambda_jac: 1.0
-lambda_smooth_ic: 0.05
-lambda_iter: 0.1   # optional, start at 0
-num_iters: 3
-max_delta_v: 0.5
+use_resenc: false
+lambda_ce: 1
+lambda_dice: 1
 kernel_size: 3
 sigma: 10
-
+num_iters: 2
+n_steps: 2
+max_delta_v: 0.6        # ↑ slightly from 0.5
+lambda_jac: 1.0         # keep
+lambda_smooth_ic: 0.05  # keep
+lambda_smooth: 0.1      # keep
+lambda_iter: 0.05       # ↓ or start at 0
 
 defaults:
-  - models: deform_dynunet
+  - models: ic_deform_dynunet
   - optimizers: AdamW
   - data: data_deform
   - trainer: deformSegTrainer
