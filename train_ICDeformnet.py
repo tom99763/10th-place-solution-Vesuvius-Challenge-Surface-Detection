@@ -30,7 +30,7 @@ def set_seed(seed=42):
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
 
-@hydra.main(config_path="./configs", config_name="config_deform", version_base=None)
+@hydra.main(config_path="./configs", config_name="config_ICDeformnet", version_base=None)
 def run(cfg: DictConfig):
     nnunet_path = Path(cfg.nnunet_path)
     with open(cfg.data_split_path, "r") as f:
@@ -44,16 +44,16 @@ def run(cfg: DictConfig):
         train_ids = list(map(lambda x: str(x), val_splits[i]['train']))
         val_ids = list(map(lambda x: str(x), val_splits[i]['val']))
         datamodule = TomoDataModule(cfg, train_ids, val_ids)
-        model = DeformDynUnet(cfg)
+        model = ICDeformDynUnet(cfg)
         if cfg.petrained_ckpt_path != '':
-            pl_model = DiffeoRefineModule.load_from_checkpoint(
+            pl_model = ICDiffeoRefineModule.load_from_checkpoint(
                 cfg.petrained_ckpt_path,
                 model=model,
                 cfg=cfg
             )
             print('load pretrained ckpt...')
         else:
-            pl_model = DiffeoRefineModule(model, cfg)
+            pl_model = ICDiffeoRefineModule(model, cfg)
         # wnb_logger = WandbLogger(
         #     project=cfg.project_name,
         #     name=cfg.exp_name,

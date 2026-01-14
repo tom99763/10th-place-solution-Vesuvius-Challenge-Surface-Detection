@@ -93,7 +93,7 @@ class TomoDataModule(pl.LightningDataModule):
                 val_ids.remove(idx)
 
         self.train_ids = train_ids
-        self.val_ids = val_ids[:5]
+        self.val_ids = val_ids
 
     def setup(self, stage: str = None):
         self.train_dataset = DeformDataset(self.cfg, self.train_ids, True)

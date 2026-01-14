@@ -1,5 +1,5 @@
 project_name: vesurvius-challenge
-exp_name: deform-dynunet-k${kernel_size}-s${sigma}-full-depth-rand-thr-aug
+exp_name: IC-Deformnet-k${kernel_size}-s${sigma}-full-depth-rand-thr-aug
 data_path: ./data/vesuvius-challenge-surface-detection
 oof_path : ./data/prob_predictions
 oof_path2: ''
@@ -21,14 +21,11 @@ apply_gaussian: true
 
 #model config
 use_resenc: true
-max_v: 3.0 #Max instantaneous displacement ≈ v voxels
-n_steps: 5
 lambda_jac: 1.0
-lambda_smooth: 0.1
-lambda_ce: 1
-lambda_dice: 1
-alpha: 0.3
-beta: 0.7
+lambda_smooth_ic: 0.05
+lambda_iter: 0.1   # optional, start at 0
+num_iters: 3
+max_delta_v: 0.5
 kernel_size: 3
 sigma: 10
 
