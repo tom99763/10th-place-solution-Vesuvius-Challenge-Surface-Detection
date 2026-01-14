@@ -24,6 +24,8 @@ use_resenc: true
 lambda_jac: 1.0
 lambda_smooth_ic: 0.05
 lambda_iter: 0.1   # optional, start at 0
+lambda_ce: 1
+lambda_dice: 1
 num_iters: 3
 max_delta_v: 0.5
 kernel_size: 3
