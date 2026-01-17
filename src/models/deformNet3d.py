@@ -201,5 +201,5 @@ class DeformDynUnetV2(nn.Module):
         corrected, t, delta = self.topofix(warped, raw_t)
 
         if return_params:
-            return corrected, v, phi, t, delta
+            return corrected, v, phi, t
         return corrected
