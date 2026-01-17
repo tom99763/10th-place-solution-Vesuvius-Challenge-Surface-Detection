@@ -151,45 +151,54 @@ class ICDeformDynUnet(DeformDynUnet):
         return warped_mask
 
 # ---------------------------
-# Quick test
+# defromnetv2
 # ---------------------------
-if __name__ == "__main__":
-    from omegaconf import OmegaConf
 
-    cfg_model = OmegaConf.create({
-        "_target_": "monai.networks.nets.DynUNet",
-        "in_channels": 2,   # will be concatenated vol + mask per iteration
-        "out_channels": 3,  # predict 3D velocity (SVF)
-        "spatial_dims": 3,
-        "strides": [[1, 1, 1], [2, 2, 2], [2, 2, 2], [2, 2, 2], [2, 2, 2]],
-        "kernel_size": [[3, 3, 3], [3, 3, 3], [3, 3, 3], [3, 3, 3], [3, 3, 3]],
-        "upsample_kernel_size": [[2, 2, 2], [2, 2, 2], [2, 2, 2], [2, 2, 2]],
-        "filters": [32, 64, 128, 256, 320],
-        "res_block": True,
-        "norm_name": "INSTANCE",
-        "deep_supervision": True,
-        "deep_supr_num": 2
-    })
-    cfg = OmegaConf.create({
-        "models": cfg_model,
-        "max_v": 3.0,
-        "n_steps": 5,
-        "num_iters": 3,
-        "max_delta_v": 0.6,
-    })
+def soft_sdf(x, eps=1e-4):
+    # x in [0,1]
+    return torch.log(x + eps) - torch.log(1 - x + eps)
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model = DeformDynUnet(cfg).to(device)
-    #model.eval()
-    model.train()
+class TopoFix(nn.Module):
+    def __init__(self, max_offset=2.0):
+        super().__init__()
+        self.max_offset = max_offset
 
-    # fake data (use soft mask values in [0,1])
-    x_img = torch.randn(1, 1, 64, 128, 128, device=device)
-    soft_mask = torch.rand(1, 1, 64, 128, 128, device=device)  # soft mask in [0,1]
-    x = torch.cat([x_img, soft_mask], dim=1)
+    def forward(self, warped_mask, topo_gate):
+        """
+        warped_mask: (B,1,D,H,W) in [0,1]
+        topo_gate:   (B,1,D,H,W) in [0,1]
+        """
+        sdf = soft_sdf(warped_mask)
+        delta = self.max_offset * torch.tanh(topo_gate)
+        sdf_corr = sdf + delta * topo_gate
+        corrected = torch.sigmoid(sdf_corr)
+        return corrected
 
-    with torch.no_grad():
-        warped_mask, phis, final_phi = model(x, return_params=True)
 
-    print("warped_mask:", warped_mask.shape)
-    print("num phis:", len(phis), "final_phi:", final_phi.shape)
+class DeformDynUnetV2(nn.Module):
+    def __init__(self, cfg):
+        super().__init__()
+        self.predictor = create_residual_unet(
+            in_channels=2,
+            out_channels=4
+        )
+        self.max_v = cfg.max_v
+        self.topofix = TopoFix(max_offset=cfg.max_topo_offset)
+
+    def forward(self, x, return_params=False):
+        raw = self.predictor(x)
+        # split
+        raw_v = raw[:, :3]
+        raw_t = raw[:, 3:4]
+        # SVF
+        v = torch.tanh(raw_v) * self.max_v
+        phi = scaling_and_squaring(v)
+        # warp
+        warped = warp_vol_using_disp(x[:,1:2], phi)
+        # topology gate
+        t = torch.sigmoid(raw_t)
+        # topo fix
+        corrected = self.topofix(warped, t)
+        if return_params:
+            return corrected, v, phi, t
+        return corrected

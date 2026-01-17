@@ -121,63 +121,63 @@ class DiffeoRefineModule(pl.LightningModule):
         self.log("smooth", L_smooth, prog_bar=True)
         return loss
 
-    def validation_step(self, batch, batch_idx):
-        vol, mask, mask_oof = batch['Image'], batch['Mask'], batch['Mask_OOF']
-
-        valid_mask = mask !=2
-
-        # random threhsold augmentation
-        if self.cfg.is_prob_oof_mask:
-            threshold = 0.3
-            mask_oof = (mask_oof > threshold).float()
-
-        if self.cfg.apply_gaussian:
-            mask_oof = gaussian_blur_3d(mask_oof, self.cfg.kernel_size, self.cfg.sigma)
-
-        x = torch.cat([vol, mask_oof], dim=1)
-
-        # Sliding window inference
-        logits = self.sliding_window_inferer(x, self.model)
-
-        # Binarize
-        pred = (logits > self.cfg.threshold).float()
-
-        # Ensure shapes: (B, C, D, H, W)
-        if pred.ndim == 4:
-            pred = pred.unsqueeze(1)
-        if mask.ndim == 4:
-            mask = mask.unsqueeze(1)
-
-        # Dice
-        dice = self.dice_metric(pred * valid_mask, mask * valid_mask)
-        self.val_dice_scores.append(dice)
-
-        return None
-
     # def validation_step(self, batch, batch_idx):
     #     vol, mask, mask_oof = batch['Image'], batch['Mask'], batch['Mask_OOF']
+    #
+    #     valid_mask = mask !=2
+    #
+    #     # random threhsold augmentation
+    #     if self.cfg.is_prob_oof_mask:
+    #         threshold = 0.3
+    #         mask_oof = (mask_oof > threshold).float()
+    #
     #     if self.cfg.apply_gaussian:
-    #         x = torch.cat([vol, gaussian_blur_3d(mask_oof, self.cfg.kernel_size, self.cfg.sigma)], dim=1)
-    #     else:
-    #         x = torch.cat([vol, mask_oof], dim=1)
+    #         mask_oof = gaussian_blur_3d(mask_oof, self.cfg.kernel_size, self.cfg.sigma)
     #
-    #     # if self.current_epoch != 0:
-    #     #     prediction = self.sliding_window_inferer(x, self.model)
-    #     #     prediction = prediction > self.cfg.threshold
-    #     # else:
-    #     #     prediction = mask_oof
+    #     x = torch.cat([vol, mask_oof], dim=1)
     #
-    #     prediction = self.sliding_window_inferer(x, self.model)
-    #     prediction = prediction > self.cfg.threshold
+    #     # Sliding window inference
+    #     logits = self.sliding_window_inferer(x, self.model)
     #
-    #     # print(prediction)
-    #     score = calc_score(mask.cpu().numpy()[0, 0], prediction.cpu().numpy()[0, 0])
-    #     self.val_num_samples += x.shape[0]
-    #     self.scores.append(score.score)
-    #     self.topo_scores.append(score.topo.toposcore)
-    #     self.voi_scores.append(score.voi.voi_score)
-    #     self.surface_scores.append(score.surface_dice)
+    #     # Binarize
+    #     pred = (logits > self.cfg.threshold).float()
+    #
+    #     # Ensure shapes: (B, C, D, H, W)
+    #     if pred.ndim == 4:
+    #         pred = pred.unsqueeze(1)
+    #     if mask.ndim == 4:
+    #         mask = mask.unsqueeze(1)
+    #
+    #     # Dice
+    #     dice = self.dice_metric(pred * valid_mask, mask * valid_mask)
+    #     self.val_dice_scores.append(dice)
+    #
     #     return None
+
+    def validation_step(self, batch, batch_idx):
+        vol, mask, mask_oof = batch['Image'], batch['Mask'], batch['Mask_OOF']
+        if self.cfg.apply_gaussian:
+            x = torch.cat([vol, gaussian_blur_3d(mask_oof, self.cfg.kernel_size, self.cfg.sigma)], dim=1)
+        else:
+            x = torch.cat([vol, mask_oof], dim=1)
+
+        # if self.current_epoch != 0:
+        #     prediction = self.sliding_window_inferer(x, self.model)
+        #     prediction = prediction > self.cfg.threshold
+        # else:
+        #     prediction = mask_oof
+
+        prediction = self.sliding_window_inferer(x, self.model)
+        prediction = prediction > self.cfg.threshold
+
+        # print(prediction)
+        score = calc_score(mask.cpu().numpy()[0, 0], prediction.cpu().numpy()[0, 0])
+        self.val_num_samples += x.shape[0]
+        self.scores.append(score.score)
+        self.topo_scores.append(score.topo.toposcore)
+        self.voi_scores.append(score.voi.voi_score)
+        self.surface_scores.append(score.surface_dice)
+        return None
 
     def on_train_epoch_end(self):
         optimizer = self.optimizers()
@@ -190,52 +190,52 @@ class DiffeoRefineModule(pl.LightningModule):
             sync_dist=True,
         )
 
-    def on_validation_epoch_end(self):
-        dice = torch.cat(self.val_dice_scores).mean()
-
-        self.log(
-            "val_dice",
-            dice,
-            prog_bar=True,
-            rank_zero_only=True,
-            sync_dist=True,
-        )
-
-        if self.trainer.is_global_zero:
-            print(
-                f"\nVAL Epoch {self.current_epoch:03d} │ "
-                f"Dice: {dice:.4f}\n"
-            )
-
-        # Reset
-        self.val_dice_scores = []
-        self.dice_metric.reset()
-
     # def on_validation_epoch_end(self):
-    #     comp_score = np.stack(self.scores).sum() / self.val_num_samples
-    #     topo_score = np.stack(self.topo_scores).sum() / self.val_num_samples
-    #     voi_score = np.stack(self.voi_scores).sum() / self.val_num_samples
-    #     surface_score = np.stack(self.surface_scores).sum() / self.val_num_samples
+    #     dice = torch.cat(self.val_dice_scores).mean()
     #
-    #     # === Logging ===
-    #     self.log("val_topo", topo_score, prog_bar=True, rank_zero_only=True)
-    #     self.log("val_voi", voi_score, prog_bar=True, rank_zero_only=True)
-    #     self.log("val_surface", surface_score, prog_bar=True, rank_zero_only=True)
-    #     self.log("val_comp_metric", comp_score, prog_bar=True, rank_zero_only=True, sync_dist=True)
+    #     self.log(
+    #         "val_dice",
+    #         dice,
+    #         prog_bar=True,
+    #         rank_zero_only=True,
+    #         sync_dist=True,
+    #     )
     #
     #     if self.trainer.is_global_zero:
-    #         print(f"\nVAL Epoch {self.current_epoch:03d} │ "
-    #               f"VOI: {voi_score:.4f} │ "
-    #               f"Topo: {topo_score:.4f} │ "
-    #               f"Surf: {surface_score:.4f} │ "
-    #               f"→ COMP: {comp_score:.4f} ←\n")
+    #         print(
+    #             f"\nVAL Epoch {self.current_epoch:03d} │ "
+    #             f"Dice: {dice:.4f}\n"
+    #         )
     #
-    #     # === Reset everything ===
-    #     self.scores = []
-    #     self.topo_scores = []
-    #     self.voi_scores = []
-    #     self.surface_scores = []
-    #     self.val_num_samples = 0
+    #     # Reset
+    #     self.val_dice_scores = []
+    #     self.dice_metric.reset()
+
+    def on_validation_epoch_end(self):
+        comp_score = np.stack(self.scores).sum() / self.val_num_samples
+        topo_score = np.stack(self.topo_scores).sum() / self.val_num_samples
+        voi_score = np.stack(self.voi_scores).sum() / self.val_num_samples
+        surface_score = np.stack(self.surface_scores).sum() / self.val_num_samples
+
+        # === Logging ===
+        self.log("val_topo", topo_score, prog_bar=True, rank_zero_only=True)
+        self.log("val_voi", voi_score, prog_bar=True, rank_zero_only=True)
+        self.log("val_surface", surface_score, prog_bar=True, rank_zero_only=True)
+        self.log("val_comp_metric", comp_score, prog_bar=True, rank_zero_only=True, sync_dist=True)
+
+        if self.trainer.is_global_zero:
+            print(f"\nVAL Epoch {self.current_epoch:03d} │ "
+                  f"VOI: {voi_score:.4f} │ "
+                  f"Topo: {topo_score:.4f} │ "
+                  f"Surf: {surface_score:.4f} │ "
+                  f"→ COMP: {comp_score:.4f} ←\n")
+
+        # === Reset everything ===
+        self.scores = []
+        self.topo_scores = []
+        self.voi_scores = []
+        self.surface_scores = []
+        self.val_num_samples = 0
 
     def configure_optimizers(self):
         optimizer = torch.optim.AdamW(
@@ -246,7 +246,7 @@ class DiffeoRefineModule(pl.LightningModule):
 
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
             optimizer,
-            mode="max",
+            mode="min",
             factor=0.75,
             patience=5,
             threshold=1e-4,
@@ -258,7 +258,7 @@ class DiffeoRefineModule(pl.LightningModule):
             "optimizer": optimizer,
             "lr_scheduler": {
                 "scheduler": scheduler,
-                "monitor": "val_dice",
+                "monitor": "loss",
                 "interval": "epoch",
                 "frequency": 1,
             },
@@ -350,6 +350,129 @@ class ICDiffeoRefineModule(DiffeoRefineModule):
         self.log("smooth_ic", L_smooth, prog_bar=True)
         if self.lambda_iter > 0:
             self.log("iter_sup", L_iter, prog_bar=True)
+
+        return loss
+
+
+
+class DiffeoRefineModuleV2(DiffeoRefineModule):
+    """
+    V2:
+    - model returns (corrected, v, phi, t)
+    - topology losses act ONLY on corrected output
+    - topology gate t is explicitly regularized
+    """
+
+    def __init__(self, model, cfg):
+        super().__init__(model, cfg)
+
+        # topology gate weights
+        self.lambda_sparse = getattr(cfg, "lambda_sparse", 0.05)
+        self.lambda_tv = getattr(cfg, "lambda_tv", 0.05)
+        self.lambda_boundary = getattr(cfg, "lambda_boundary", 0.05)
+
+    # -----------------------------
+    # topology gate regularizers
+    # -----------------------------
+    def topo_sparsity(self, t):
+        return t.mean()
+
+    def topo_tv(self, t):
+        return (
+            (t[:,:,1:] - t[:,:,:-1]).abs().mean() +
+            (t[:,:,:,1:] - t[:,:,:,:-1]).abs().mean() +
+            (t[:,:,:,:,1:] - t[:,:,:,:,:-1]).abs().mean()
+        ) / 3.0
+
+    def topo_boundary(self, t, warped):
+        # encourage topo edits near surface only
+        boundary = warped * (1.0 - warped)
+        return (t * (1.0 - boundary)).mean()
+
+    # -----------------------------
+    # TRAINING STEP (V2)
+    # -----------------------------
+    def training_step(self, batch, batch_idx):
+        vol, mask, mask_oof, skel = (
+            batch["Image"],
+            batch["Mask"],
+            batch["Mask_OOF"],
+            batch["Skel"],
+        )
+
+        # ---- OOF augmentation ----
+        if self.cfg.is_prob_oof_mask:
+            threshold = torch.empty(1, device=mask_oof.device).uniform_(0.1, 0.5)
+            mask_oof = (mask_oof > threshold).float()
+
+        if self.cfg.apply_gaussian:
+            mask_oof = gaussian_blur_3d(
+                mask_oof, self.cfg.kernel_size, self.cfg.sigma
+            )
+
+        x = torch.cat([vol, mask_oof], dim=1)
+
+        # ---------------- forward ----------------
+        corrected, v, phi, t = self(x, return_params=True)
+
+        ignore_mask = mask != 2
+
+        # ---------------- segmentation & topology ----------------
+        L_seg = self.seg_loss(
+            corrected * ignore_mask,
+            mask * ignore_mask,
+        )
+
+        L_topo = self.topo_loss(
+            corrected * ignore_mask,
+            mask * ignore_mask,
+        )
+
+        L_skel = self.skel_loss(
+            corrected,
+            skel,
+            mask,
+        )
+
+        L_surf = self.soft_surf_loss(
+            corrected * ignore_mask,
+            mask * ignore_mask,
+        )
+
+        # ---------------- diffeo regularization ----------------
+        L_smooth = self.svf_smoothness(v)
+        L_jac = jacobian_log_barrier(phi)
+
+        # ---------------- topo-gate regularization ----------------
+        with torch.no_grad():
+            warped = warp_vol_using_disp(mask_oof, phi)
+
+        L_sparse = self.topo_sparsity(t)
+        L_tv = self.topo_tv(t)
+        L_boundary = self.topo_boundary(t, warped)
+
+        # ---------------- total loss ----------------
+        loss = (
+            L_seg
+            + 0.5 * L_topo
+            + 0.3 * L_skel
+            + 0.3 * L_surf
+            + self.lambda_jac * L_jac
+            + self.lambda_smooth * L_smooth
+            + self.lambda_sparse * L_sparse
+            + self.lambda_tv * L_tv
+            + self.lambda_boundary * L_boundary
+        )
+
+        # ---------------- logging ----------------
+        self.log("loss", loss, prog_bar=True)
+        self.log("seg", L_seg, prog_bar=True)
+        self.log("topo", L_topo, prog_bar=True)
+        self.log("jac", L_jac, prog_bar=True)
+        self.log("smooth", L_smooth, prog_bar=True)
+        self.log("t_sparse", L_sparse, prog_bar=True)
+        self.log("t_tv", L_tv, prog_bar=False)
+        self.log("t_boundary", L_boundary, prog_bar=False)
 
         return loss
 
