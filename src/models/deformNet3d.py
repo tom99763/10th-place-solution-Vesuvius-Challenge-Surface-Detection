@@ -163,17 +163,17 @@ class TopoFix(nn.Module):
         super().__init__()
         self.max_offset = max_offset
 
-    def forward(self, warped_mask, topo_gate):
+    def forward(self, warped_mask, raw_t):
         """
         warped_mask: (B,1,D,H,W) in [0,1]
-        topo_gate:   (B,1,D,H,W) in [0,1]
+        raw_t: network raw 4th channel (B,1,D,H,W), can be positive or negative
         """
-        sdf = soft_sdf(warped_mask)
-        delta = self.max_offset * torch.tanh(topo_gate)
-        sdf_corr = sdf + delta * topo_gate
-        corrected = torch.sigmoid(sdf_corr)
-        return corrected
-
+        sdf = soft_sdf(warped_mask)          # convert to SDF
+        t = torch.sigmoid(raw_t)             # gate: where to apply
+        delta = self.max_offset * torch.tanh(raw_t)  # signed magnitude
+        sdf_corr = sdf + delta * t            # apply offset only where t>0
+        corrected = torch.sigmoid(sdf_corr)  # back to probability
+        return corrected, t, delta
 
 class DeformDynUnetV2(nn.Module):
     def __init__(self, cfg):
@@ -187,18 +187,19 @@ class DeformDynUnetV2(nn.Module):
 
     def forward(self, x, return_params=False):
         raw = self.predictor(x)
-        # split
         raw_v = raw[:, :3]
         raw_t = raw[:, 3:4]
+
         # SVF
         v = torch.tanh(raw_v) * self.max_v
         phi = scaling_and_squaring(v)
+
         # warp
-        warped = warp_vol_using_disp(x[:,1:2], phi)
-        # topology gate
-        t = torch.sigmoid(raw_t)
+        warped = warp_vol_using_disp(x[:, 1:2], phi)
+
         # topo fix
-        corrected = self.topofix(warped, t)
+        corrected, t, delta = self.topofix(warped, raw_t)
+
         if return_params:
-            return corrected, v, phi, t
+            return corrected, v, phi, t, delta
         return corrected
