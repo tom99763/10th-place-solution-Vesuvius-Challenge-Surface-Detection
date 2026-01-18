@@ -53,7 +53,7 @@ class WindowAttention3D(nn.Module):
 
 
 class BottleneckTransformer3D(nn.Module):
-    def __init__(self, dim, depth=2, window_size=4):
+    def __init__(self, dim, depth=4, window_size=4):
         super().__init__()
         self.blocks = nn.ModuleList([
             WindowAttention3D(dim, window_size)
@@ -66,17 +66,69 @@ class BottleneckTransformer3D(nn.Module):
         return x
 
 
+# class UNetWithTransformer(nn.Module):
+#     def __init__(
+#         self,
+#         in_channels=2,
+#         out_channels=4,
+#         base_channels=(32,64,128,256,320,320),
+#         strides=(1,2,2,2,2,2),
+#         n_blocks=(1,3,4,6,6,6),
+#         transformer_depth=2,
+#         window_size=4,
+#         max_v=1.0,
+#     ):
+#         super().__init__()
+#
+#         self.backbone = ResidualEncoderUNet(
+#             input_channels=in_channels,
+#             n_stages=len(base_channels),
+#             features_per_stage=base_channels,
+#             conv_op=nn.Conv3d,
+#             kernel_sizes=3,
+#             strides=strides,
+#             n_blocks_per_stage=n_blocks,
+#             num_classes=out_channels,
+#             n_conv_per_stage_decoder=[1] * (len(base_channels) - 1),
+#             conv_bias=True,
+#             norm_op=nn.InstanceNorm3d,
+#             nonlin=nn.LeakyReLU,
+#             nonlin_kwargs={"inplace": True},
+#             deep_supervision=False,
+#         )
+#
+#         self.transformer = BottleneckTransformer3D(
+#             dim=base_channels[-1],
+#             depth=transformer_depth,
+#             window_size=window_size,
+#         )
+#
+#         self.max_v = max_v
+#
+#     def forward(self, x):
+#         # --- encoder ---
+#         skips = self.backbone.encoder(x)
+#
+#         # --- transformer at bottleneck ---
+#         skips[-1] = self.transformer(skips[-1])
+#
+#         # --- decoder ---
+#         output = self.backbone.decoder(skips)
+#         return output
+
+
+
 class UNetWithTransformer(nn.Module):
     def __init__(
         self,
         in_channels=2,
         out_channels=4,
-        base_channels=(32,64,128,256,320,320),
-        strides=(1,2,2,2,2,2),
-        n_blocks=(1,3,4,6,6,6),
+        base_channels=(32, 64, 128, 256, 320, 320),
+        strides=(1, 2, 2, 2, 2, 2),
+        n_blocks=(1, 3, 4, 6, 6, 6),
+        transformer_indices=(-4, -3, -2, -1),
         transformer_depth=2,
         window_size=4,
-        max_v=1.0,
     ):
         super().__init__()
 
@@ -97,21 +149,23 @@ class UNetWithTransformer(nn.Module):
             deep_supervision=False,
         )
 
-        self.transformer = BottleneckTransformer3D(
-            dim=base_channels[-1],
-            depth=transformer_depth,
-            window_size=window_size,
-        )
+        self.transformer_indices = set(transformer_indices)
 
-        self.max_v = max_v
+        # one transformer per selected skip
+        self.transformers = nn.ModuleDict()
+        for idx in self.transformer_indices:
+            ch = base_channels[idx]
+            self.transformers[str(idx)] = BottleneckTransformer3D(
+                dim=ch,
+                depth=transformer_depth,
+                window_size=window_size,
+            )
 
     def forward(self, x):
-        # --- encoder ---
         skips = self.backbone.encoder(x)
 
-        # --- transformer at bottleneck ---
-        skips[-1] = self.transformer(skips[-1])
+        for idx in self.transformer_indices:
+            skips[idx] = self.transformers[str(idx)](skips[idx])
 
-        # --- decoder ---
         output = self.backbone.decoder(skips)
         return output
