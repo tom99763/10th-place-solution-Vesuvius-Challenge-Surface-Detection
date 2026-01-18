@@ -1,5 +1,5 @@
 project_name: vesurvius-challenge
-exp_name: deform-dynunet-v2-k${kernel_size}-s${sigma}
+exp_name: deform-dynunet-v2-k${kernel_size}-s${sigma}-transformer${use_transformer}
 data_path: ./data/vesuvius-challenge-surface-detection
 oof_path : ./data/prob_predictions
 oof_path2: ''
@@ -15,13 +15,14 @@ n_splits: 5
 seed: 42
 input_size: [160, 160, 160]
 threshold: 0.5
-selected_fold: 0
+selected_fold: 1
 is_prob_oof_mask: true
 apply_gaussian: true
 
 #model config
 use_resenc: true
-kernel_size: 3
+use_transformer: true
+kernel_size: 5
 sigma: 5
 #warp
 max_v: 1.5

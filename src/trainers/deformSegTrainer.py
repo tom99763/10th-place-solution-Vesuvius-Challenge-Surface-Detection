@@ -216,19 +216,24 @@ class DiffeoRefineModule(pl.LightningModule):
         topo_score = np.stack(self.topo_scores).sum() / self.val_num_samples
         voi_score = np.stack(self.voi_scores).sum() / self.val_num_samples
         surface_score = np.stack(self.surface_scores).sum() / self.val_num_samples
+        bias_comp_score = 0.5 * voi_score + 0.5 * surface_score
+
 
         # === Logging ===
         self.log("val_topo", topo_score, prog_bar=True, rank_zero_only=True)
         self.log("val_voi", voi_score, prog_bar=True, rank_zero_only=True)
         self.log("val_surface", surface_score, prog_bar=True, rank_zero_only=True)
         self.log("val_comp_metric", comp_score, prog_bar=True, rank_zero_only=True, sync_dist=True)
+        self.log("val_bias_comp_metric", bias_comp_score, prog_bar=True, rank_zero_only=True, sync_dist=True)
 
         if self.trainer.is_global_zero:
             print(f"\nVAL Epoch {self.current_epoch:03d} │ "
                   f"VOI: {voi_score:.4f} │ "
                   f"Topo: {topo_score:.4f} │ "
                   f"Surf: {surface_score:.4f} │ "
-                  f"→ COMP: {comp_score:.4f} ←\n")
+                  f"→ COMP: {comp_score:.4f} ←\n"
+                  f"→bias comp: {bias_comp_score: .4f}←\n"
+                  )
 
         # === Reset everything ===
         self.scores = []

@@ -63,11 +63,11 @@ def run(cfg: DictConfig):
 
         # callbacks
         ckpt_callback = pl.callbacks.ModelCheckpoint(
-            monitor="val_comp_metric",
+            monitor="val_bias_comp_metric",
             mode="max",
             dirpath="./models",
             filename=f"{cfg.exp_name}-fold{i}"
-                     + "-{epoch:02d}-{val_comp_metric:.4f}",
+                     + "-{epoch:02d}-{val_bias_comp_metric:.4f}",
             save_top_k=2,
             save_last=True
         )
