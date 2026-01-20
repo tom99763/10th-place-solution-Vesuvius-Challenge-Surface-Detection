@@ -15,14 +15,14 @@ n_splits: 5
 seed: 42
 input_size: [160, 160, 160]
 threshold: 0.5
-selected_fold: 0
+selected_fold: 3
 is_prob_oof_mask: true
 apply_gaussian: true
 
 #model config
 use_resenc: true
-use_transformer: true
-kernel_size: 5
+use_transformer: false
+kernel_size: 3
 sigma: 5
 #warp
 max_v: 1.5

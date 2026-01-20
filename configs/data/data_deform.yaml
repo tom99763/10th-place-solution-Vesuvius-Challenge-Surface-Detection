@@ -26,15 +26,15 @@ transforms:
         image_key: "Image"
         image_threshold: 0.0
 
-#    - RandAffined:
-#        keys: [ "Image", "Mask", "Mask_OOF", "Skel" ]
-#        prob: 0.3
-#        rotate_range: [ 0.05, 0.05, 0.05 ]   # radians (~3°)
-#        shear_range: [ 0.02, 0.02, 0.02 ]
-#        scale_range: [ 0.05, 0.05, 0.05 ]
-#        translate_range: [ 3, 3, 3 ]
-#        mode: [ "bilinear", "nearest", "bilinear", "nearest" ]
-#        padding_mode: "border"
+    - RandAffined:
+        keys: [ "Image", "Mask", "Mask_OOF", "Skel" ]
+        prob: 0.3
+        rotate_range: [ 0.05, 0.05, 0.05 ]   # radians (~3°)
+        shear_range: [ 0.02, 0.02, 0.02 ]
+        scale_range: [ 0.05, 0.05, 0.05 ]
+        translate_range: [ 3, 3, 3 ]
+        mode: [ "bilinear", "nearest", "bilinear", "nearest" ]
+        padding_mode: "border"
 
     - RandCoarseDropoutd:
         keys: [ "Mask_OOF" ]
