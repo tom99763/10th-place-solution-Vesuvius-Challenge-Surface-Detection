@@ -407,7 +407,8 @@ class DiffeoRefineModuleV2(DiffeoRefineModule):
 
         # ---- OOF augmentation ----
         if self.cfg.is_prob_oof_mask:
-            threshold = torch.empty(1, device=mask_oof.device).uniform_(0.1, 0.5)
+            threshold = 0.3 + torch.randn(1, device=mask_oof.device) * 0.05
+            threshold = torch.clamp(threshold, 0.1, 0.5)
             mask_oof = (mask_oof > threshold).float()
 
         if self.cfg.apply_gaussian:
