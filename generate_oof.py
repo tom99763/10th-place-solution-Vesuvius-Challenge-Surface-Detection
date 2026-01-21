@@ -684,8 +684,8 @@ def predict_volume_sliding_window(models, volume_tensor, devices, use_tta=False)
 # ==============================================================================
 
 MODEL_PATHS = [
-    ("/kaggle/input/vesuvius-sergio-models/resUnet-ema-fold0/best-epoch449-val_loss0.3746-val_dice0.5755.ckpt", "cuda"),
-    ("/kaggle/input/vesuvius-sergio-models/fold0_4loss_new_dataset/best-epoch369-val_loss0.3769-val_dice0.5727.ckpt", "cuda")
+    ("./models/best-epoch449-val_loss0.3746-val_dice0.5755.ckpt", "cuda"),
+    ("./models/best-epoch369-val_loss0.3769-val_dice0.5727.ckpt", "cuda")
 ]
 
 
@@ -697,10 +697,11 @@ def main():
     with open('./splits.json', "r") as f:
         val_splits = json.load(f)
 
+    models_1st_stage = load_models_simple(MODEL_PATHS)
+    models_2nd_stage = load_models_2nd_stage(MODEL_PATHS_2ND_STAGE, CFG.DEVICE)
+
     for i in range(3,5):
         print(f'fold {i}.......')
-        models_1st_stage = load_models_simple(MODEL_PATHS)
-        models_2nd_stage = load_models_2nd_stage(MODEL_PATHS_2ND_STAGE, CFG.DEVICE)
         selected_ids = [str(x) for x in val_splits[i]['val']]
 
         # Get test image files (.tif files)
@@ -738,7 +739,7 @@ def main():
                 first_stage_probs = predict_volume_sliding_window(
                     models_1st_stage,
                     volume,
-                    devices=["cuda:0", "cuda:1"],
+                    devices=["cuda"],
                     use_tta=CFG.USE_TTA
                 )
 
@@ -754,7 +755,7 @@ def main():
                 second_stage_probs = predict_volume_sliding_window(
                     models_2nd_stage,
                     volume_2ch,
-                    devices=["cuda:0", "cuda:1"],
+                    devices=["cuda"],
                     use_tta=False
                 )
 

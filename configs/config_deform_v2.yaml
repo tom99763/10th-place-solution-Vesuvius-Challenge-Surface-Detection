@@ -21,7 +21,7 @@ apply_gaussian: true
 
 #model config
 use_resenc: true
-custom: true
+custom: false
 kernel_size: 3
 sigma: 5
 #warp
