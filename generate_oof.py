@@ -24,6 +24,8 @@ import timm
 from monai.networks.blocks import UnetResBlock
 import numpy as np
 import json
+from concurrent.futures import ThreadPoolExecutor
+
 os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 
 
@@ -204,6 +206,42 @@ class SegmentationModule(pl.LightningModule):
         return self.model(x)
 
 
+# ==============================================================================
+# SegmentationModule - matches training code structure
+# ==============================================================================
+class SegmentationModule2ndStage(pl.LightningModule):
+    """
+    Lightning module matching training code structure.
+    Uses self.model to match checkpoint keys.
+    """
+
+    def __init__(
+            self,
+            in_channels=2,
+            out_channels=2,
+            channels=(32, 64, 128, 256, 320, 320),
+            strides=(1, 2, 2, 2, 2, 2),
+            **kwargs  # Accept extra hparams from checkpoint
+    ):
+        super().__init__()
+        self.save_hyperparameters()
+
+        n_blocks = kwargs.get('n_blocks_per_stage', (1, 3, 4, 6, 6, 6))
+        use_ds = kwargs.get('use_deep_supervision', False)
+
+        self.model = create_residual_unet(
+            in_channels=in_channels,
+            out_channels=out_channels,
+            channels=channels,
+            strides=strides,
+            n_blocks_per_stage=n_blocks,
+            deep_supervision=use_ds
+        )
+
+    def forward(self, x):
+        return self.model(x)
+
+
 class CFG:
     # Data directories
     TEST_IMG_DIR = Path("data/vesuvius-challenge-surface-detection/train_images")
@@ -223,6 +261,8 @@ class CFG:
 
     # Model ensemble settings
     THRESHOLD = 0.3
+    THRESHOLD_1ST_STAGE = 0.3
+    THRESHOLD_2ND_STAGE = 0.5
 
     # Output settings
     OUTPUT_DIR = Path("./data/prob_predictions")
@@ -386,18 +426,47 @@ def get_tta_transforms():
     return transforms
 
 
-def load_models_simple(model_paths, device):
-    """Load models using Lightning's built-in checkpoint loading."""
+def load_models_simple(model_paths):
+    """Load models using Lightning's built-in checkpoint loading, handling EMA weights."""
     models = []
-    for path in model_paths:
+    for (path, device) in model_paths:
         print(f"Loading: {path}")
-        # Lightning handles hyperparameters automatically
-        # Force offline/backbone weights to avoid internet downloads
+
+        # First, load the checkpoint to check for EMA weights
+        checkpoint = torch.load(path, map_location=device)
+        state_dict = checkpoint.get('state_dict', checkpoint)
+
+        # Check if checkpoint has EMA weights
+        has_ema = any(k.startswith('ema.module.') for k in state_dict.keys())
+        use_ema_hparam = checkpoint.get('hyper_parameters', {}).get('use_ema', False)
+
+        # Create model from checkpoint
         model = SegmentationModule.load_from_checkpoint(
             path,
             map_location=device,
-            pretrained_backbone=False,  # ensure timm does not download
+            pretrained_backbone=False,  # ensure no downloads
+            strict=False
         )
+
+        # If EMA weights exist, extract and load them into model
+        if has_ema:
+            print(f"  Found EMA weights in checkpoint, extracting...")
+            ema_state_dict = {}
+            for k, v in state_dict.items():
+                if k.startswith('ema.module.'):
+                    # Remove 'ema.module.' prefix to get 'model.*' key
+                    new_key = 'model.' + k[len('ema.module.'):]
+                    ema_state_dict[new_key] = v
+
+            # Load EMA weights into the model
+            missing, unexpected = model.load_state_dict(ema_state_dict, strict=False)
+            if missing:
+                # Filter out non-model keys from missing (like loss functions, etc.)
+                model_missing = [k for k in missing if k.startswith('model.')]
+                if model_missing:
+                    print(f"  Warning: Missing EMA keys: {model_missing[:5]}...")
+            print(f"  ✓ Loaded EMA weights into model")
+
         model.to(device)
         model.eval()
 
@@ -407,11 +476,76 @@ def load_models_simple(model_paths, device):
         if model_type == 'flex_unet':
             backbone = getattr(model.hparams, 'backbone', 'resnet18')
             print(f"  Backbone: {backbone}")
+        if has_ema or use_ema_hparam:
+            print(f"  ✓ Using EMA weights for inference")
+        else:
+            print(f"  Standard weights (no EMA)")
+        print(f"  ✓ Loaded successfully")
 
         models.append(model)
-        print(f"  ✓ Loaded successfully")
     print(f"\n✓ Total models loaded: {len(models)}")
     return models
+
+
+def load_models_2nd_stage(model_paths, device):
+    """Load models using Lightning's built-in checkpoint loading, handling EMA weights."""
+    models = []
+    for path in model_paths:
+        print(f"Loading: {path}")
+
+        # First, load the checkpoint to check for EMA weights
+        checkpoint = torch.load(path, map_location=device)
+        state_dict = checkpoint.get('state_dict', checkpoint)
+
+        # Check if checkpoint has EMA weights
+        has_ema = any(k.startswith('ema.module.') for k in state_dict.keys())
+        use_ema_hparam = checkpoint.get('hyper_parameters', {}).get('use_ema', False)
+
+        # Create model from checkpoint
+        model = SegmentationModule2ndStage.load_from_checkpoint(
+            path,
+            map_location=device,
+            strict=False
+        )
+
+        # If EMA weights exist, extract and load them into model
+        if has_ema:
+            print(f"  Found EMA weights in checkpoint, extracting...")
+            ema_state_dict = {}
+            for k, v in state_dict.items():
+                if k.startswith('ema.module.'):
+                    # Remove 'ema.module.' prefix to get 'model.*' key
+                    new_key = 'model.' + k[len('ema.module.'):]
+                    ema_state_dict[new_key] = v
+
+            # Load EMA weights into the model
+            missing, unexpected = model.load_state_dict(ema_state_dict, strict=False)
+            if missing:
+                # Filter out non-model keys from missing (like loss functions, etc.)
+                model_missing = [k for k in missing if k.startswith('model.')]
+                if model_missing:
+                    print(f"  Warning: Missing EMA keys: {model_missing[:5]}...")
+            print(f"  ✓ Loaded EMA weights into model")
+
+        model.to(device)
+        model.eval()
+
+        # Print model info
+        model_type = getattr(model.hparams, 'model_type', 'unet')
+        print(f"  Model type: {model_type}")
+        if model_type == 'flex_unet':
+            backbone = getattr(model.hparams, 'backbone', 'resnet18')
+            print(f"  Backbone: {backbone}")
+        if has_ema or use_ema_hparam:
+            print(f"  ✓ Using EMA weights for inference")
+        else:
+            print(f"  Standard weights (no EMA)")
+        print(f"  ✓ Loaded successfully")
+
+        models.append(model)
+    print(f"\n✓ Total models loaded: {len(models)}")
+    return models
+
 
 
 class InferenceDataset(Dataset):
@@ -454,22 +588,51 @@ def custom_collate_fn(batch):
 
 
 @torch.no_grad()
-def predict_volume_sliding_window(models, volume_tensor, device, use_tta=False):
+def _predict_single_model_worker(model, volume_tensor, target_device, inferer, tta_transforms):
     """
-    Predict using ensemble of models with sliding window inference and optional TTA.
+    Worker function to run inference for a single model on a specific GPU.
+    """
+    # 1. Move model to the assigned GPU
+    # model.to(target_device)
+    model.eval()
 
+    tta_predictions = []
+
+    # 2. Run TTA Loop (Same logic as original)
+    for flip_dims, rotation_k in tta_transforms:
+        transformed_volume = apply_tta_transform(volume_tensor, flip_dims, rotation_k)
+
+        # Move data to the SAME device as the model
+        transformed_volume = transformed_volume.to(target_device)
+
+        with torch.amp.autocast(device_type='cuda'):
+            logits = inferer(transformed_volume, model)
+
+        if isinstance(logits, (list, tuple)):
+            logits = logits[0]
+
+        probs = torch.softmax(logits, dim=1)[:, 1]
+        probs = probs.squeeze(0).cpu().numpy()  # Move result back to CPU immediately
+
+        probs_reversed = reverse_tta_transform(probs, flip_dims, rotation_k)
+        tta_predictions.append(probs_reversed)
+
+        del transformed_volume, logits, probs
+        # Optional: Empty cache only if strictly necessary to avoid synchronization overhead
+        # torch.cuda.empty_cache()
+
+    # Average TTA predictions for this specific model
+    return np.mean(tta_predictions, axis=0)
+
+
+@torch.no_grad()
+def predict_volume_sliding_window(models, volume_tensor, devices, use_tta=False):
+    """
     Args:
-        models: List of models
-        volume_tensor: Input volume tensor (1, 1, D, H, W)
-        device: Device to run inference on
-        use_tta: Whether to use test-time augmentation
-
-    Returns:
-        Ensemble prediction probability map (D, H, W)
+        models: List of models (e.g., [model_A, model_B])
+        devices: List of devices to use (e.g., ['cuda:0', 'cuda:1'])
     """
-    all_predictions = []
-
-    # Create sliding window inferer
+    # Create shared inferer (stateless)
     inferer = SlidingWindowInferer(
         roi_size=CFG.ROI_SIZE,
         sw_batch_size=CFG.SW_BATCH_SIZE,
@@ -478,45 +641,35 @@ def predict_volume_sliding_window(models, volume_tensor, device, use_tta=False):
         padding_mode=CFG.PADDING_MODE,
     )
 
-    # Get TTA transforms
     tta_transforms = get_tta_transforms() if use_tta else [(None, 0)]
 
-    # Get predictions from each model
-    for i, model in enumerate(models):
-        model.eval()
+    # Ensure volume is on CPU initially to avoid GPU-to-GPU copies
+    volume_tensor = volume_tensor.cpu()
 
-        # TTA loop
-        tta_predictions = []
-        for flip_dims, rotation_k in tta_transforms:
-            # Apply TTA transform
-            transformed_volume = apply_tta_transform(volume_tensor, flip_dims, rotation_k)
+    future_results = []
 
-            # Move volume to device
-            transformed_volume = transformed_volume.to(device)
+    # 3. Execute in Parallel
+    with ThreadPoolExecutor(max_workers=len(devices)) as executor:
+        for i, model in enumerate(models):
+            # Assign model to a device in round-robin fashion
+            assigned_device = devices[i % len(devices)]
 
-            # Run sliding window inference
-            with torch.amp.autocast(device_type='cuda' if 'cuda' in device else 'cpu'):
-                logits = inferer(transformed_volume, model)  # (1, 2, D, H, W) or list/tuple for deep supervision
-            # deep supervision
-            if isinstance(logits, (list, tuple)):
-                logits = logits[0]
-            # Apply softmax and get class 1 probability
-            probs = torch.softmax(logits, dim=1)[:, 1]  # (1, D, H, W)
-            probs = probs.squeeze(0).cpu().numpy()  # (D, H, W)
+            # Submit task to thread pool
+            future = executor.submit(
+                _predict_single_model_worker,
+                model,
+                volume_tensor,
+                assigned_device,
+                inferer,
+                tta_transforms
+            )
+            future_results.append(future)
 
-            # Reverse TTA transform
-            probs_reversed = reverse_tta_transform(probs, flip_dims, rotation_k)
-            tta_predictions.append(probs_reversed)
+    # 4. Gather Results
+    # .result() blocks until the specific thread is finished
+    all_predictions = [f.result() for f in future_results]
 
-            # Free memory
-            del transformed_volume, logits, probs
-            torch.cuda.empty_cache() if torch.cuda.is_available() else None
-
-        # Average TTA predictions for this model
-        model_pred = np.mean(tta_predictions, axis=0)
-        all_predictions.append(model_pred)
-
-    # Ensemble: average predictions from all models
+    # Ensemble averaging
     if len(all_predictions) > 1:
         ensemble_pred = np.mean(all_predictions, axis=0)
     else:
@@ -531,11 +684,13 @@ def predict_volume_sliding_window(models, volume_tensor, device, use_tta=False):
 # ==============================================================================
 
 MODEL_PATHS = [
-    './models/best-epoch369-val_loss0.3769-val_dice0.5727.ckpt', #fold0
-    './models/best-epoch=319-val_loss=0.3839-val_dice=0.5731.ckpt', #fold1
-    './models/best-epoch=419-val_loss=0.3670-val_dice=0.5841.ckpt', #fold2
-    './models/best-epoch=349-val_loss=0.3495-val_dice=0.6044.ckpt', #fold3
-    './models/best-epoch=294-val_loss=0.3704-val_dice=0.5835.ckpt', #fold4
+    ("/kaggle/input/vesuvius-sergio-models/resUnet-ema-fold0/best-epoch449-val_loss0.3746-val_dice0.5755.ckpt", "cuda"),
+    ("/kaggle/input/vesuvius-sergio-models/fold0_4loss_new_dataset/best-epoch369-val_loss0.3769-val_dice0.5727.ckpt", "cuda")
+]
+
+
+MODEL_PATHS_2ND_STAGE = [
+    "./models/2nd_stage_best-epoch104-val_dice0.5820-val_loss0.3709.ckpt"
 ]
 
 def main():
@@ -544,7 +699,8 @@ def main():
 
     for i in range(3,5):
         print(f'fold {i}.......')
-        models = load_models_simple([MODEL_PATHS[i]], CFG.DEVICE) if MODEL_PATHS else []
+        models_1st_stage = load_models_simple(MODEL_PATHS)
+        models_2nd_stage = load_models_2nd_stage(MODEL_PATHS_2ND_STAGE, CFG.DEVICE)
         selected_ids = [str(x) for x in val_splits[i]['val']]
 
         # Get test image files (.tif files)
@@ -565,18 +721,10 @@ def main():
             test_files = []
 
         # Run inference and save predictions directly to .tif files
-        if len(test_files) > 0 and len(models) > 0:
+        if len(test_files) > 0:
             # Create dataset and dataloader
             test_dataset = InferenceDataset(test_files)
             test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=0, collate_fn=custom_collate_fn)
-
-            tta_status = "WITH TTA" if CFG.USE_TTA else "(no TTA)"
-            print(f"\nRunning inference with sliding window {tta_status}...\n")
-
-            if CFG.USE_TTA:
-                tta_count = len(get_tta_transforms())
-                print(f"Using {tta_count} TTA transforms per model")
-                print(f"Total predictions per volume: {len(models)} models × {tta_count} TTA = {len(models) * tta_count}\n")
 
             for batch in tqdm(test_loader, desc="Processing volumes"):
                 volume = batch['volume']  # (1, 1, D, H, W)
@@ -584,15 +732,37 @@ def main():
                 filename = batch['filename'][0]
                 scroll_id = filename.replace('.tif', '')
 
-                # Get ensemble prediction using sliding window (with optional TTA)
-                ensemble_pred = predict_volume_sliding_window(models, volume, CFG.DEVICE, use_tta=CFG.USE_TTA)
+                # ------------------
+                # 1st stage inference
+                # ------------------
+                first_stage_probs = predict_volume_sliding_window(
+                    models_1st_stage,
+                    volume,
+                    devices=["cuda:0", "cuda:1"],
+                    use_tta=CFG.USE_TTA
+                )
 
-                np.savez_compressed(CFG.OUTPUT_DIR/f"{scroll_id}.npz", prob = ensemble_pred)
+                # # Binarize 1st stage output for 2nd stage input
+                first_stage_binary = (first_stage_probs > CFG.THRESHOLD_1ST_STAGE).astype(np.float32)
+
+                # ------------------
+                # 2nd stage inference
+                # ------------------
+                first_stage_binary_tensor = torch.from_numpy(first_stage_binary).unsqueeze(0).unsqueeze(0)
+                to_second_stage_pred = first_stage_binary_tensor
+                volume_2ch = torch.cat([volume, to_second_stage_pred], dim=1)
+                second_stage_probs = predict_volume_sliding_window(
+                    models_2nd_stage,
+                    volume_2ch,
+                    devices=["cuda:0", "cuda:1"],
+                    use_tta=False
+                )
+
+                np.savez_compressed(CFG.OUTPUT_DIR/f"{scroll_id}.npz", prob = second_stage_probs.astype('float16'))
 
                 # Free memory
-                del ensemble_pred
+                del second_stage_probs
                 torch.cuda.empty_cache() if torch.cuda.is_available() else None
-
 
 if __name__ == '__main__':
     main()

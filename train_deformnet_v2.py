@@ -17,7 +17,7 @@ from src.models.deformNet3d import *
 from src.trainers.deformSegTrainer import *
 import torch.multiprocessing as mp
 mp.set_start_method("spawn", force=True)
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 
 
 def set_seed(seed=42):
