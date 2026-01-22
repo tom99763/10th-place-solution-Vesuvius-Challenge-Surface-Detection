@@ -103,18 +103,26 @@ class CustomUNet(nn.Module):
 
         self.structure_enc = StructureCode3D(TEMPLATE_CODES_3D)
 
+        # Project structure channels to match encoder skip channels
+        skip_channels = base_channels[:-1]  # encoder skips
+        struct_channels = len(TEMPLATE_CODES_3D)
+        self.struct_projections = nn.ModuleList([
+            nn.Conv3d(struct_channels, c, kernel_size=1)
+            for c in skip_channels
+        ])
+
     def forward(self, x, prob_map):
         """
         x        : (B,C,D,H,W)
         prob_map : (B,1,D,H,W)
         """
-
         skips = self.backbone.encoder(x)
         new_skips = []
 
-        for skip in skips:
+        for i, skip in enumerate(skips):
             _, _, D, H, W = skip.shape
 
+            # Resize probability map to match skip resolution
             prob_resized = F.interpolate(
                 prob_map,
                 size=(D, H, W),
@@ -122,7 +130,15 @@ class CustomUNet(nn.Module):
                 align_corners=False
             )
 
+            # Compute structure codes
             struct = self.structure_enc(prob_resized)
-            new_skips.append(torch.cat([skip, struct], dim=1))
 
+            # Project structure channels to match skip channels
+            struct_proj = self.struct_projections[i](struct)
+
+            # Safe concatenation
+            new_skip = skip + struct_proj
+            new_skips.append(new_skip)
+
+        # Pass to decoder
         return self.backbone.decoder(new_skips)
