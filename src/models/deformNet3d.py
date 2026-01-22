@@ -184,7 +184,7 @@ class DeformDynUnetV2(nn.Module):
         self.cfg = cfg
         if cfg.custom:
             self.predictor = CustomUNet(
-                in_channels=2,
+                in_channels=3,
                 out_channels=4
             )
         else:
@@ -196,10 +196,11 @@ class DeformDynUnetV2(nn.Module):
         self.topofix = TopoFix(max_offset=cfg.max_topo_offset)
 
     def forward(self, x, return_params=False):
-        if self.cfg.custom:
-            raw = self.predictor(x[:, :-1], x[:, -1:])
-        else:
-            raw = self.predictor(x)
+        # if self.cfg.custom:
+        #     raw = self.predictor(x[:, :-1], x[:, -1:])
+        # else:
+        #     raw = self.predictor(x)
+        raw = self.predictor(x)
         raw_v = raw[:, :3]
         raw_t = raw[:, 3:4]
 
