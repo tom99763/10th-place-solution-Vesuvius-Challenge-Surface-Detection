@@ -290,7 +290,7 @@ class ICDiffeoRefineModule(DiffeoRefineModule):
     # TRAINING STEP (override)
     # ----------------------------------------
     def training_step(self, batch, batch_idx):
-        vol, mask, mask_oof, skel = (
+        vol, mask, prob_mask_oof, skel = (
             batch["Image"],
             batch["Mask"],
             batch["Mask_OOF"],
@@ -298,14 +298,16 @@ class ICDiffeoRefineModule(DiffeoRefineModule):
         )
 
         # --- augment OOF mask ---
-        if self.cfg.is_prob_oof_mask:
-            threshold = torch.empty(1, device=mask_oof.device).uniform_(0.1, 0.5)
-            mask_oof = (mask_oof > threshold).float()
+        threshold = torch.empty(1, device=prob_mask_oof.device).uniform_(0.1, 0.5)
+        mask_oof = (prob_mask_oof > threshold).float()
 
         if self.cfg.apply_gaussian:
             mask_oof = gaussian_blur_3d(mask_oof, self.cfg.kernel_size, self.cfg.sigma)
 
-        x = torch.cat([vol, mask_oof], dim=1)
+        if self.cfg.custom:
+            x = torch.cat([vol, mask_oof, prob_mask_oof], dim=1)
+        else:
+            x = torch.cat([vol, mask_oof], dim=1)
 
         # ---------------- IC forward ----------------
         pred_warped, phis, final_phi = self(x, return_params=True)
@@ -398,7 +400,7 @@ class DiffeoRefineModuleV2(DiffeoRefineModule):
     # TRAINING STEP (V2)
     # -----------------------------
     def training_step(self, batch, batch_idx):
-        vol, mask, mask_oof, skel = (
+        vol, mask, prob_mask_oof, skel = (
             batch["Image"],
             batch["Mask"],
             batch["Mask_OOF"],
@@ -406,17 +408,20 @@ class DiffeoRefineModuleV2(DiffeoRefineModule):
         )
 
         # ---- OOF augmentation ----
-        if self.cfg.is_prob_oof_mask:
-            threshold = 0.3 + torch.randn(1, device=mask_oof.device) * 0.05
-            threshold = torch.clamp(threshold, 0.1, 0.5)
-            mask_oof = (mask_oof > threshold).float()
+        threshold = 0.3 + torch.randn(1, device=prob_mask_oof.device) * 0.05
+        threshold = torch.clamp(threshold, 0.1, 0.5)
+        mask_oof = (prob_mask_oof > threshold).float()
+
 
         if self.cfg.apply_gaussian:
             mask_oof = gaussian_blur_3d(
                 mask_oof, self.cfg.kernel_size, self.cfg.sigma
             )
 
-        x = torch.cat([vol, mask_oof], dim=1)
+        if self.cfg.custom:
+            x = torch.cat([vol, mask_oof, prob_mask_oof], dim=1)
+        else:
+            x = torch.cat([vol, mask_oof], dim=1)
 
         # ---------------- forward ----------------
         corrected, v, phi, t = self(x, return_params=True)

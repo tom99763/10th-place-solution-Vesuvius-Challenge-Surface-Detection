@@ -5,7 +5,7 @@ import torch.nn.functional as F
 from hydra.utils import instantiate
 from dynamic_network_architectures.architectures.unet import ResidualEncoderUNet
 
-from src.models.CNNTransformer import CustomUNet
+from src.models.custom_architecture import CustomUNet
 
 
 # Diffeo exponentiation and warper (same as before)
@@ -181,6 +181,7 @@ class TopoFix(nn.Module):
 class DeformDynUnetV2(nn.Module):
     def __init__(self, cfg):
         super().__init__()
+        self.cfg = cfg
         if cfg.custom:
             self.predictor = CustomUNet(
                 in_channels=2,
@@ -195,7 +196,10 @@ class DeformDynUnetV2(nn.Module):
         self.topofix = TopoFix(max_offset=cfg.max_topo_offset)
 
     def forward(self, x, return_params=False):
-        raw = self.predictor(x)
+        if self.cfg.custom:
+            raw = self.predictor(x[:, :-1], x[:, -1:])
+        else:
+            raw = self.predictor(x)
         raw_v = raw[:, :3]
         raw_t = raw[:, 3:4]
 
