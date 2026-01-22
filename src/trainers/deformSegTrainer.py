@@ -155,17 +155,18 @@ class DiffeoRefineModule(pl.LightningModule):
     #     return None
 
     def validation_step(self, batch, batch_idx):
-        vol, mask, mask_oof = batch['Image'], batch['Mask'], batch['Mask_OOF']
+        vol, mask, prob_mask_oof = batch['Image'], batch['Mask'], batch['Mask_OOF']
+
+        mask_oof = (prob_mask_oof > 0.3).float()
+
         if self.cfg.apply_gaussian:
-            x = torch.cat([vol, gaussian_blur_3d(mask_oof, self.cfg.kernel_size, self.cfg.sigma)], dim=1)
+            mask_oof  = gaussian_blur_3d(mask_oof, self.cfg.kernel_size, self.cfg.sigma)
+
+        if self.cfg.custom:
+            x = torch.cat([vol, mask_oof, prob_mask_oof], dim=1)
         else:
             x = torch.cat([vol, mask_oof], dim=1)
 
-        # if self.current_epoch != 0:
-        #     prediction = self.sliding_window_inferer(x, self.model)
-        #     prediction = prediction > self.cfg.threshold
-        # else:
-        #     prediction = mask_oof
 
         prediction = self.sliding_window_inferer(x, self.model)
         prediction = prediction > self.cfg.threshold
