@@ -44,7 +44,7 @@ class RefineDynUnet(nn.Module):
         super().__init__()
         self.cfg = cfg
         self.predictor = create_residual_unet(
-            in_channels=2,
+            in_channels=3,
             out_channels=2
         )
     def forward(self, x):

@@ -141,18 +141,9 @@ class RefineNetModule(pl.LightningModule):
         return {'loss': loss, 'loss_ce': loss_ce, 'loss_dice': loss_dice,
                 'loss_surf_dice': loss_surf_dice, 'loss_skel': loss_skel}
 
-    def _log_losses(self, prefix, losses, on_step=False):
-        """Log loss components and metrics."""
-        self.log(f'{prefix}/loss', losses['loss'],
-                 on_step=on_step, on_epoch=True, prog_bar=True)
-        self.log(f'{prefix}/loss_ce',
-                 losses['loss_ce'], on_step=False, on_epoch=True)
-        self.log(f'{prefix}/loss_dice',
-                 losses['loss_dice'], on_step=False, on_epoch=True)
-        self.log(f'{prefix}/loss_surf_dice',
-                 losses['loss_surf_dice'], on_step=False, on_epoch=True)
-        self.log(f'{prefix}/loss_skel',
-                 losses['loss_skel'], on_step=False, on_epoch=True)
+    def _mask_from_logits(self, logits):
+        # logits: (B, 2, D, H, W)
+        return torch.softmax(logits, dim=1)[:, 1:2]
 
     def training_step(self, batch, batch_idx):
         vol, mask, prob_mask_oof, skel = (
@@ -161,12 +152,29 @@ class RefineNetModule(pl.LightningModule):
             batch["Mask_OOF"],
             batch["Skel"],
         )
-        mask_oof = (prob_mask_oof > 0.3).float()
-        x = torch.cat([vol, mask_oof], dim=1)
-        logits = self(x)
-        losses = self._compute_single_scale_loss(logits, mask, skel)
-        self._log_losses('train', losses, on_step=True)
-        return None
+        p = prob_mask_oof
+        p_prev = torch.zeros_like(p)  # previous-step residual
+
+        total_loss = 0.0
+        all_losses = []
+
+        for t in range(self.cfg.n_refine_steps):
+            x = torch.cat([vol, p, p - p_prev], dim=1)
+
+            logits = self.model(x)
+            skel_step = skel if (t == self.cfg.n_refine_steps - 1) else None
+            losses = self._compute_single_scale_loss(logits, mask, skel_step)
+            step_weight = 1.0 / self.cfg.n_refine_steps
+            total_loss += step_weight * losses["loss"]
+
+            all_losses.append(losses)
+            with torch.no_grad() if self.cfg.detach_between_steps else torch.enable_grad():
+                p_prev = p
+                p = self._mask_from_logits(logits)
+
+        self.log("train/loss", total_loss, prog_bar=True, on_epoch=True)
+        self._log_losses("train_last", all_losses[-1], on_step=True)
+        return total_loss
 
     def validation_step(self, batch, batch_idx):
         vol, mask, prob_mask_oof, skel = (
@@ -175,22 +183,28 @@ class RefineNetModule(pl.LightningModule):
             batch["Mask_OOF"],
             batch["Skel"],
         )
+        p = prob_mask_oof
+        p_prev = torch.zeros_like(p)
+
+        model = self.ema.module if self.ema is not None else self.model
+
+        for _ in range(self.cfg.n_refine_steps):
+            x = torch.cat([vol, p, p - p_prev], dim=1)
+            logits = self.sliding_window_inferer(x, model)
+
+            p_prev = p
+            p = self._mask_from_logits(logits)
+        prediction = (p > self.cfg.threshold).long()
         valid_mask = mask != self.cfg.ignore_label
-
-        mask_oof = (prob_mask_oof > 0.3).float()
-        x = torch.cat([vol, mask_oof], dim=1)
-        prediction = self.sliding_window_inferer(x, self.model)
-        prediction = prediction.argmax(dim=1, keepdims=True) * valid_mask
+        prediction *= valid_mask
         mask *= valid_mask
-
-        # print(prediction)
-        score = calc_score(mask.cpu().numpy()[0, 0], prediction.cpu().numpy()[0, 0])
-        self.val_num_samples += x.shape[0]
+        score = calc_score(mask.cpu().numpy()[0, 0],
+                           prediction.cpu().numpy()[0, 0])
+        self.val_num_samples += vol.shape[0]
         self.scores.append(score.score)
         self.topo_scores.append(score.topo.toposcore)
         self.voi_scores.append(score.voi.voi_score)
         self.surface_scores.append(score.surface_dice)
-        return None
 
     def on_before_zero_grad(self, optimizer):
         """Update EMA after optimizer step, before zeroing gradients."""

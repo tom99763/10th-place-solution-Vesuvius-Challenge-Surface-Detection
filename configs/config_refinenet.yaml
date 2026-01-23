@@ -26,6 +26,8 @@ ema_decay: 0.999
 ema_warmup: 1000
 ignore_index: 2
 surface_dice_iterations: 5
+n_refine_steps: 3
+detach_between_steps: true
 
 defaults:
   - models: refine_dynunet
