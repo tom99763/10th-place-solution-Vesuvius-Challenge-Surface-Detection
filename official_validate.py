@@ -65,7 +65,7 @@ warnings.filterwarnings("ignore")
 os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 
 # -------------
-# Deformnet
+# configuration
 # -------------
 deformnet_ckpt_paths = [
     ('./models/deform-dynunet-v2-k3-s5-customFalse-fold0-epoch=19-val_bias_comp_metric=0.7012.ckpt', "cuda:0"),
@@ -85,6 +85,63 @@ closing_radius = 1
 alpha_loop = 0.6
 device = "cuda:0"
 
+
+class CFG:
+    # Data directories
+    TEST_IMG_DIR = Path("data/vesuvius-challenge-surface-detection/train_images")
+    MODEL_DIR = Path("")
+
+    # Inference settings - sliding window
+    ROI_SIZE = (160, 160, 160)  # Sliding window ROI size
+    SW_BATCH_SIZE = 1  # Batch size for sliding window
+    OVERLAP = 0.5  # Overlap ratio for sliding window
+    SW_MODE = "gaussian"  # Mode: "constant", "gaussian"
+    PADDING_MODE = "reflect"  # Padding mode
+
+    # TTA settings
+    USE_TTA = True  # Enable Test-Time Augmentation
+    TTA_FLIPS = True  # Use flip augmentations
+    TTA_ROTATIONS = True  # Use 90-degree rotations (warning: slower and memory intensive)
+
+    # Model ensemble settings
+    THRESHOLD = 0.3
+    THRESHOLD_1ST_STAGE = 0.3
+    THRESHOLD_2ND_STAGE = 0.5
+
+    # Output settings
+    OUTPUT_DIR = Path("./data/prob_predictions")
+    SAVE_VISUALIZATIONS = True  # Set to True to save visualization images
+
+    # Post-processing settings
+    USE_POST_PROCESSING = False  # Enable mesh-based post-processing
+    POST_PROCESS_MIN_CC_VOLUME = 3000  # Minimum connected component volume to keep
+
+    # Device
+    DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+
+
+# Create output directories
+CFG.OUTPUT_DIR.mkdir(exist_ok=True, parents=True)
+(CFG.OUTPUT_DIR / "submission_tifs").mkdir(exist_ok=True, parents=True)
+
+print(f"Device: {CFG.DEVICE}")
+print(f"Threshold: {CFG.THRESHOLD}")
+print(f"ROI Size: {CFG.ROI_SIZE}")
+print(f"Overlap: {CFG.OVERLAP}")
+print(f"Mode: {CFG.SW_MODE}")
+print(f"TTA Enabled: {CFG.USE_TTA}")
+if CFG.USE_TTA:
+    print(f"  - Flips: {CFG.TTA_FLIPS}")
+    print(f"  - Rotations: {CFG.TTA_ROTATIONS}")
+print(f"Post-processing: {CFG.USE_POST_PROCESSING}")
+if CFG.USE_POST_PROCESSING:
+    print(f"  - Min CC Volume: {CFG.POST_PROCESS_MIN_CC_VOLUME}")
+print(f"Visualizations: {CFG.SAVE_VISUALIZATIONS}")
+
+
+# -------------
+# Deformnet
+# -------------
 
 def load_model_from_checkpoint(model, ckpt_path):
     ckpt = torch.load(ckpt_path, weights_only=False)
@@ -495,58 +552,6 @@ class SegmentationModule2ndStage(pl.LightningModule):
     def forward(self, x):
         return self.model(x)
 
-
-class CFG:
-    # Data directories
-    TEST_IMG_DIR = Path("data/vesuvius-challenge-surface-detection/train_images")
-    MODEL_DIR = Path("")
-
-    # Inference settings - sliding window
-    ROI_SIZE = (160, 160, 160)  # Sliding window ROI size
-    SW_BATCH_SIZE = 1  # Batch size for sliding window
-    OVERLAP = 0.5  # Overlap ratio for sliding window
-    SW_MODE = "gaussian"  # Mode: "constant", "gaussian"
-    PADDING_MODE = "reflect"  # Padding mode
-
-    # TTA settings
-    USE_TTA = True  # Enable Test-Time Augmentation
-    TTA_FLIPS = True  # Use flip augmentations
-    TTA_ROTATIONS = True  # Use 90-degree rotations (warning: slower and memory intensive)
-
-    # Model ensemble settings
-    THRESHOLD = 0.3
-    THRESHOLD_1ST_STAGE = 0.3
-    THRESHOLD_2ND_STAGE = 0.5
-
-    # Output settings
-    OUTPUT_DIR = Path("./data/prob_predictions")
-    SAVE_VISUALIZATIONS = True  # Set to True to save visualization images
-
-    # Post-processing settings
-    USE_POST_PROCESSING = False  # Enable mesh-based post-processing
-    POST_PROCESS_MIN_CC_VOLUME = 3000  # Minimum connected component volume to keep
-
-    # Device
-    DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-
-
-# Create output directories
-CFG.OUTPUT_DIR.mkdir(exist_ok=True, parents=True)
-(CFG.OUTPUT_DIR / "submission_tifs").mkdir(exist_ok=True, parents=True)
-
-print(f"Device: {CFG.DEVICE}")
-print(f"Threshold: {CFG.THRESHOLD}")
-print(f"ROI Size: {CFG.ROI_SIZE}")
-print(f"Overlap: {CFG.OVERLAP}")
-print(f"Mode: {CFG.SW_MODE}")
-print(f"TTA Enabled: {CFG.USE_TTA}")
-if CFG.USE_TTA:
-    print(f"  - Flips: {CFG.TTA_FLIPS}")
-    print(f"  - Rotations: {CFG.TTA_ROTATIONS}")
-print(f"Post-processing: {CFG.USE_POST_PROCESSING}")
-if CFG.USE_POST_PROCESSING:
-    print(f"  - Min CC Volume: {CFG.POST_PROCESS_MIN_CC_VOLUME}")
-print(f"Visualizations: {CFG.SAVE_VISUALIZATIONS}")
 
 
 def load_array(path, fmt):
