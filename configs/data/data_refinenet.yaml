@@ -1,0 +1,96 @@
+transforms:
+  train:
+    - EnsureChannelFirstd:
+        keys: ["Image", "Mask", "Mask_OOF", "Skel"]
+        channel_dim: "no_channel"
+
+    - EnsureTyped:
+        keys: ["Image", "Mask", "Mask_OOF", "Skel"]
+        dtype: float32
+
+    - ScaleIntensityRanged:
+        keys: ["Image"]
+        a_min: 0.0
+        a_max: 213.0
+        b_min: -5.0
+        b_max: 5.0
+        clip: true
+
+    - RandCropByPosNegLabeld:
+        keys: ["Image", "Mask", "Mask_OOF", "Skel"]
+        label_key: "Mask"
+        spatial_size: ${input_size}
+        pos: 2
+        neg: 0
+        num_samples: 2
+        image_key: "Image"
+        image_threshold: 0.0
+
+    - RandAffined:
+        keys: [ "Image", "Mask", "Mask_OOF", "Skel" ]
+        prob: 0.3
+        rotate_range: [ 0.05, 0.05, 0.05 ]   # radians (~3°)
+        shear_range: [ 0.02, 0.02, 0.02 ]
+        scale_range: [ 0.05, 0.05, 0.05 ]
+        translate_range: [ 3, 3, 3 ]
+        mode: [ "bilinear", "nearest", "bilinear", "nearest" ]
+        padding_mode: "border"
+
+    - RandCoarseDropoutdWithRanges:
+        keys: [ "Mask_OOF" ]
+        prob: 0.2
+        holes_range: [ 8, 12 ]
+        spatial_size_range: [ 10, 30 ]
+        fill_value: 0.0
+
+    # --------------------------------------------------
+    # 9. Final tensor conversion
+    # --------------------------------------------------
+    - ToTensord:
+        keys: ["Image", "Mask", "Mask_OOF", "Skel"]
+
+  # ==================================================
+  # VALIDATION (no geometry corruption)
+  # ==================================================
+  val:
+    - EnsureChannelFirstd:
+        keys: ["Image", "Mask", "Mask_OOF", "Skel"]
+        channel_dim: "no_channel"
+
+    - EnsureTyped:
+        keys: ["Image", "Mask", "Mask_OOF", "Skel"]
+        dtype: float32
+
+    - ScaleIntensityRanged:
+        keys: ["Image"]
+        a_min: 0.0
+        a_max: 213.0
+        b_min: -5.0
+        b_max: 5.0
+        clip: true
+
+    - ToTensord:
+        keys: ["Image", "Mask", "Mask_OOF", "Skel"]
+
+  # ==================================================
+  # TEST (image + noisy mask only)
+  # ==================================================
+  test:
+    - EnsureChannelFirstd:
+        keys: ["Image", "Mask_OOF"]
+        channel_dim: "no_channel"
+
+    - EnsureTyped:
+        keys: ["Image", "Mask_OOF"]
+        dtype: float32
+
+    - ScaleIntensityRanged:
+        keys: ["Image"]
+        a_min: 0.0
+        a_max: 213.0
+        b_min: -5.0
+        b_max: 5.0
+        clip: true
+
+    - ToTensord:
+        keys: ["Image", "Mask_OOF"]
