@@ -9,7 +9,7 @@ import sys
 sys.path.append('../../')
 from cv import calc_score
 from monai.metrics import DiceMetric
-from utils import EMA
+from src.trainers.utils import EMA
 
 
 class RefineNetModule(pl.LightningModule):
@@ -17,8 +17,6 @@ class RefineNetModule(pl.LightningModule):
         super().__init__()
         self.model = model
         self.lr = cfg.lr
-        self.lambda_jac = cfg.lambda_jac
-        self.lambda_smooth = cfg.lambda_smooth
         self.cfg = cfg
 
         self.sliding_window_inferer = SlidingWindowInfererAdapt(
@@ -195,7 +193,7 @@ class RefineNetModule(pl.LightningModule):
             p_prev = p
             p = self._mask_from_logits(logits)
         prediction = (p > self.cfg.threshold).long()
-        valid_mask = mask != self.cfg.ignore_label
+        valid_mask = mask != self.cfg.ignore_index
         prediction *= valid_mask
         mask *= valid_mask
         score = calc_score(mask.cpu().numpy()[0, 0],
@@ -254,27 +252,13 @@ class RefineNetModule(pl.LightningModule):
 
     def configure_optimizers(self):
         optimizer = torch.optim.AdamW(
-            self.parameters(),
-            lr=self.lr,
-            weight_decay=1e-2,
-        )
+            self.parameters(), lr=self.cfg.lr, weight_decay=self.cfg.weight_decay)
 
-        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-            optimizer,
-            mode="min",
-            factor=0.75,
-            patience=5,
-            threshold=1e-4,
-            cooldown=2,
-            min_lr=1e-4,
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+            optimizer, T_max=self.trainer.max_epochs, eta_min=1e-6
         )
 
         return {
-            "optimizer": optimizer,
-            "lr_scheduler": {
-                "scheduler": scheduler,
-                "monitor": "loss",
-                "interval": "epoch",
-                "frequency": 1,
-            },
+            'optimizer': optimizer,
+            'lr_scheduler': {'scheduler': scheduler, 'interval': 'epoch'}
         }

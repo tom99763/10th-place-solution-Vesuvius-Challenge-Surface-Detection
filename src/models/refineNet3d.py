@@ -7,16 +7,14 @@ from dynamic_network_architectures.architectures.unet import ResidualEncoderUNet
 
 from src.models.custom_architecture import CustomUNet
 
-
 def create_residual_unet(
         in_channels=2,
         out_channels=3,
-        channels=(32, 64, 128, 256, 320, 320),
+        channels=(16, 32, 64, 128, 160, 160),
         strides=(1, 2, 2, 2, 2, 2),
-        n_blocks_per_stage=(1, 3, 4, 6, 6, 6),
+        n_blocks_per_stage=(1, 2, 2, 3, 3, 3),
         deep_supervision=False,
 ):
-    # Number of stages in decoder is len(channels) - 1
     n_conv_per_stage_decoder = [1] * (len(channels) - 1)
 
     model = ResidualEncoderUNet(
@@ -48,4 +46,4 @@ class RefineDynUnet(nn.Module):
             out_channels=2
         )
     def forward(self, x):
-       return
+       return self.predictor(x)

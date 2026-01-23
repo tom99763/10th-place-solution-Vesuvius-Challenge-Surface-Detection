@@ -9,6 +9,7 @@ data_split_path: ./splits.json
 batch_size: 1
 num_workers: 4
 lr: 1e-3
+weight_decay: 1e-4
 offline: true
 fold_id: 0
 n_splits: 5
@@ -28,6 +29,7 @@ ignore_index: 2
 surface_dice_iterations: 5
 n_refine_steps: 3
 detach_between_steps: true
+overlap: 0.5
 
 defaults:
   - models: refine_dynunet

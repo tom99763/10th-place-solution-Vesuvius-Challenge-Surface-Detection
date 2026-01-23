@@ -16,6 +16,16 @@ transforms:
         b_max: 1.0
         clip: true
 
+    - RandCropByPosNegLabeld:
+        keys: [ "Image", "Mask", "Mask_OOF", "Skel" ]
+        label_key: "Mask"
+        spatial_size: ${input_size}
+        pos: 2
+        neg: 0
+        num_samples: 2
+        image_key: "Image"
+        image_threshold: 0.0
+
     # Spatial augmentations
     - RandFlipd:
         keys: [ "Image", "Mask", "Mask_OOF", "Skel" ]
@@ -43,12 +53,11 @@ transforms:
         max_zoom: 1.2
         mode: [ "bilinear","nearest","bilinear","nearest" ]
 
-    # Coarse dropout on OOF
-    - RandCoarseDropoutdWithRanges:
+    - RandCoarseDropoutd:
         keys: [ "Mask_OOF" ]
         prob: 0.2
-        holes_range: [ 8, 12 ]
-        spatial_size_range: [ 10, 30 ]
+        holes: 12
+        spatial_size: [15, 15, 15]
         fill_value: 0.0
 
     # Intensity augmentations (image only)
