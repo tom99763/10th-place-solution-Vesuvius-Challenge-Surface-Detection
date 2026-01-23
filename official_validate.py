@@ -39,6 +39,7 @@ from torch.utils.data import Dataset, DataLoader
 # Training / utilities
 from tqdm import tqdm
 import pytorch_lightning as pl
+from cv import *
 
 # MONAI
 from monai import transforms
@@ -67,10 +68,6 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 # -------------
 # configuration
 # -------------
-deformnet_ckpt_paths = [
-    ('./models/deform-dynunet-v2-k3-s5-customFalse-fold0-epoch=19-val_bias_comp_metric=0.7012.ckpt', "cuda:0"),
-    ('./models/deform-dynunet-v2-k3-s5-customFalse-fold1-epoch=34-val_bias_comp_metric=0.7526.ckpt', "cuda:1")
-]
 kernel_size0 = 3
 kernel_size1 = 3
 kernel_size2 = 3
@@ -113,7 +110,7 @@ class CFG:
     SAVE_VISUALIZATIONS = True  # Set to True to save visualization images
 
     # Post-processing settings
-    USE_POST_PROCESSING = False  # Enable mesh-based post-processing
+    USE_POST_PROCESSING = True  # Enable mesh-based post-processing
     POST_PROCESS_MIN_CC_VOLUME = 3000  # Minimum connected component volume to keep
 
     # Device
@@ -952,6 +949,10 @@ MODEL_PATHS_2ND_STAGE = [
     "./models/2nd_stage_best-epoch104-val_dice0.5820-val_loss0.3709.ckpt"
 ]
 
+deformnet_ckpt_paths = [
+    ('./models/deform-dynunet-v2-k3-s5-customFalse-fold0-epoch=19-val_bias_comp_metric=0.7012.ckpt', "cuda:0"),
+    ('./models/deform-dynunet-v2-k3-s5-customFalse-fold1-epoch=34-val_bias_comp_metric=0.7526.ckpt', "cuda:1")
+]
 
 def postprocess_mask_voxel(mask, min_cc_volume=3000, verbose=True):
     """
@@ -1002,6 +1003,38 @@ def postprocess_mask_voxel(mask, min_cc_volume=3000, verbose=True):
         if verbose:
             return mask, {"error": str(e)}
         return mask
+
+
+def components(vol):
+    labels = cc3d.connected_components(vol, connectivity=26)
+    component_ids, counts = np.unique(labels, return_counts=True)
+
+      # Remove background (label 0)
+    component_ids = component_ids[1:]
+    counts = counts[1:]
+
+  # # Print volumes
+  # for cid, vol in zip(component_ids, counts):
+  #     print(f"Component {cid}: Volume = {vol} voxels")
+
+    return len(counts)
+
+
+def post_process_volume(volume, dilation_distance=2.0, pp=True):
+      volume,_ = postprocess_mask_voxel(volume,min_cc_volume=CFG.POST_PROCESS_MIN_CC_VOLUME)
+
+      if not pp:
+          return volume
+      initial_sheets = components(volume)
+      # Futher pp
+      pp = skeletonize_stack_2d(volume)
+      pp = dilate_by_inverse_edt(pp, dilation_distance)
+      final_sheets = components(pp)
+
+      if initial_sheets != final_sheets:
+          print("Some sheets are merged")
+          return volume
+      return pp
 
 
 
@@ -1091,11 +1124,13 @@ def main():
                             min_cc_volume=CFG.POST_PROCESS_MIN_CC_VOLUME,
                             verbose=True
                         )
+                        binary_mask = post_process_volume(binary_mask, dilation_distance=2)
                         tqdm.write(f" ✓ (removed {stats['removed_cc']}/{stats['original_cc']} components)")
                     except Exception as e:
                         tqdm.write(f"  ⚠ Warning: Post-processing failed for {scroll_id}: {e}")
                         tqdm.write("  Saving original mask without post-processing...")
 
+                # score = calc_score(gt, binary_mask)
 
                 # Free memory
                 del second_stage_probs
