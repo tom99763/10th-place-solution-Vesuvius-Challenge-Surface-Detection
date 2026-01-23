@@ -423,17 +423,16 @@ class CustomUNetV2(nn.Module):
         ])
 
     def forward(self, x, prob_map):
-        """
-        x        : (B,C,D,H,W)
-        prob_map : (B,1,D,H,W)
-        """
-        skips = self.backbone.encoder(x)
+        feats = self.backbone.encoder(x)
+
+        bottleneck = feats[-1]
+        skips = feats[:-1]
+
         new_skips = []
 
         for i, skip in enumerate(skips):
             _, _, D, H, W = skip.shape
 
-            # Resize probability map to match skip resolution
             prob_resized = F.interpolate(
                 prob_map,
                 size=(D, H, W),
@@ -441,15 +440,12 @@ class CustomUNetV2(nn.Module):
                 align_corners=False
             )
 
-            # Compute structure codes
             struct = self.structure_enc(prob_resized)
-
-            # Project structure channels to match skip channels
             struct_proj = self.struct_projections[i](struct)
 
-            # Safe concatenation
-            new_skip = skip + struct_proj
-            new_skips.append(new_skip)
+            new_skips.append(skip + struct_proj)
 
-        # Pass to decoder
-        return self.backbone.decoder(new_skips)
+        # 🔑 Reassemble EXACT structure expected by decoder
+        feats_modified = new_skips + [bottleneck]
+
+        return self.backbone.decoder(feats_modified)
