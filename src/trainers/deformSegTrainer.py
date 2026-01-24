@@ -257,7 +257,7 @@ class DiffeoRefineModule(pl.LightningModule):
             patience=5,
             threshold=1e-4,
             cooldown=2,
-            min_lr=1e-4,
+            min_lr=5e-4,
         )
 
         return {

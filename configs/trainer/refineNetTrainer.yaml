@@ -4,4 +4,4 @@ devices: [0]
 precision: "bf16-mixed"
 check_val_every_n_epoch: 5
 strategy: auto
-deterministic: true
+deterministic: false

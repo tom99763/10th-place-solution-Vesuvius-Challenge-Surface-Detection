@@ -113,17 +113,25 @@ class RefineNetModule(pl.LightningModule):
         """Compute loss at a single scale."""
         # logits, labels, skeletons = self._prepare_tensors(
         #     logits, labels, skeletons)
-        ce_w, dice_w, surf_w, skel_w = self._get_loss_weights()
+        ce_w, dice_w, surf_w, skel_w = 0.4, 0.4, 0.1, 0.1
+        if labels.dim() == 5 and labels.size(1) == 1:
+            labels_ce = labels.squeeze(1)
+        else:
+            labels_ce = labels
 
-        loss_ce = self._safe_loss(self.ce_loss(logits, labels.long()), logits)
+        loss_ce = self._safe_loss(
+            self.ce_loss(logits, labels_ce.long()), logits
+        )
+
         loss_dice = self._safe_loss(
-            self.dice_loss(logits, labels.long()), logits)
+            self.dice_loss(logits, labels_ce.long()), logits
+        )
 
         # Surface Dice (only if weight > 0)
         if surf_w > 0:
             logits_binary = logits[:, 1:2] - logits[:, 0:1]
             loss_surf_dice = self.surface_dice_loss(
-                logits_binary, labels.unsqueeze(1)).mean()
+                logits_binary, labels).mean()
             loss_surf_dice = self._safe_loss(loss_surf_dice, logits)
         else:
             loss_surf_dice = loss_ce * 0.0  # Zero loss with grad_fn
@@ -142,6 +150,19 @@ class RefineNetModule(pl.LightningModule):
     def _mask_from_logits(self, logits):
         # logits: (B, 2, D, H, W)
         return torch.softmax(logits, dim=1)[:, 1:2]
+
+    def _log_losses(self, prefix, losses, metrics, on_step=False):
+        """Log loss components and metrics."""
+        self.log(f'{prefix}/loss', losses['loss'],
+                 on_step=on_step, on_epoch=True, prog_bar=True)
+        self.log(f'{prefix}/loss_ce',
+                 losses['loss_ce'], on_step=False, on_epoch=True)
+        self.log(f'{prefix}/loss_dice',
+                 losses['loss_dice'], on_step=False, on_epoch=True)
+        self.log(f'{prefix}/loss_surf_dice',
+                 losses['loss_surf_dice'], on_step=False, on_epoch=True)
+        self.log(f'{prefix}/loss_skel',
+                 losses['loss_skel'], on_step=False, on_epoch=True)
 
     def training_step(self, batch, batch_idx):
         vol, mask, prob_mask_oof, skel = (
