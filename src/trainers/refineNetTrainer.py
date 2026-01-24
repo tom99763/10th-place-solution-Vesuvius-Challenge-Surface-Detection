@@ -151,7 +151,7 @@ class RefineNetModule(pl.LightningModule):
         # logits: (B, 2, D, H, W)
         return torch.softmax(logits, dim=1)[:, 1:2]
 
-    def _log_losses(self, prefix, losses, metrics, on_step=False):
+    def _log_losses(self, prefix, losses, on_step=False):
         """Log loss components and metrics."""
         self.log(f'{prefix}/loss', losses['loss'],
                  on_step=on_step, on_epoch=True, prog_bar=True)
