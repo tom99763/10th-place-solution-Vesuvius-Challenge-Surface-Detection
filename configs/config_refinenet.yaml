@@ -16,7 +16,7 @@ n_splits: 5
 seed: 42
 input_size: [160, 160, 160]
 threshold: 0.5
-selected_fold: 0
+selected_fold: 1
 is_prob_oof_mask: true
 
 #model config

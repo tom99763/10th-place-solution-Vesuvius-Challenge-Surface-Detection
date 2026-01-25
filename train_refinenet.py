@@ -17,7 +17,7 @@ from src.trainers.refineNetTrainer import *
 from src.transforms.rand_coarse_dropout_ranges import RandCoarseDropoutdWithRanges
 import torch.multiprocessing as mp
 mp.set_start_method("spawn", force=True)
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 
 
 def set_seed(seed=42):

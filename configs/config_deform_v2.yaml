@@ -15,7 +15,7 @@ n_splits: 5
 seed: 42
 input_size: [160, 160, 160]
 threshold: 0.5
-selected_fold: 2
+selected_fold: 4
 is_prob_oof_mask: true
 apply_gaussian: true
 

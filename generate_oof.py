@@ -253,6 +253,7 @@ class CFG:
     OVERLAP = 0.5  # Overlap ratio for sliding window
     SW_MODE = "gaussian"  # Mode: "constant", "gaussian"
     PADDING_MODE = "reflect"  # Padding mode
+    REPEAT = 2
 
     # TTA settings
     USE_TTA = True  # Enable Test-Time Augmentation
@@ -690,7 +691,11 @@ MODEL_PATHS = [
 
 
 MODEL_PATHS_2ND_STAGE = [
-    "./models/2nd_stage_best-epoch104-val_dice0.5820-val_loss0.3709.ckpt"
+    "./models/2nd_stage_best-epoch104-val_dice0.5820-val_loss0.3709.ckpt",
+    "./models/best-epoch=49-val_dice=0.5794-val_loss=0.3862.ckpt",
+    "./models/best-epoch=49-val_dice=0.5874-val_loss=0.3690.ckpt",
+    "./models/best-epoch=49-val_dice=0.6067-val_loss=0.3537.ckpt",
+    "./models/best-epoch=49-val_dice=0.5943-val_loss=0.3668.ckpt"
 ]
 
 def main():
@@ -698,9 +703,9 @@ def main():
         val_splits = json.load(f)
 
     models_1st_stage = load_models_simple(MODEL_PATHS)
-    models_2nd_stage = load_models_2nd_stage(MODEL_PATHS_2ND_STAGE, CFG.DEVICE)
 
     for i in range(3,5):
+        models_2nd_stage = load_models_2nd_stage([MODEL_PATHS_2ND_STAGE[i]], CFG.DEVICE)
         print(f'fold {i}.......')
         selected_ids = [str(x) for x in val_splits[i]['val']]
 
@@ -751,13 +756,16 @@ def main():
                 # ------------------
                 first_stage_binary_tensor = torch.from_numpy(first_stage_binary).unsqueeze(0).unsqueeze(0)
                 to_second_stage_pred = first_stage_binary_tensor
-                volume_2ch = torch.cat([volume, to_second_stage_pred], dim=1)
-                second_stage_probs = predict_volume_sliding_window(
-                    models_2nd_stage,
-                    volume_2ch,
-                    devices=["cuda"],
-                    use_tta=False
-                )
+                for _ in range(CFG.REPEAT):
+                    volume_2ch = torch.cat([volume, to_second_stage_pred], dim=1)
+                    second_stage_probs = predict_volume_sliding_window(
+                        models_2nd_stage,
+                        volume_2ch,
+                        devices=["cuda:0", "cuda:1"],
+                        use_tta=False
+                    )
+                    second_stage_binary = (second_stage_probs > CFG.THRESHOLD).astype(np.float32)
+                    to_second_stage_pred = torch.from_numpy(second_stage_binary).unsqueeze(0).unsqueeze(0)
 
                 np.savez_compressed(CFG.OUTPUT_DIR/f"{scroll_id}.npz", prob = second_stage_probs.astype('float16'))
 
