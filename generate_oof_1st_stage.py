@@ -709,10 +709,8 @@ def main():
     with open('./splits.json', "r") as f:
         val_splits = json.load(f)
 
-    models_1st_stage = load_models_simple(MODEL_PATHS)
-
     for i in range(3,5):
-        models_2nd_stage = load_models_2nd_stage([MODEL_PATHS_2ND_STAGE[i]], CFG.DEVICE)
+        models_1st_stage = load_models_simple([MODEL_PATHS[i]])
         print(f'fold {i}.......')
         selected_ids = [str(x) for x in val_splits[i]['val']]
 
