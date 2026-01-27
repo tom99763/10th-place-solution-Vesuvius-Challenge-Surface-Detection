@@ -255,7 +255,7 @@ class CFG:
     REPEAT = 2
 
     # TTA settings
-    USE_TTA = False  # Enable Test-Time Augmentation
+    USE_TTA = True  # Enable Test-Time Augmentation
     TTA_FLIPS = True  # Use flip augmentations
     TTA_ROTATIONS = True  # Use 90-degree rotations (warning: slower and memory intensive)
 
