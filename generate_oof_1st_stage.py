@@ -26,7 +26,7 @@ import numpy as np
 import json
 from concurrent.futures import ThreadPoolExecutor
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
 
 def get_conv(spatial_dims):
@@ -692,24 +692,18 @@ def predict_volume_sliding_window(models, volume_tensor, devices, use_tta=False)
 # ==============================================================================
 
 MODEL_PATHS = [
-    ("./models/best-epoch449-val_loss0.3746-val_dice0.5755.ckpt", "cuda"),
-    ("./models/best-epoch369-val_loss0.3769-val_dice0.5727.ckpt", "cuda")
-]
-
-
-MODEL_PATHS_2ND_STAGE = [
-    ("./models/2nd_stage_best-epoch104-val_dice0.5820-val_loss0.3709.ckpt", "cuda", True),
-    ("./models/best-epoch=49-val_dice=0.5794-val_loss=0.3862.ckpt", "cuda", False),
-    ("./models/best-epoch=49-val_dice=0.5874-val_loss=0.3690.ckpt", "cuda", False),
-    ("./models/best-epoch=49-val_dice=0.6067-val_loss=0.3537.ckpt", "cuda", False),
-    ("./models/best-epoch=49-val_dice=0.5943-val_loss=0.3668.ckpt", "cuda", False)
+    ("./models/fold-0-best-epoch369-val_loss0.3720-val_dice0.5789.ckpt", "cuda"),
+    ("./models/fold-1-best-epoch364-val_loss0.3767-val_dice0.5813.ckpt", "cuda"),
+    ("./models/fold-2-best-epoch=384-val_loss=0.3647-val_dice=0.5865.ckpt", "cuda"),
+    ("./models/fold-3-best-epoch=349-val_loss=0.3471-val_dice=0.6062.ckpt", "cuda"),
+    ("./models/fold-4-best-epoch=364-val_loss=0.3534-val_dice=0.6028.ckpt", "cuda")
 ]
 
 def main():
     with open('./splits.json', "r") as f:
         val_splits = json.load(f)
 
-    for i in range(3,5):
+    for i in range(3):
         models_1st_stage = load_models_simple([MODEL_PATHS[i]])
         print(f'fold {i}.......')
         selected_ids = [str(x) for x in val_splits[i]['val']]

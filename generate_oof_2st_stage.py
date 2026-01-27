@@ -692,8 +692,11 @@ def predict_volume_sliding_window(models, volume_tensor, devices, use_tta=False)
 # ==============================================================================
 
 MODEL_PATHS = [
-    ("./models/best-epoch449-val_loss0.3746-val_dice0.5755.ckpt", "cuda"),
-    ("./models/best-epoch369-val_loss0.3769-val_dice0.5727.ckpt", "cuda")
+    ("./models/fold-0-best-epoch369-val_loss0.3720-val_dice0.5789.ckpt", "cuda"),
+    ("./models/fold-1-best-epoch364-val_loss0.3767-val_dice0.5813.ckpt", "cuda"),
+    ("./models/fold-2-best-epoch=384-val_loss=0.3647-val_dice=0.5865.ckpt", "cuda"),
+    ("./models/fold-3-best-epoch=349-val_loss=0.3471-val_dice=0.6062.ckpt", "cuda"),
+    ("./models/fold-4-best-epoch=364-val_loss=0.3534-val_dice=0.6028.ckpt", "cuda")
 ]
 
 
