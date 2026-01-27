@@ -140,67 +140,31 @@ def create_residual_unet(
 class SegmentationModule(pl.LightningModule):
     """
     Lightning module matching training code structure.
-    Supports both 'unet' and 'flex_unet' model types.
-    Uses self.model (not self.model1) to match checkpoint keys.
+    Uses self.model to match checkpoint keys.
     """
 
     def __init__(
             self,
-            in_channels=1,
+            in_channels=2,
             out_channels=2,
-            channels=(32, 64, 128, 256),
-            strides=(2, 2, 1),
-            dropout=0.1,
-            model_type="unet",  # 'unet' or 'flex_unet'
-            # FlexibleUNet parameters
-            backbone="resnet18",
-            pretrained_backbone=False,
-            drop_path_rate=0.0,
+            channels=(32, 64, 128, 256, 320, 320),
+            strides=(1, 2, 2, 2, 2, 2),
             **kwargs  # Accept extra hparams from checkpoint
     ):
         super().__init__()
         self.save_hyperparameters()
 
-        # Match training code: uses self.model
-        if model_type == "unet":
-            self.model = UNet(
-                spatial_dims=3,
-                in_channels=in_channels,
-                out_channels=out_channels,
-                channels=channels,
-                strides=strides,
-                num_res_units=2,
-                dropout=dropout,
-                norm='instance',
-                act='relu',
-            )
-        elif model_type == "flex_unet":
-            self.model = FlexibleUNet(
-                backbone=backbone,
-                in_channels=in_channels,
-                n_classes=out_channels,
-                is_3d=True,
-                pretrained=pretrained_backbone,
-                drop_path_rate=drop_path_rate,
-            )
-        elif model_type == "res_unet":
-            if create_residual_unet is None:
-                raise ImportError("res_unet requires src.models.residual_unet and dynamic_network_architectures")
+        n_blocks = kwargs.get('n_blocks_per_stage', (1, 3, 4, 6, 6, 6))
+        use_ds = kwargs.get('use_deep_supervision', False)
 
-            # Extract specific parameters for ResidualUNet
-            n_blocks = kwargs.get('n_blocks_per_stage', (1, 3, 4, 6, 6, 6))
-            use_ds = kwargs.get('use_deep_supervision', False)
-
-            self.model = create_residual_unet(
-                in_channels=in_channels,
-                out_channels=out_channels,
-                channels=channels,
-                strides=strides,
-                n_blocks_per_stage=n_blocks,
-                deep_supervision=use_ds
-            )
-        else:
-            raise ValueError(f"Invalid model type: {model_type}. Use 'unet', 'flex_unet' or 'res_unet'")
+        self.model = create_residual_unet(
+            in_channels=in_channels,
+            out_channels=out_channels,
+            channels=channels,
+            strides=strides,
+            n_blocks_per_stage=n_blocks,
+            deep_supervision=use_ds
+        )
 
     def forward(self, x):
         return self.model(x)
@@ -242,6 +206,41 @@ class SegmentationModule2ndStage(pl.LightningModule):
         return self.model(x)
 
 
+class SegmentationModule2ndStageSmall(pl.LightningModule):
+    """
+    Lightning module matching training code structure.
+    Uses self.model to match checkpoint keys.
+    """
+
+    def __init__(
+            self,
+            in_channels=2,
+            out_channels=2,
+            channels=(32, 64, 128, 256),
+            strides=(1, 2, 2, 2),
+            n_blocks_per_stage=(1, 3, 4, 6),
+            use_deep_supervision=False,
+            **kwargs  # Accept extra hparams from checkpoint
+    ):
+        super().__init__()
+        self.save_hyperparameters()
+
+        n_blocks = n_blocks_per_stage
+        use_ds = use_deep_supervision
+
+        self.model = create_residual_unet(
+            in_channels=in_channels,
+            out_channels=out_channels,
+            channels=channels,
+            strides=strides,
+            n_blocks_per_stage=n_blocks,
+            deep_supervision=use_ds
+        )
+
+    def forward(self, x):
+        return self.model(x)
+
+
 class CFG:
     # Data directories
     TEST_IMG_DIR = Path("data/vesuvius-challenge-surface-detection/train_images")
@@ -256,7 +255,7 @@ class CFG:
     REPEAT = 2
 
     # TTA settings
-    USE_TTA = True  # Enable Test-Time Augmentation
+    USE_TTA = False  # Enable Test-Time Augmentation
     TTA_FLIPS = True  # Use flip augmentations
     TTA_ROTATIONS = True  # Use 90-degree rotations (warning: slower and memory intensive)
 
@@ -266,7 +265,7 @@ class CFG:
     THRESHOLD_2ND_STAGE = 0.5
 
     # Output settings
-    OUTPUT_DIR = Path("./data/prob_predictions")
+    OUTPUT_DIR = Path("./data/1st_stage_oof")
     SAVE_VISUALIZATIONS = True  # Set to True to save visualization images
 
     # Post-processing settings
@@ -488,10 +487,10 @@ def load_models_simple(model_paths):
     return models
 
 
-def load_models_2nd_stage(model_paths, device):
+def load_models_2nd_stage(model_paths):
     """Load models using Lightning's built-in checkpoint loading, handling EMA weights."""
     models = []
-    for path in model_paths:
+    for (path, device, use_large) in model_paths:
         print(f"Loading: {path}")
 
         # First, load the checkpoint to check for EMA weights
@@ -502,12 +501,19 @@ def load_models_2nd_stage(model_paths, device):
         has_ema = any(k.startswith('ema.module.') for k in state_dict.keys())
         use_ema_hparam = checkpoint.get('hyper_parameters', {}).get('use_ema', False)
 
-        # Create model from checkpoint
-        model = SegmentationModule2ndStage.load_from_checkpoint(
-            path,
-            map_location=device,
-            strict=False
-        )
+        if use_large:
+            # Create model from checkpoint
+            model = SegmentationModule2ndStage.load_from_checkpoint(
+                path,
+                map_location=device,
+                strict=False
+            )
+        else:
+            model = SegmentationModule2ndStageSmall.load_from_checkpoint(
+                path,
+                map_location=device,
+                strict=False
+            )
 
         # If EMA weights exist, extract and load them into model
         if has_ema:
@@ -546,6 +552,7 @@ def load_models_2nd_stage(model_paths, device):
         models.append(model)
     print(f"\n✓ Total models loaded: {len(models)}")
     return models
+
 
 
 
@@ -691,11 +698,11 @@ MODEL_PATHS = [
 
 
 MODEL_PATHS_2ND_STAGE = [
-    "./models/2nd_stage_best-epoch104-val_dice0.5820-val_loss0.3709.ckpt",
-    "./models/best-epoch=49-val_dice=0.5794-val_loss=0.3862.ckpt",
-    "./models/best-epoch=49-val_dice=0.5874-val_loss=0.3690.ckpt",
-    "./models/best-epoch=49-val_dice=0.6067-val_loss=0.3537.ckpt",
-    "./models/best-epoch=49-val_dice=0.5943-val_loss=0.3668.ckpt"
+    ("./models/2nd_stage_best-epoch104-val_dice0.5820-val_loss0.3709.ckpt", "cuda", True),
+    ("./models/best-epoch=49-val_dice=0.5794-val_loss=0.3862.ckpt", "cuda", False),
+    ("./models/best-epoch=49-val_dice=0.5874-val_loss=0.3690.ckpt", "cuda", False),
+    ("./models/best-epoch=49-val_dice=0.6067-val_loss=0.3537.ckpt", "cuda", False),
+    ("./models/best-epoch=49-val_dice=0.5943-val_loss=0.3668.ckpt", "cuda", False)
 ]
 
 def main():
@@ -748,31 +755,11 @@ def main():
                     use_tta=CFG.USE_TTA
                 )
 
-                # # Binarize 1st stage output for 2nd stage input
-                first_stage_binary = (first_stage_probs > CFG.THRESHOLD_1ST_STAGE).astype(np.float32)
-
-                # ------------------
-                # 2nd stage inference
-                # ------------------
-                first_stage_binary_tensor = torch.from_numpy(first_stage_binary).unsqueeze(0).unsqueeze(0)
-                to_second_stage_pred = first_stage_binary_tensor
-                for _ in range(CFG.REPEAT):
-                    volume_2ch = torch.cat([volume, to_second_stage_pred], dim=1)
-                    second_stage_probs = predict_volume_sliding_window(
-                        models_2nd_stage,
-                        volume_2ch,
-                        devices=["cuda:0", "cuda:1"],
-                        use_tta=False
-                    )
-                    second_stage_binary = (second_stage_probs > CFG.THRESHOLD).astype(np.float32)
-                    to_second_stage_pred = torch.from_numpy(second_stage_binary).unsqueeze(0).unsqueeze(0)
-
-                np.savez_compressed(CFG.OUTPUT_DIR/f"{scroll_id}.npz", prob = second_stage_probs.astype('float16'))
+                np.savez_compressed(CFG.OUTPUT_DIR/f"{scroll_id}.npz", prob = first_stage_probs.astype('float16'))
 
                 # Free memory
-                del second_stage_probs
+                del first_stage_probs
                 torch.cuda.empty_cache() if torch.cuda.is_available() else None
 
 if __name__ == '__main__':
     main()
-
