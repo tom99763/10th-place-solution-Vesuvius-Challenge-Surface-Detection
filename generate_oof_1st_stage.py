@@ -26,7 +26,7 @@ import numpy as np
 import json
 from concurrent.futures import ThreadPoolExecutor
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 
 
 def get_conv(spatial_dims):
@@ -255,7 +255,7 @@ class CFG:
     REPEAT = 2
 
     # TTA settings
-    USE_TTA = False  # Enable Test-Time Augmentation
+    USE_TTA = True  # Enable Test-Time Augmentation
     TTA_FLIPS = True  # Use flip augmentations
     TTA_ROTATIONS = True  # Use 90-degree rotations (warning: slower and memory intensive)
 
@@ -692,18 +692,18 @@ def predict_volume_sliding_window(models, volume_tensor, devices, use_tta=False)
 # ==============================================================================
 
 MODEL_PATHS = [
-    ("./models/fold-0-best-epoch369-val_loss0.3720-val_dice0.5789.ckpt", "cuda"),
-    ("./models/fold-1-best-epoch364-val_loss0.3767-val_dice0.5813.ckpt", "cuda"),
-    ("./models/fold-2-best-epoch=384-val_loss=0.3647-val_dice=0.5865.ckpt", "cuda"),
-    ("./models/fold-3-best-epoch=349-val_loss=0.3471-val_dice=0.6062.ckpt", "cuda"),
-    ("./models/fold-4-best-epoch=364-val_loss=0.3534-val_dice=0.6028.ckpt", "cuda")
+    ("./models/1st-stage/fold-0-best-epoch369-val_loss0.3720-val_dice0.5789.ckpt", "cuda"),
+    ("./models/1st-stage/fold-1-best-epoch364-val_loss0.3767-val_dice0.5813.ckpt", "cuda"),
+    ("./models/1st-stage/fold-2-best-epoch=384-val_loss=0.3647-val_dice=0.5865.ckpt", "cuda"),
+    ("./models/1st-stage/fold-3-best-epoch=349-val_loss=0.3471-val_dice=0.6062.ckpt", "cuda"),
+    ("./models/1st-stage/fold-4-best-epoch=364-val_loss=0.3534-val_dice=0.6028.ckpt", "cuda")
 ]
 
 def main():
     with open('./splits.json', "r") as f:
         val_splits = json.load(f)
 
-    for i in range(3):
+    for i in range(3, 5):
         models_1st_stage = load_models_simple([MODEL_PATHS[i]])
         print(f'fold {i}.......')
         selected_ids = [str(x) for x in val_splits[i]['val']]

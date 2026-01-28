@@ -255,7 +255,7 @@ class CFG:
     REPEAT = 2
 
     # TTA settings
-    USE_TTA = False # Enable Test-Time Augmentation
+    USE_TTA = True # Enable Test-Time Augmentation
     TTA_FLIPS = True  # Use flip augmentations
     TTA_ROTATIONS = True  # Use 90-degree rotations (warning: slower and memory intensive)
 
@@ -692,20 +692,19 @@ def predict_volume_sliding_window(models, volume_tensor, devices, use_tta=False)
 # ==============================================================================
 
 MODEL_PATHS = [
-    ("./models/fold-0-best-epoch369-val_loss0.3720-val_dice0.5789.ckpt", "cuda"),
-    ("./models/fold-1-best-epoch364-val_loss0.3767-val_dice0.5813.ckpt", "cuda"),
-    ("./models/fold-2-best-epoch=384-val_loss=0.3647-val_dice=0.5865.ckpt", "cuda"),
-    ("./models/fold-3-best-epoch=349-val_loss=0.3471-val_dice=0.6062.ckpt", "cuda"),
-    ("./models/fold-4-best-epoch=364-val_loss=0.3534-val_dice=0.6028.ckpt", "cuda")
+    ("./models/1st-stage/fold-0-best-epoch369-val_loss0.3720-val_dice0.5789.ckpt", "cuda"),
+    ("./models/1st-stage/fold-1-best-epoch364-val_loss0.3767-val_dice0.5813.ckpt", "cuda"),
+    ("./models/1st-stage/fold-2-best-epoch=384-val_loss=0.3647-val_dice=0.5865.ckpt", "cuda"),
+    ("./models/1st-stage/fold-3-best-epoch=349-val_loss=0.3471-val_dice=0.6062.ckpt", "cuda"),
+    ("./models/1st-stage/fold-4-best-epoch=364-val_loss=0.3534-val_dice=0.6028.ckpt", "cuda")
 ]
 
 
 MODEL_PATHS_2ND_STAGE = [
-    ("./models/2nd_stage_best-epoch104-val_dice0.5820-val_loss0.3709.ckpt", "cuda", True),
-    ("./models/best-epoch=49-val_dice=0.5794-val_loss=0.3862.ckpt", "cuda", False),
-    ("./models/best-epoch=49-val_dice=0.5874-val_loss=0.3690.ckpt", "cuda", False),
-    ("./models/best-epoch=49-val_dice=0.6067-val_loss=0.3537.ckpt", "cuda", False),
-    ("./models/best-epoch=49-val_dice=0.5943-val_loss=0.3668.ckpt", "cuda", False)
+    ("./models/2st-stage/fold0-best-epoch=144-val_dice=0.5861-val_loss=0.3668.ckpt", "cuda", True),
+    ("./models/2st-stage/fold1-best-epoch=114-val_dice=0.5909-val_loss=0.3706.ckpt", "cuda", True),
+    ("./models/2st-stage/fold3-best-epoch=144-val_dice=0.6133-val_loss=0.3432.ckpt", "cuda", True),
+    ("./models/2st-stage/fold4-best-epoch=144-val_dice=0.6113-val_loss=0.3469.ckpt", "cuda", True)
 ]
 
 def main():
