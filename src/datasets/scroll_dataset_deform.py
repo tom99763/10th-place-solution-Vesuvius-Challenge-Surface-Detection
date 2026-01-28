@@ -22,12 +22,13 @@ class DeformDataset(Dataset):
 
     def __getitem__(self, idx):
         idx = self.id_list[idx]
-        vol = np.load(f'../../vesuvius_challenge/vesuvius_challenge/train_images_npy/{idx}.npy')
-        mask = np.load(f'../../vesuvius_challenge/vesuvius_challenge/train_labels_npy/{idx}.npy')
-        skel = np.load(f'../../vesuvius_challenge/vesuvius_challenge/train_skeletons_npy/{idx}.npy')
+        vol = np.load(f'../../vesuvius_challenge_sergio/train_images_npy/{idx}.npy')
+        mask = np.load(f'../../vesuvius_challenge_sergio/train_labels_npy/{idx}.npy')
+        skel = np.load(f'../../vesuvius_challenge_sergio/train_skeletons_npy/{idx}.npy')
         if self.cfg.is_prob_oof_mask:
-            pred_mask = np.load(f'{self.cfg.oof_path}/{idx}.npz', mmap_mode='r')
-            pred_mask = pred_mask['prob'] #(d, h, w)
+            # pred_mask = np.load(f'{self.cfg.oof_path}/{idx}.npz', mmap_mode='r')
+            # pred_mask = pred_mask['prob'] #(d, h, w)
+            pred_mask = np.load(f'{self.cfg.oof_path}/{idx}.npy', mmap_mode='r')
         else:
             pred_mask = load_volume(Path(f'{self.cfg.oof_path}/{idx}.tif'))
             #pred_mask = np.load(Path(f'{self.cfg.oof_path}/{idx}.npy'))

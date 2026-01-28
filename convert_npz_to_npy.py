@@ -2,7 +2,7 @@ import numpy as np
 from pathlib import Path
 from tqdm import tqdm
 
-INPUT_DIR = Path("./data/1st_stage_oof")  # Directory containing .npz files
+INPUT_DIR = Path("./data/2st_stage_oof_repeat2")  # Directory containing .npz files
 OUTPUT_DIR = None  # Output directory (None = same as input)
 REMOVE_ORIGINAL = True  # Remove original .npz files after conversion
 

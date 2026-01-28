@@ -26,7 +26,7 @@ import numpy as np
 import json
 from concurrent.futures import ThreadPoolExecutor
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
 
 def get_conv(spatial_dims):
@@ -703,6 +703,7 @@ MODEL_PATHS = [
 MODEL_PATHS_2ND_STAGE = [
     ("./models/2st-stage/fold0-best-epoch=144-val_dice=0.5861-val_loss=0.3668.ckpt", "cuda", True),
     ("./models/2st-stage/fold1-best-epoch=114-val_dice=0.5909-val_loss=0.3706.ckpt", "cuda", True),
+    ("./models/2st-stage/fold2-best-epoch109-val_dice0.5926-val_loss0.3605.ckpt", "cuda", True),
     ("./models/2st-stage/fold3-best-epoch=144-val_dice=0.6133-val_loss=0.3432.ckpt", "cuda", True),
     ("./models/2st-stage/fold4-best-epoch=144-val_dice=0.6113-val_loss=0.3469.ckpt", "cuda", True)
 ]
@@ -711,7 +712,7 @@ def main():
     with open('./splits.json', "r") as f:
         val_splits = json.load(f)
 
-    for i in range(3,5):
+    for i in range(3):
         models_1st_stage = load_models_simple([MODEL_PATHS[i]])
         models_2nd_stage = load_models_2nd_stage([MODEL_PATHS_2ND_STAGE[i]])
         print(f'fold {i}.......')

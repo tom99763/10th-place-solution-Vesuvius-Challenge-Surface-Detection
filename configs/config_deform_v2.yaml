@@ -1,7 +1,7 @@
 project_name: vesurvius-challenge
 exp_name: deform-dynunet-v2-k${kernel_size}-s${sigma}-custom${custom}
 data_path: ./data/vesuvius-challenge-surface-detection
-oof_path : ./data/prob_predictions
+oof_path : ./data/2st_stage_oof_repeat2
 oof_path2: ''
 nnunet_path: ./nnunet
 petrained_ckpt_path: ''
@@ -15,7 +15,7 @@ n_splits: 5
 seed: 42
 input_size: [160, 160, 160]
 threshold: 0.5
-selected_fold: 4
+selected_fold: 1
 is_prob_oof_mask: true
 apply_gaussian: true
 
