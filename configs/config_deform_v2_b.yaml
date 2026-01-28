@@ -1,0 +1,49 @@
+project_name: vesurvius-challenge
+exp_name: deform-dynunet-v2-b-k${kernel_size}-s${sigma}-custom${custom}
+data_path: ./data/vesuvius-challenge-surface-detection
+oof_path : ./data/2st_stage_oof_repeat2
+oof_path2: ''
+nnunet_path: ./nnunet
+petrained_ckpt_path: ''
+data_split_path: ./splits.json
+batch_size: 1
+num_workers: 4
+lr: 1e-3
+offline: true
+fold_id: 0
+n_splits: 5
+seed: 42
+input_size: [160, 160, 160]
+threshold: 0.5
+selected_fold: 1
+is_prob_oof_mask: true
+apply_gaussian: true
+
+#model config
+use_resenc: true
+custom: false
+kernel_size: 3
+sigma: 5
+# geometry – stronger, fewer steps (more aggressive local warps)
+max_v: 2.5          # ↑ from 1.5
+n_steps: 4          # ↓ from 6
+# topology – stronger bias
+lambda_sparse: 0.2  # ↑
+lambda_tv: 0.05     # ↑
+lambda_boundary: 0.2
+max_topo_offset: 1.5
+# deformation regularization
+lambda_jac: 0.15    # ↓ (allow riskier warps)
+lambda_smooth: 0.02 # ↓
+# supervision balance
+lambda_ce: 0.3
+lambda_dice: 2.0
+
+defaults:
+  - models: deform_dynunet_v2
+  - optimizers: AdamW
+  - data: data_deform
+  - trainer: deformSegTrainer
+  - _self_
+
+
