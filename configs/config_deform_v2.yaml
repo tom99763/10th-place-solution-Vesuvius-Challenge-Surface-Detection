@@ -1,8 +1,7 @@
 project_name: vesurvius-challenge
-exp_name: deform-dynunet-v2-k${kernel_size}-s${sigma}-custom${custom}
+exp_name: deform-dynunet-v2-k${kernel_size}-s${sigma}-custom${custom}-use_resenc${use_resenc}
 data_path: ./data/vesuvius-challenge-surface-detection
 oof_path : ./data/2st_stage_oof_repeat2
-data_npy_path: ../../vesuvius_challenge_sergio/train_images_npy
 oof_path2: ''
 nnunet_path: ./nnunet
 petrained_ckpt_path: ''
@@ -21,7 +20,7 @@ is_prob_oof_mask: true
 apply_gaussian: true
 
 #model config
-use_resenc: true
+use_resenc: false
 custom: false
 kernel_size: 3
 sigma: 5

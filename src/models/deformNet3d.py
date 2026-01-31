@@ -182,11 +182,8 @@ class DeformDynUnetV2(nn.Module):
     def __init__(self, cfg):
         super().__init__()
         self.cfg = cfg
-        if cfg.custom:
-            self.predictor = CustomUNetV2(
-                in_channels=2,
-                out_channels=4
-            )
+        if not cfg.use_resenc:
+            self.predictor = instantiate(cfg.models)
         else:
             self.predictor = create_residual_unet(
                 in_channels=2,
