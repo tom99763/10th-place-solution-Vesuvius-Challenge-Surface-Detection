@@ -1,5 +1,5 @@
 project_name: vesurvius-challenge
-exp_name: deform-dynunet-v2-k${kernel_size}-s${sigma}-custom${custom}
+exp_name: deform-dynunet-v2-k${kernel_size}-s${sigma}-use_resenc${use_resenc}-apply_topo_proc${apply_topo_proc}
 data_path: ./data/vesuvius-challenge-surface-detection
 oof_path : ./data/2st_stage_oof_repeat2
 oof_path2: ''
@@ -22,6 +22,7 @@ apply_gaussian: true
 #model config
 use_resenc: true
 custom: false
+apply_topo_proc: true
 kernel_size: 3
 sigma: 5
 #warp
