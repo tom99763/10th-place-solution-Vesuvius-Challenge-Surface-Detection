@@ -34,8 +34,8 @@ class DeformDataset(Dataset):
             #pred_mask = np.load(Path(f'{self.cfg.oof_path}/{idx}.npy'))
 
         #pred_mask = pad_skeleton_3d(pred_mask)
-        if self.cfg.apply_topo_proc:
-            pred_mask = topo_postprocess(pred_mask)
+        # if self.cfg.apply_topo_proc:
+        #     pred_mask = topo_postprocess(pred_mask)
 
         raw = {"Image": vol, "Mask": mask, "Mask_OOF": pred_mask, "Skel": skel}
         data = self.proc_data(raw)
