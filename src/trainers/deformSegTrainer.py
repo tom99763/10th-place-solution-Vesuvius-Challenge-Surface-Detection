@@ -409,8 +409,8 @@ class DiffeoRefineModuleV2(DiffeoRefineModule):
         )
 
         # ---- OOF augmentation ----
-        threshold = 0.3 + torch.randn(1, device=prob_mask_oof.device) * 0.05
-        threshold = torch.clamp(threshold, 0.1, 0.5)
+        threshold = 0.5 + torch.randn(1, device=prob_mask_oof.device) * 0.05
+        threshold = torch.clamp(threshold, 0.1, 0.7)
         mask_oof = (prob_mask_oof > threshold).float()
 
 

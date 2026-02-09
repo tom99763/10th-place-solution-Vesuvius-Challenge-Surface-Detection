@@ -1,8 +1,8 @@
 project_name: vesurvius-challenge
 exp_name: deform-dynunet-v2-a-k${kernel_size}-s${sigma}-custom${custom}
-data_path: ./data/vesuvius-challenge-surface-detection
-oof_path : ./data/2st_stage_oof_repeat2
-data_npy_path: ../../vesuvius_challenge_sergio/train_images_npy
+data_path: .
+oof_path : ./3rd_stage_oof_preds
+data_npy_path: .
 oof_path2: ''
 nnunet_path: ./nnunet
 petrained_ckpt_path: ''
