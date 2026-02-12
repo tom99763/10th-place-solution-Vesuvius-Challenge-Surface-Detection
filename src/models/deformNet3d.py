@@ -4,6 +4,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from hydra.utils import instantiate
 from dynamic_network_architectures.architectures.unet import ResidualEncoderUNet
+from dynamic_network_architectures.architectures.primus import PrimusB
 
 from src.models.custom_architecture import CustomUNet, CustomUNetV2
 
@@ -153,6 +154,19 @@ class ICDeformDynUnet(DeformDynUnet):
             return warped_mask, phis, phi
         return warped_mask
 
+
+def create_primus(
+        in_channels=2,
+        out_channels=4,
+        input_shape = 160,
+        patch_embed_size = 8
+):
+    model = PrimusB(in_channels,
+                    out_channels,
+                    (patch_embed_size, patch_embed_size, patch_embed_size),
+                    (input_shape, input_shape, input_shape))
+    return model
+
 # ---------------------------
 # defromnetv2
 # ---------------------------
@@ -182,10 +196,13 @@ class DeformDynUnetV2(nn.Module):
     def __init__(self, cfg):
         super().__init__()
         self.cfg = cfg
-        if not cfg.use_resenc:
-            self.predictor = instantiate(cfg.models)
-        else:
+        if cfg.model_type == 'resenc':
             self.predictor = create_residual_unet(
+                in_channels=2,
+                out_channels=4
+            )
+        elif cfg.model_type == 'primus':
+            self.predictor = create_primus(
                 in_channels=2,
                 out_channels=4
             )
