@@ -3,6 +3,127 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.nn.modules.loss import _Loss
 
+
+class SignedDistanceLoss(nn.Module):
+    """
+    Smooth-L1 loss for signed-distance regression, with optional band-limiting,
+    Eikonal term enforcing ‖∇d_pred‖ ≈ 1, and Laplacian smoothness regularization.
+
+    Parameters
+    ----------
+    rho              Width of the surface band in *voxels* (|d_gt| < rho).       (default: None = no band)
+                     If None, loss is computed on all voxels.
+    beta             Huber transition point (see torch.nn.SmoothL1Loss)          (default: 1)
+    eikonal          If True, add λ_e * (‖∇d_pred‖ − 1)^2                         (default: False)
+    eikonal_weight   λ_e – weight of the Eikonal term relative to data term      (default: 0.01)
+    laplacian        If True, add λ_l * (∇²d_pred)^2 for curvature smoothness    (default: False)
+    laplacian_weight λ_l – weight of the Laplacian term relative to data term    (default: 0.01)
+    reduction        "mean" (default) | "sum" | "none"
+    ignore_index     Sentinel value in target to be ignored                      (default: None)
+    surface_sigma    Additive surface weighting: w = 1 + exp(-|d|²/2σ²).         (default: None)
+                     Surface (d=0) gets 2x weight, decays to 1x far away.
+                     If None, all voxels weighted equally (w=1).
+    """
+    def __init__(self,cfg):
+        super().__init__()
+        if cfg.reduction not in ("mean", "sum", "none"):
+            raise ValueError("reduction must be 'mean', 'sum', or 'none'")
+        self.rho = float(cfg.rho) if cfg.rho is not None else None
+        self.beta = float(cfg.beta)
+        self.eikonal = bool(cfg.eikonal)
+        self.eik_w = float(cfg.eikonal_weight)
+        self.laplacian = bool(cfg.laplacian)
+        self.lap_w = float(cfg.laplacian_weight)
+        self.reduction = cfg.reduction
+        self.ignore_index = cfg.ignore_index
+        self.surface_sigma = float(cfg.surface_sigma) if cfg.surface_sigma is not None else None
+
+    @staticmethod
+    def _gradient_3d(t: torch.Tensor) -> torch.Tensor:
+        """Finite-difference ∇t. For input (B,C,D,H,W) returns (B,3,C,D,H,W)."""
+        # Replicate-pad by 1 on each side to handle borders correctly for SDFs
+        t_pad = F.pad(t, (1,1,1,1,1,1), mode='replicate')
+        # Central differences: f'(x) ≈ (f(x+1) - f(x-1)) / 2
+        dz = (t_pad[:, :, 2:, 1:-1, 1:-1] - t_pad[:, :, :-2, 1:-1, 1:-1]) * 0.5
+        dy = (t_pad[:, :, 1:-1, 2:, 1:-1] - t_pad[:, :, 1:-1, :-2, 1:-1]) * 0.5
+        dx = (t_pad[:, :, 1:-1, 1:-1, 2:] - t_pad[:, :, 1:-1, 1:-1, :-2]) * 0.5
+        return torch.stack((dz, dy, dx), dim=1)  # shape (B,3,C,D,H,W)
+
+    @staticmethod
+    def _laplacian_3d(t: torch.Tensor) -> torch.Tensor:
+        """Finite-difference Laplacian ∇²t (same shape as `t`, replicate-padded borders)."""
+        # Replicate-pad by 1 on each side to handle borders correctly for SDFs
+        t_pad = F.pad(t, (1,1,1,1,1,1), mode='replicate')
+        # Second derivatives using central differences: f''(x) ≈ f(x+1) - 2f(x) + f(x-1)
+        # After padding, original voxel [i] is at [i+1], so we compute on the interior
+        d2z = t_pad[:, :, 2:, 1:-1, 1:-1] - 2*t_pad[:, :, 1:-1, 1:-1, 1:-1] + t_pad[:, :, :-2, 1:-1, 1:-1]
+        d2y = t_pad[:, :, 1:-1, 2:, 1:-1] - 2*t_pad[:, :, 1:-1, 1:-1, 1:-1] + t_pad[:, :, 1:-1, :-2, 1:-1]
+        d2x = t_pad[:, :, 1:-1, 1:-1, 2:] - 2*t_pad[:, :, 1:-1, 1:-1, 1:-1] + t_pad[:, :, 1:-1, 1:-1, :-2]
+        return d2z + d2y + d2x  # scalar Laplacian, shape (B,C,D,H,W)
+
+    def forward(self, d_pred: torch.Tensor, d_gt: torch.Tensor) -> torch.Tensor:
+        if d_pred.shape != d_gt.shape:
+            raise ValueError(f"Shape mismatch {d_pred.shape} vs {d_gt.shape}")
+
+        # ── build validity mask ───────────────────────────────────────────────
+        if self.rho is not None:
+            band_mask = (d_gt.abs() < self.rho)
+        else:
+            band_mask = torch.ones_like(d_gt, dtype=torch.bool)
+        if self.ignore_index is not None:
+            band_mask &= d_gt.ne(self.ignore_index)
+
+        if band_mask.sum() == 0:
+            # nothing to optimise (e.g. empty crop) – safe zero loss
+            return torch.zeros(
+                (), dtype=d_pred.dtype, device=d_pred.device,
+                requires_grad=d_pred.requires_grad
+            )
+
+        # ── Smooth-L1 (Huber) inside the band ────────────────────────────────
+        huber = F.smooth_l1_loss(
+            d_pred[band_mask], d_gt[band_mask],
+            beta=self.beta, reduction="none"
+        )
+
+        data_term = huber
+
+        # ── optional Eikonal regulariser ─────────────────────────────────────
+        if self.eikonal:
+            grad = self._gradient_3d(d_pred)           # (B,3,C,D,H,W)
+            grad_norm = grad.norm(dim=1)               # (B,C,D,H,W)
+            eik = (grad_norm - 1.0) ** 2
+            eik_data = eik[band_mask]
+            data_term = data_term + self.eik_w * eik_data
+
+        # ── optional Laplacian smoothness regulariser ─────────────────────────
+        if self.laplacian:
+            lap = self._laplacian_3d(d_pred)           # (B,C,D,H,W)
+            lap_sq = lap ** 2
+            lap_data = lap_sq[band_mask]
+            data_term = data_term + self.lap_w * lap_data
+
+        # ── optional surface-focused Gaussian weighting ─────────────────────
+        # ADDITIVE weighting: w = 1 + exp(-|d_gt|² / 2σ²)
+        # - Surface (d=0): weight = 2  (2x emphasis)
+        # - Far from surface: weight ≈ 1  (normal, NOT zero)
+        # This prevents the model from collapsing to predicting 0 everywhere.
+        if self.surface_sigma is not None:
+            d_gt_masked = d_gt[band_mask]
+            gaussian = torch.exp(-d_gt_masked.abs().pow(2) / (2 * self.surface_sigma ** 2))
+            weights = 1.0 + gaussian  # additive: base weight 1, surface boost up to +1
+            data_term = data_term * weights
+
+        # ── reduction ────────────────────────────────────────────────────────
+        if self.reduction == "sum":
+            return data_term.sum()
+        if self.reduction == "none":
+            out = torch.zeros_like(d_pred)
+            out[band_mask] = data_term
+            return out
+        # "mean"
+        return data_term.mean()
+
 def jacobian_log_barrier(flow, eps=1e-6):
     """
     flow: (B, 3, D, H, W) displacement field u(x)

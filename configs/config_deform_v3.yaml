@@ -1,0 +1,51 @@
+project_name: vesurvius-challenge
+exp_name: deformnet-v3-k${kernel_size}-s${sigma}-model_type_${model_type}
+data_path: ./data/vesuvius-challenge-surface-detection
+data_npy_path: ../../vesuvius_challenge_sergio
+oof_path : ./data/2st_stage_oof_repeat2
+oof_path2: ''
+nnunet_path: ./nnunet
+petrained_ckpt_path: ''
+data_split_path: ./splits.json
+batch_size: 1
+num_workers: 4
+lr: 1e-3
+offline: true
+fold_id: 0
+n_splits: 5
+seed: 42
+input_size: [-1, 96, 96]
+threshold: 0.5
+selected_fold: 0
+is_prob_oof_mask: true
+apply_gaussian: true
+
+#model config
+model_type: primus
+custom: false
+apply_topo_proc: true
+kernel_size: 3
+sigma: 5
+#warp
+max_v: 1.5
+n_steps: 6
+lambda_jac: 0.3
+lambda_smooth: 0.05
+lambda_ce: 0.5
+lambda_dice: 1.5
+# topology gate
+lambda_sparse: 0.1
+lambda_tv: 0.02
+lambda_boundary: 0.1
+max_topo_offset: 1.0
+
+
+defaults:
+  - losses: deformnet_loss
+  - models: deform_dynunet_v2
+  - optimizers: AdamW
+  - data: data_deform
+  - trainer: deformSegTrainer
+  - _self_
+
+

@@ -231,3 +231,106 @@ class DeformDynUnetV2(nn.Module):
         if return_params:
             return corrected, v, phi, t
         return corrected
+
+# -----------------------------------
+# diffeomorphic network V3
+# (image, prior_mask)
+#         │
+#         ▼
+#    Shared Encoder
+#         │
+#         ├── SVF Head → v → φ (diffeomorphic warp)
+#         │
+#         └── SDF Residual Head → Δd
+#         │
+# Warp prior SDF by φ → d_warp
+#         │
+#         ▼
+# TopoFix-SDF (learned correction)
+#         │
+#         ▼
+# Final SDF → sigmoid(optional) → probability
+# -----------------------------------
+
+class TopoFixSDF(nn.Module):
+    """
+    Local SDF correction with learned gating.
+    """
+    def __init__(self, max_offset=2.0):
+        super().__init__()
+        self.max_offset = max_offset
+
+    def forward(self, sdf_warped, raw_t):
+        """
+        sdf_warped: (B,1,D,H,W) signed distance
+        raw_t:      (B,1,D,H,W) unconstrained
+        """
+        gate = torch.sigmoid(raw_t)                  # where to apply correction
+        delta = self.max_offset * torch.tanh(raw_t)  # signed offset
+        sdf_corr = sdf_warped + gate * delta
+        return sdf_corr, gate, delta
+
+
+class DeformNetV3(nn.Module):
+    """
+    Diffeomorphic deformation + explicit SDF prediction.
+    Designed for SignedDistanceLoss.
+    """
+    def __init__(self, cfg):
+        super().__init__()
+        self.cfg = cfg
+
+        # backbone
+        if cfg.model_type == "resenc":
+            self.backbone = create_residual_unet(
+                in_channels=2,    # image + prior
+                out_channels=5    # 3 SVF + 1 sdf_res + 1 topo_gate
+            )
+        elif cfg.model_type == "primus":
+            self.backbone = create_primus(
+                in_channels=2,
+                out_channels=5
+            )
+
+        self.max_v = cfg.max_v
+        self.topofix = TopoFixSDF(max_offset=cfg.max_topo_offset)
+
+    def forward(self, x, return_params=False):
+        """
+        x:
+          channel 0: image
+          channel 1: prior SDF (NOT probability!)
+        """
+        img  = x[:, 0:1]
+        sdf0 = x[:, 1:2]   # prior SDF
+
+        raw = self.backbone(torch.cat([img, sdf0], dim=1))
+
+        raw_v   = raw[:, :3]     # SVF
+        raw_ds  = raw[:, 3:4]    # residual SDF
+        raw_t   = raw[:, 4:5]    # topo gate
+
+        # ---- deformation ----
+        v = torch.tanh(raw_v) * self.max_v
+        phi = scaling_and_squaring(v, n_steps=self.cfg.n_steps)
+
+        sdf_warped = warp_vol_using_disp(sdf0, phi, mode="bilinear")
+
+        # ---- SDF refinement ----
+        sdf_warped = sdf_warped + raw_ds
+
+        sdf_final, gate, delta = self.topofix(sdf_warped, raw_t)
+
+        prob = torch.sigmoid(-sdf_final)  # optional segmentation output
+
+        if return_params:
+            return {
+                "sdf": sdf_final,
+                "prob": prob,
+                "phi": phi,
+                "v": v,
+                "gate": gate,
+                "delta": delta,
+            }
+
+        return prob

@@ -34,14 +34,6 @@ class DiffeoRefineModule(pl.LightningModule):
             lambda_dice=cfg.lambda_dice,
         )
 
-        # self.seg_loss = TverskyLoss(
-        #     sigmoid=False,  # ← critical fix
-        #     to_onehot_y=True,  # because your labels are integer class indices
-        #     softmax=False,
-        #     reduction="mean",
-        #     alpha=cfg.alpha,
-        #     beta=cfg.beta
-        # )
         self.sliding_window_inferer = SlidingWindowInfererAdapt(
             roi_size=cfg.input_size, sw_batch_size=2, overlap=0.5, mode="gaussian"
         )
@@ -120,39 +112,6 @@ class DiffeoRefineModule(pl.LightningModule):
         self.log("jac", L_jac, prog_bar=True)
         self.log("smooth", L_smooth, prog_bar=True)
         return loss
-
-    # def validation_step(self, batch, batch_idx):
-    #     vol, mask, mask_oof = batch['Image'], batch['Mask'], batch['Mask_OOF']
-    #
-    #     valid_mask = mask !=2
-    #
-    #     # random threhsold augmentation
-    #     if self.cfg.is_prob_oof_mask:
-    #         threshold = 0.3
-    #         mask_oof = (mask_oof > threshold).float()
-    #
-    #     if self.cfg.apply_gaussian:
-    #         mask_oof = gaussian_blur_3d(mask_oof, self.cfg.kernel_size, self.cfg.sigma)
-    #
-    #     x = torch.cat([vol, mask_oof], dim=1)
-    #
-    #     # Sliding window inference
-    #     logits = self.sliding_window_inferer(x, self.model)
-    #
-    #     # Binarize
-    #     pred = (logits > self.cfg.threshold).float()
-    #
-    #     # Ensure shapes: (B, C, D, H, W)
-    #     if pred.ndim == 4:
-    #         pred = pred.unsqueeze(1)
-    #     if mask.ndim == 4:
-    #         mask = mask.unsqueeze(1)
-    #
-    #     # Dice
-    #     dice = self.dice_metric(pred * valid_mask, mask * valid_mask)
-    #     self.val_dice_scores.append(dice)
-    #
-    #     return None
 
     def validation_step(self, batch, batch_idx):
         vol, mask, prob_mask_oof = batch['Image'], batch['Mask'], batch['Mask_OOF']
@@ -488,3 +447,121 @@ class DiffeoRefineModuleV2(DiffeoRefineModule):
 
         return loss
 
+
+class DiffeoRefineModuleV3(DiffeoRefineModule):
+    """
+    V3:
+    - model returns (sdf_pred, prob_pred, v, phi, gate)
+    - SignedDistanceLoss supervises sdf_pred
+    - Dice / topo / skeleton operate on prob_pred
+    """
+    def __init__(self, model, cfg):
+        super().__init__(model, cfg)
+
+        # --- SDF loss ---
+        self.sdf_loss = SignedDistanceLoss(cfg.sdf)
+
+        # --- topology gate regularization ---
+        self.lambda_sparse = getattr(cfg, "lambda_sparse", 0.05)
+        self.lambda_tv = getattr(cfg, "lambda_tv", 0.05)
+        self.lambda_boundary = getattr(cfg, "lambda_boundary", 0.05)
+
+    # -----------------------------
+    # topology gate regularizers
+    # -----------------------------
+    def topo_sparsity(self, t):
+        return t.mean()
+
+    def topo_tv(self, t):
+        return (
+            (t[:,:,1:] - t[:,:,:-1]).abs().mean() +
+            (t[:,:,:,1:] - t[:,:,:,:-1]).abs().mean() +
+            (t[:,:,:,:,1:] - t[:,:,:,:,:-1]).abs().mean()
+        ) / 3.0
+
+    def topo_boundary(self, t, sdf):
+        # encourage edits near zero-level set
+        boundary = torch.exp(-sdf.abs())
+        return (t * (1.0 - boundary)).mean()
+
+    # -----------------------------
+    # TRAINING STEP (V3)
+    # -----------------------------
+    def training_step(self, batch, batch_idx):
+        vol   = batch["Image"]
+        mask  = batch["Mask"]
+        sdf_gt = batch["SDF"]
+        skel  = batch["Skel"]
+        prob_mask_oof = batch["Mask_OOF"]
+
+        # ---- OOF augmentation ----
+        threshold = torch.empty(1, device=prob_mask_oof.device).uniform_(0.1, 0.5)
+        mask_oof = (prob_mask_oof > threshold).float()
+
+        if self.cfg.apply_gaussian:
+            mask_oof = gaussian_blur_3d(
+                mask_oof, self.cfg.kernel_size, self.cfg.sigma
+            )
+        # Convert OOF probability to SDF once
+        sdf_oof = soft_sdf(mask_oof)
+
+        x = torch.cat([vol, sdf_oof], dim=1)
+
+        # ---------------- forward ----------------
+        pred_dict = self(x, return_params=True)
+        sdf_pred, prob_pred, phi, v, t  = pred_dict['sdf'], pred_dict['prob'],\
+            pred_dict['phi'], pred_dict['v'], pred_dict['gate']
+
+        ignore_mask = mask != 2
+
+        # ---------------- SDF geometry loss ----------------
+        L_sdf = self.sdf_loss(sdf_pred, sdf_gt)
+
+        # ---------------- segmentation & topology ----------------
+        L_seg = self.seg_loss(
+            prob_pred * ignore_mask,
+            mask * ignore_mask,
+        )
+
+        L_topo = self.topo_loss(
+            prob_pred * ignore_mask,
+            mask * ignore_mask,
+        )
+
+        L_skel = self.skel_loss(
+            prob_pred,
+            skel,
+            mask,
+        )
+
+        # ---------------- diffeo regularization ----------------
+        L_smooth = self.svf_smoothness(v)
+        L_jac = jacobian_log_barrier(phi)
+
+        # ---------------- topo-gate regularization ----------------
+        L_sparse = self.topo_sparsity(t)
+        L_tv = self.topo_tv(t)
+        L_boundary = self.topo_boundary(t, sdf_pred)
+
+        # ---------------- total loss ----------------
+        loss = (
+            L_sdf
+            + L_seg
+            + 0.5 * L_topo
+            + 0.3 * L_skel
+            + self.lambda_jac * L_jac
+            + self.lambda_smooth * L_smooth
+            + self.lambda_sparse * L_sparse
+            + self.lambda_tv * L_tv
+            + self.lambda_boundary * L_boundary
+        )
+
+        # ---------------- logging ----------------
+        self.log("loss", loss, prog_bar=True)
+        self.log("sdf", L_sdf, prog_bar=True)
+        self.log("seg", L_seg, prog_bar=True)
+        self.log("topo", L_topo, prog_bar=True)
+        self.log("jac", L_jac, prog_bar=True)
+        self.log("smooth", L_smooth, prog_bar=True)
+        self.log("t_sparse", L_sparse, prog_bar=True)
+        return loss
