@@ -2,7 +2,7 @@ project_name: vesurvius-challenge
 exp_name: deformnet-v3-k${kernel_size}-s${sigma}-model_type_${model_type}
 data_path: ./data/vesuvius-challenge-surface-detection
 data_npy_path: ../../vesuvius_challenge_sergio
-oof_path : ./data/2st_stage_oof_repeat2
+oof_path : ./data/1st_stage_oof
 oof_path2: ''
 nnunet_path: ./nnunet
 petrained_ckpt_path: ''
@@ -21,11 +21,11 @@ is_prob_oof_mask: true
 apply_gaussian: true
 
 #model config
-model_type: primus
+model_type: resenc
 custom: false
 apply_topo_proc: true
-kernel_size: 3
-sigma: 5
+kernel_size: 11
+sigma: 2
 #warp
 max_v: 1.5
 n_steps: 6

@@ -295,6 +295,72 @@ def build_anisotropic_struct(z_radius: int, xy_radius: int):
                     struct[cz + dz, cy + dy, cx + dx] = True
     return struct
 
+
+def mask_to_sdf(mask_patch, clip_distance=20.0):
+    """
+    Convert a binary mask patch to normalized SDF in [-1, 1].
+
+    mask_patch: np.ndarray of shape (D,H,W), values 0 (bg), 1 (fg)
+    clip_distance: max distance to clip (in voxels)
+    """
+    # Foreground SDF
+    fg_mask = mask_patch == 1
+    bg_mask = mask_patch == 0
+
+    # EDT distances
+    sdf_fg = distance_transform_edt(fg_mask)
+    sdf_bg = distance_transform_edt(bg_mask)
+
+    # Signed distance
+    sdf = sdf_bg - sdf_fg  # negative inside fg, positive outside
+
+    # Clip & normalize
+    sdf = np.clip(sdf, -clip_distance, clip_distance) / clip_distance
+    sdf = sdf.astype(np.float32)
+    return sdf
+
+
+def mask_to_sdf_parallel(masks, clip_distance=20.0):
+    """
+    Convert a batch of masks (B, 1, D, H, W) or (B, D, H, W) to SDF in [-1, 1].
+    Handles unlabeled (2) as background.
+    """
+    # convert to numpy
+    is_torch = isinstance(masks, torch.Tensor)
+    if is_torch:
+        masks = masks.cpu().numpy()
+
+    if masks.ndim == 4:  # (B, D, H, W) -> (B, 1, D, H, W)
+        masks = masks[:, None, ...]
+
+    B, C, D, H, W = masks.shape
+    masks = masks.astype(np.uint8)
+    masks[masks == 2] = 0  # treat unlabeled as background
+
+    # Prepare arrays
+    sdf_batch = np.zeros_like(masks, dtype=np.float32)
+
+    # vectorized computation using list comprehension (still parallelizable)
+    fg_masks = masks[:, 0] == 1
+    bg_masks = masks[:, 0] == 0
+
+    # distance transform
+    sdf_fg_list = [distance_transform_edt(fg_masks[b]) for b in range(B)]
+    sdf_bg_list = [distance_transform_edt(bg_masks[b]) for b in range(B)]
+
+    # stack
+    sdf_fg = np.stack(sdf_fg_list, axis=0)
+    sdf_bg = np.stack(sdf_bg_list, axis=0)
+
+    sdf = sdf_bg - sdf_fg
+    sdf = np.clip(sdf, -clip_distance, clip_distance) / clip_distance
+    sdf_batch[:, 0] = sdf
+
+    if is_torch:
+        sdf_batch = torch.from_numpy(sdf_batch)
+
+    return sdf_batch
+
 def topo_postprocess(
     probs,
     T_low=0.30,

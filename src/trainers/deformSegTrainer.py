@@ -495,17 +495,16 @@ class DiffeoRefineModuleV3(DiffeoRefineModule):
         prob_mask_oof = batch["Mask_OOF"]
 
         # ---- OOF augmentation ----
-        threshold = torch.empty(1, device=prob_mask_oof.device).uniform_(0.1, 0.5)
+        threshold = 0.3 + torch.randn(1, device=prob_mask_oof.device) * 0.1
+        threshold = torch.clamp(threshold, 0.1, 0.5)
         mask_oof = (prob_mask_oof > threshold).float()
 
         if self.cfg.apply_gaussian:
             mask_oof = gaussian_blur_3d(
                 mask_oof, self.cfg.kernel_size, self.cfg.sigma
             )
-        # Convert OOF probability to SDF once
-        sdf_oof = soft_sdf(mask_oof)
 
-        x = torch.cat([vol, sdf_oof], dim=1)
+        x = torch.cat([vol, mask_oof], dim=1)
 
         # ---------------- forward ----------------
         pred_dict = self(x, return_params=True)

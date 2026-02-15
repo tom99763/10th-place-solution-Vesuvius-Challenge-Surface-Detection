@@ -302,7 +302,9 @@ class DeformNetV3(nn.Module):
           channel 1: prior SDF (NOT probability!)
         """
         img  = x[:, 0:1]
-        sdf0 = x[:, 1:2]   # prior SDF
+        prob_mask = x[:, 1:2]
+        sdf_input = soft_sdf(prob_mask)  # OOF prob -> SDF-like
+        sdf0 = 2.0 * sdf_input - 1.0  # scale to [-1,1] if needed
 
         raw = self.backbone(torch.cat([img, sdf0], dim=1))
 

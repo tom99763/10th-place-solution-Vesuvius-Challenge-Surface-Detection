@@ -7,6 +7,7 @@ from pathlib import Path
 import random
 
 
+
 class DeformDataset(Dataset):
     def __init__(self, cfg, id_list, train):
         super().__init__()
@@ -44,6 +45,8 @@ class DeformDataset(Dataset):
             mask = torch.stack([_data['Mask'] for _data in data], dim=0)
             mask_oof = torch.stack([_data['Mask_OOF'] for _data in data], dim=0)
             skel = torch.stack([_data['Skel'] for _data in data], dim=0)
+            sdf_patch = mask_to_sdf_parallel(mask_oof)
+            return vol, mask, mask_oof, skel, sdf_patch
         else:
             vol, mask, mask_oof, skel = data['Image'], data['Mask'], data['Mask_OOF'], data['Skel']
         return vol, mask, mask_oof, skel
@@ -57,12 +60,14 @@ def collate_fn_train(batch):
     masks = torch.cat([item[1] for item in batch], dim=0)
     mask_oof = torch.cat([item[2] for item in batch], dim=0)
     skel = torch.cat([item[3] for item in batch], dim=0)
+    sdf = torch.cat([item[4] for item in batch], dim=0)
 
     return {
         "Image": images,
         "Mask": masks,
         "Mask_OOF": mask_oof,
-        "Skel": skel
+        "Skel": skel,
+        "SDF": sdf
     }
 
 
