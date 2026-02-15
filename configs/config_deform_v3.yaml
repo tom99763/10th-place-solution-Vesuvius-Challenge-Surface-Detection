@@ -14,9 +14,9 @@ offline: true
 fold_id: 0
 n_splits: 5
 seed: 42
-input_size: [-1, 96, 96]
+input_size: [160, 160, 160]
 threshold: 0.5
-selected_fold: 0
+selected_fold: 1
 is_prob_oof_mask: true
 apply_gaussian: true
 
@@ -34,9 +34,9 @@ lambda_smooth: 0.05
 lambda_ce: 0.5
 lambda_dice: 1.5
 # topology gate
-lambda_sparse: 0.1
+lambda_sparse: 0.02
 lambda_tv: 0.02
-lambda_boundary: 0.1
+lambda_boundary: 0.05
 max_topo_offset: 1.0
 
 

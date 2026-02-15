@@ -459,7 +459,7 @@ class DiffeoRefineModuleV3(DiffeoRefineModule):
         super().__init__(model, cfg)
 
         # --- SDF loss ---
-        self.sdf_loss = SignedDistanceLoss(cfg.sdf)
+        self.sdf_loss = SignedDistanceLoss(cfg.losses)
 
         # --- topology gate regularization ---
         self.lambda_sparse = getattr(cfg, "lambda_sparse", 0.05)
@@ -545,9 +545,9 @@ class DiffeoRefineModuleV3(DiffeoRefineModule):
         # ---------------- total loss ----------------
         loss = (
             L_sdf
-            + L_seg
-            + 0.5 * L_topo
-            + 0.3 * L_skel
+            + 0.8 * L_seg
+            + 0.4 * L_topo
+            + 0.25 * L_skel
             + self.lambda_jac * L_jac
             + self.lambda_smooth * L_smooth
             + self.lambda_sparse * L_sparse

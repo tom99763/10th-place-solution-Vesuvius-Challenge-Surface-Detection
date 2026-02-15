@@ -24,7 +24,8 @@ class DeformDataset(Dataset):
     def __getitem__(self, idx):
         idx = self.id_list[idx]
         vol = np.load(f'{self.cfg.data_npy_path}/train_images_npy/{idx}.npy')
-        mask = np.load(f'{self.cfg.data_npy_path}/train_labels_npy/{idx}.npy')
+        mask = load_volume(Path(f'{self.cfg.data_path}/new_labels/{idx}.tif'))
+        sdf = np.load(Path(f'{self.cfg.data_path}/new_labels_sdf/{idx}.npy'))
         skel = np.load(f'{self.cfg.data_npy_path}/train_skeletons_npy/{idx}.npy')
         if self.cfg.is_prob_oof_mask:
             # pred_mask = np.load(f'{self.cfg.oof_path}/{idx}.npz', mmap_mode='r')
@@ -38,15 +39,15 @@ class DeformDataset(Dataset):
         # if self.cfg.apply_topo_proc:
         #     pred_mask = topo_postprocess(pred_mask)
 
-        raw = {"Image": vol, "Mask": mask, "Mask_OOF": pred_mask, "Skel": skel}
+        raw = {"Image": vol, "Mask": mask, "Mask_OOF": pred_mask, "Skel": skel, "SDF": sdf}
         data = self.proc_data(raw)
         if self.train:
             vol = torch.stack([_data['Image'] for _data in data], dim=0)
             mask = torch.stack([_data['Mask'] for _data in data], dim=0)
             mask_oof = torch.stack([_data['Mask_OOF'] for _data in data], dim=0)
             skel = torch.stack([_data['Skel'] for _data in data], dim=0)
-            sdf_patch = mask_to_sdf_parallel(mask_oof)
-            return vol, mask, mask_oof, skel, sdf_patch
+            sdf = torch.stack([_data['sdf'] for _data in data], dim=0)
+            return vol, mask, mask_oof, skel, sdf
         else:
             vol, mask, mask_oof, skel = data['Image'], data['Mask'], data['Mask_OOF'], data['Skel']
         return vol, mask, mask_oof, skel
