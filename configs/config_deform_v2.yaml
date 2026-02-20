@@ -21,7 +21,7 @@ is_prob_oof_mask: true
 apply_gaussian: true
 
 #model config
-model_type: primus
+model_type: resenc
 custom: false
 apply_topo_proc: true
 kernel_size: 11
