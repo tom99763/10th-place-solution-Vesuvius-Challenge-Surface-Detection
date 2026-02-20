@@ -120,7 +120,7 @@ class TomoDataModule(pl.LightningDataModule):
     def val_dataloader(self):
         return DataLoader(
             self.val_dataset,
-            batch_size=self.cfg.batch_size,
+            batch_size=1,
             shuffle=False,
             num_workers=self.cfg.num_workers,
             pin_memory=True,
