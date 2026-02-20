@@ -24,7 +24,7 @@ class DeformDataset(Dataset):
     def __getitem__(self, idx):
         idx = self.id_list[idx]
         vol = np.load(f'{self.cfg.data_npy_path}/train_images_npy/{idx}.npy')
-        mask = load_volume(Path(f'{self.cfg.data_npy_path}/train_labels_npy/{idx}.npy'))
+        mask = np.load(Path(f'{self.cfg.data_npy_path}/train_labels_npy/{idx}.npy'))
         #sdf = np.load(Path(f'{self.cfg.data_path}/new_labels_sdf/{idx}.npy'))
         skel = np.load(f'{self.cfg.data_npy_path}/train_skeletons_npy/{idx}.npy')
         if self.cfg.is_prob_oof_mask:
