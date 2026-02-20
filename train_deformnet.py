@@ -18,7 +18,7 @@ from src.trainers.deformSegTrainer import *
 import torch.multiprocessing as mp
 import wandb
 mp.set_start_method("spawn", force=True)
-os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
 
 version = 'v2'

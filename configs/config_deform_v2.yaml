@@ -7,7 +7,7 @@ oof_path2: ''
 nnunet_path: ./nnunet
 petrained_ckpt_path: ''
 data_split_path: ./splits.json
-batch_size: 2
+batch_size: 1
 num_workers: 4
 lr: 1e-3
 offline: true
@@ -16,7 +16,7 @@ n_splits: 5
 seed: 42
 input_size: [160, 160, 160]
 threshold: 0.5
-selected_fold: 0
+selected_fold: 1
 is_prob_oof_mask: true
 apply_gaussian: true
 
