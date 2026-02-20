@@ -24,8 +24,8 @@ class DeformDataset(Dataset):
     def __getitem__(self, idx):
         idx = self.id_list[idx]
         vol = np.load(f'{self.cfg.data_npy_path}/train_images_npy/{idx}.npy')
-        mask = load_volume(Path(f'{self.cfg.data_path}/new_labels/{idx}.tif'))
-        sdf = np.load(Path(f'{self.cfg.data_path}/new_labels_sdf/{idx}.npy'))
+        mask = load_volume(Path(f'{self.cfg.data_npy_path}/train_labels_npy/{idx}.tif'))
+        #sdf = np.load(Path(f'{self.cfg.data_path}/new_labels_sdf/{idx}.npy'))
         skel = np.load(f'{self.cfg.data_npy_path}/train_skeletons_npy/{idx}.npy')
         if self.cfg.is_prob_oof_mask:
             # pred_mask = np.load(f'{self.cfg.oof_path}/{idx}.npz', mmap_mode='r')
@@ -39,15 +39,15 @@ class DeformDataset(Dataset):
         # if self.cfg.apply_topo_proc:
         #     pred_mask = topo_postprocess(pred_mask)
 
-        raw = {"Image": vol, "Mask": mask, "Mask_OOF": pred_mask, "Skel": skel, "SDF": sdf}
+        raw = {"Image": vol, "Mask": mask, "Mask_OOF": pred_mask, "Skel": skel}
         data = self.proc_data(raw)
         if self.train:
             vol = torch.stack([_data['Image'] for _data in data], dim=0)
             mask = torch.stack([_data['Mask'] for _data in data], dim=0)
             mask_oof = torch.stack([_data['Mask_OOF'] for _data in data], dim=0)
             skel = torch.stack([_data['Skel'] for _data in data], dim=0)
-            sdf = torch.stack([_data['SDF'] for _data in data], dim=0)
-            return vol, mask, mask_oof, skel, sdf
+            #sdf = torch.stack([_data['SDF'] for _data in data], dim=0)
+            return vol, mask, mask_oof, skel
         else:
             vol, mask, mask_oof, skel = data['Image'], data['Mask'], data['Mask_OOF'], data['Skel']
         return vol, mask, mask_oof, skel
@@ -61,14 +61,12 @@ def collate_fn_train(batch):
     masks = torch.cat([item[1] for item in batch], dim=0)
     mask_oof = torch.cat([item[2] for item in batch], dim=0)
     skel = torch.cat([item[3] for item in batch], dim=0)
-    sdf = torch.cat([item[4] for item in batch], dim=0)
 
     return {
         "Image": images,
         "Mask": masks,
         "Mask_OOF": mask_oof,
-        "Skel": skel,
-        "SDF": sdf
+        "Skel": skel
     }
 
 
