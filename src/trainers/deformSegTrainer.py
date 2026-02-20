@@ -5,6 +5,7 @@ import pytorch_lightning as pl
 from src.trainers.losses import *
 from monai.losses import DiceCELoss, TverskyLoss
 from src.procs.proc_data import *
+from src.procs.augs import apply_random_thickness_augmentation
 import sys
 sys.path.append('../../')
 from cv import calc_score
@@ -84,8 +85,12 @@ class DiffeoRefineModule(pl.LightningModule):
             threshold = torch.empty(1, device=mask_oof.device).uniform_(0.1, 0.5)
             mask_oof = (mask_oof > threshold).float()
 
+        if self.cfg.apply_rand_thick_aug:
+            mask_oof = apply_random_thickness_augmentation(mask_oof)
+
         if self.cfg.apply_gaussian:
             mask_oof = gaussian_blur_3d(mask_oof, self.cfg.kernel_size, self.cfg.sigma)
+
 
         x = torch.cat([vol, mask_oof], dim=1)
         pred_warped, v, phi = self(x, return_params=True)
