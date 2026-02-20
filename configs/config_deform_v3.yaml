@@ -1,8 +1,8 @@
-project_name: vesurvius-challenge
+project_name: vesuvius-kaggle_3nd_stage
 exp_name: deformnet-v3-k${kernel_size}-s${sigma}-model_type_${model_type}
 data_path: ./data/vesuvius-challenge-surface-detection
 data_npy_path: ../../vesuvius_challenge_sergio
-oof_path : ./data/1st_stage_oof
+oof_path : ./data/3rd_stage_oof_preds_new
 oof_path2: ''
 nnunet_path: ./nnunet
 petrained_ckpt_path: ''

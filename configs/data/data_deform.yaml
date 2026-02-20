@@ -33,7 +33,7 @@ transforms:
         shear_range: [ 0.02, 0.02, 0.02 ]
         scale_range: [ 0.05, 0.05, 0.05 ]
         translate_range: [ 3, 3, 3 ]
-        mode: [ "bilinear", "nearest", "bilinear", "nearest", "bilinear"]
+        mode: [ "bilinear", "nearest", "bilinear", "nearest", "nearest"]
         padding_mode: "border"
 
     - RandCoarseDropoutd:

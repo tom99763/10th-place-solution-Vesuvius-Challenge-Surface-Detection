@@ -209,24 +209,24 @@ class DiffeoRefineModule(pl.LightningModule):
             weight_decay=1e-2,
         )
 
-        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-            optimizer,
-            mode="min",
-            factor=0.75,
-            patience=5,
-            threshold=1e-4,
-            cooldown=2,
-            min_lr=5e-4,
-        )
+        # scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+        #     optimizer,
+        #     mode="min",
+        #     factor=0.75,
+        #     patience=5,
+        #     threshold=1e-4,
+        #     cooldown=2,
+        #     min_lr=5e-4,
+        # )
 
         return {
             "optimizer": optimizer,
-            "lr_scheduler": {
-                "scheduler": scheduler,
-                "monitor": "loss",
-                "interval": "epoch",
-                "frequency": 1,
-            },
+            # "lr_scheduler": {
+            #     "scheduler": scheduler,
+            #     "monitor": "loss",
+            #     "interval": "epoch",
+            #     "frequency": 1,
+            # },
         }
 
 
@@ -368,7 +368,7 @@ class DiffeoRefineModuleV2(DiffeoRefineModule):
         )
 
         # ---- OOF augmentation ----
-        threshold = 0.3 + torch.randn(1, device=prob_mask_oof.device) * 0.05
+        threshold = 0.3 + torch.randn(1, device=prob_mask_oof.device) * 0.01
         threshold = torch.clamp(threshold, 0.1, 0.5)
         mask_oof = (prob_mask_oof > threshold).float()
 
@@ -495,7 +495,7 @@ class DiffeoRefineModuleV3(DiffeoRefineModule):
         prob_mask_oof = batch["Mask_OOF"]
 
         # ---- OOF augmentation ----
-        threshold = 0.3 + torch.randn(1, device=prob_mask_oof.device) * 0.1
+        threshold = 0.3 + torch.randn(1, device=prob_mask_oof.device) * 0.01
         threshold = torch.clamp(threshold, 0.1, 0.5)
         mask_oof = (prob_mask_oof > threshold).float()
 

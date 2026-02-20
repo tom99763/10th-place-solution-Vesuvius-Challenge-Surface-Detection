@@ -16,11 +16,12 @@ import json
 from src.models.deformNet3d import *
 from src.trainers.deformSegTrainer import *
 import torch.multiprocessing as mp
+import wandb
 mp.set_start_method("spawn", force=True)
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
 
-version = 'v3'
+version = 'v2'
 if version  == 'v1':
     config_name = "config_deform"
     module = DiffeoRefineModule
@@ -72,12 +73,15 @@ def run(cfg: DictConfig):
         else:
             pl_model = module(model, cfg)
 
-        # wnb_logger = WandbLogger(
-        #     project=cfg.project_name,
-        #     name=cfg.exp_name,
-        #     config=OmegaConf.to_container(cfg),
-        #     offline=False,
-        # )
+        if wandb.run:
+            wandb.finish()
+
+        wnb_logger = WandbLogger(
+            project=cfg.project_name,
+            name=cfg.exp_name,
+            config=OmegaConf.to_container(cfg),
+            offline=False,
+        )
 
         # callbacks
         ckpt_callback = pl.callbacks.ModelCheckpoint(
@@ -94,13 +98,16 @@ def run(cfg: DictConfig):
         # trainer
         trainer = pl.Trainer(
             **cfg.trainer,
-            #logger=wnb_logger,
+            logger=wnb_logger,
             callbacks=[lr_monitor, ckpt_callback],
         )
-        #wnb_logger.watch(model, log="all", log_freq=20)
+        # wnb_logger.watch(model, log="all", log_freq=20)
 
         # training
         trainer.fit(pl_model, datamodule=datamodule)
+
+        if wnb_logger:
+            wandb.finish()
         #trainer.validate(pl_model, datamodule=datamodule)
 
 if __name__ == '__main__':

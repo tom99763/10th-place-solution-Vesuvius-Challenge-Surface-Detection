@@ -46,7 +46,7 @@ class DeformDataset(Dataset):
             mask = torch.stack([_data['Mask'] for _data in data], dim=0)
             mask_oof = torch.stack([_data['Mask_OOF'] for _data in data], dim=0)
             skel = torch.stack([_data['Skel'] for _data in data], dim=0)
-            sdf = torch.stack([_data['sdf'] for _data in data], dim=0)
+            sdf = torch.stack([_data['SDF'] for _data in data], dim=0)
             return vol, mask, mask_oof, skel, sdf
         else:
             vol, mask, mask_oof, skel = data['Image'], data['Mask'], data['Mask_OOF'], data['Skel']

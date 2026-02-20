@@ -1,8 +1,8 @@
-project_name: vesurvius-challenge
+project_name: vesuvius-kaggle_3nd_stage
 exp_name: deformnet-v2-k${kernel_size}-s${sigma}-model_type_${model_type}
 data_path: ./data/vesuvius-challenge-surface-detection
 data_npy_path: ../../vesuvius_challenge_sergio
-oof_path : ./data/2st_stage_oof_repeat2
+oof_path : ./data/3rd_stage_oof_preds_new
 oof_path2: ''
 nnunet_path: ./nnunet
 petrained_ckpt_path: ''
@@ -24,8 +24,8 @@ apply_gaussian: true
 model_type: primus
 custom: false
 apply_topo_proc: true
-kernel_size: 3
-sigma: 5
+kernel_size: 11
+sigma: 2
 #warp
 max_v: 1.5
 n_steps: 6
