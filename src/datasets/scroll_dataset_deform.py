@@ -30,7 +30,7 @@ class DeformDataset(Dataset):
         if self.cfg.is_prob_oof_mask:
             # pred_mask = np.load(f'{self.cfg.oof_path}/{idx}.npz', mmap_mode='r')
             # pred_mask = pred_mask['prob'] #(d, h, w)
-            pred_mask = np.load(f'{self.cfg.oof_path}/{idx}.npy', mmap_mode='r')
+            pred_mask = np.load(f'{self.cfg.oof_path}/{idx}_probs.npy', mmap_mode='r')
         else:
             pred_mask = load_volume(Path(f'{self.cfg.oof_path}/{idx}.tif'))
             #pred_mask = np.load(Path(f'{self.cfg.oof_path}/{idx}.npy'))
