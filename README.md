@@ -1,4 +1,4 @@
-## 10th-place solution (Diffeomorphic Network Part)
+## Diffeomorphic Network Part of 10th-place solution (Vesuvius Challenge - Surface Detection)
 
 
 ### Installing topometrics
