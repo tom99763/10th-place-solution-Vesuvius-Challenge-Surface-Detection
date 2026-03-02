@@ -1,5 +1,9 @@
 ## Diffeomorphic Network Part of 10th-place solution (Vesuvius Challenge - Surface Detection)
 
+## Install Dependencies
+```bash
+pip3 install -r requirements.txt
+```
 
 ### Environment 
 | Hardware Setup | GPU | CPU | RAM | Time per Fold | Total (5 folds) |
