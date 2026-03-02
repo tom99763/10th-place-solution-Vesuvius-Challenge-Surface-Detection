@@ -1,0 +1,41 @@
+project_name: vesurvius-challenge
+exp_name: refinenet
+data_path: ./data/vesuvius-challenge-surface-detection
+oof_path : ./data/prob_predictions
+oof_path2: ''
+nnunet_path: ./nnunet
+petrained_ckpt_path: ''
+data_split_path: ./splits.json
+batch_size: 1
+num_workers: 4
+lr: 1e-3
+weight_decay: 1e-4
+offline: true
+fold_id: 0
+n_splits: 5
+seed: 42
+input_size: [160, 160, 160]
+threshold: 0.5
+selected_fold: 1
+is_prob_oof_mask: true
+
+#model config
+loss_weights: (0.4, 0.4, 0.1, 0.1)
+ce_top_k: 1.0
+use_ema: true
+ema_decay: 0.999
+ema_warmup: 1000
+ignore_index: 2
+surface_dice_iterations: 5
+n_refine_steps: 2
+detach_between_steps: true
+overlap: 0.5
+
+defaults:
+  - models: refine_dynunet
+  - optimizers: AdamW
+  - data: data_refinenet
+  - trainer: refineNetTrainer
+  - _self_
+
+

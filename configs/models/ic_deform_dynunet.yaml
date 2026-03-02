@@ -1,0 +1,33 @@
+_target_: "monai.networks.nets.DynUNet"
+spatial_dims: 3
+in_channels: 2
+out_channels: 3
+
+strides:
+  - [1, 1, 1]
+  - [2, 2, 2]
+  - [2, 2, 2]
+  - [2, 2, 2]
+  - [2, 2, 2]
+  - [2, 2, 2]
+
+kernel_size:
+  - [3, 3, 3]
+  - [3, 3, 3]
+  - [3, 3, 3]
+  - [3, 3, 3]
+  - [3, 3, 3]
+  - [3, 3, 3]
+
+upsample_kernel_size:
+  - [2, 2, 2]
+  - [2, 2, 2]
+  - [2, 2, 2]
+  - [2, 2, 2]
+  - [2, 2, 2]
+
+filters: [24, 48, 96, 160, 192, 192]
+
+res_block: true
+norm_name: "INSTANCE"
+deep_supervision: false

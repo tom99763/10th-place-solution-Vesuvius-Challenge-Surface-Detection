@@ -1,0 +1,33 @@
+project_name: vesurvius-challenge
+exp_name: deform-dynunet-pathcleaner
+data_path: ./data/vesuvius-challenge-surface-detection
+oof_path : ./data/nnunet_oof
+oof_path2: '' #./nnunet/nnUNet_results/Dataset900_VesuviusScroll/nnUNetTrainer__nnUNetResEncUNetMPlans__3d_fullres/oof_deform_prob
+nnunet_path: ./nnunet
+petrained_ckpt_path: ''
+data_split_path: ./splits.json
+batch_size: 1
+num_workers: 4
+lr: 1e-3
+offline: true
+fold_id: 0
+n_splits: 5
+seed: 42
+input_size: [160, 160, 160]
+threshold: 0.5
+selected_fold: ''
+is_prob_oof_mask: false
+
+#model config
+use_resenc: true
+lambda_ce: 0.1
+lambda_dice: 0.9
+
+defaults:
+  - models: pathcleaner
+  - optimizers: AdamW
+  - data: data_pathcleaner
+  - trainer: pathcleanerTrainer
+  - _self_
+
+

@@ -1,0 +1,73 @@
+transforms:
+  train:
+    - EnsureChannelFirstd:
+        keys: ["Image", "Mask", "SDF"]
+        channel_dim: "no_channel"
+
+    - EnsureTyped:
+        keys: ["Image", "Mask", "SDF", "Z"]
+        dtype: float32
+
+    # === Intensity normalization (Image only) ===
+    - ScaleIntensityRanged:
+        keys: ["Image"]
+        a_min: 0.0
+        a_max: 213.0
+        b_min: -5.0
+        b_max: 5.0
+        clip: true
+
+    # === Patch extraction (driven by Mask, not Z) ===
+    - RandCropByPosNegLabeld:
+        keys: ["Image", "Mask", "SDF", "Z"]
+        label_key: "Mask"
+        spatial_size: ${input_size}
+        pos: 2
+        neg: 0
+        num_samples: 2
+        image_key: "Image"
+        image_threshold: 0.0
+
+    - ToTensord:
+        keys: ["Image", "Mask", "SDF", "Z"]
+
+
+  val:
+    - EnsureChannelFirstd:
+        keys: ["Image", "Mask"]
+        channel_dim: "no_channel"
+
+    - EnsureTyped:
+        keys: ["Image", "Mask"]
+        dtype: float32
+
+    - ScaleIntensityRanged:
+        keys: ["Image"]
+        a_min: 0.0
+        a_max: 213.0
+        b_min: -5.0
+        b_max: 5.0
+        clip: true
+
+    - ToTensord:
+        keys: ["Image", "Mask"]
+
+  test:
+    - EnsureChannelFirstd:
+        keys: [ "Image" ]
+        channel_dim: "no_channel"
+
+    - EnsureTyped:
+        keys: [ "Image" ]
+        dtype: float32
+
+    - ScaleIntensityRanged:
+        keys: [ "Image" ]
+        a_min: 0.0
+        a_max: 213.0
+        b_min: -5.0
+        b_max: 5.0
+        clip: true
+
+    - ToTensord:
+        keys: [ "Image" ]

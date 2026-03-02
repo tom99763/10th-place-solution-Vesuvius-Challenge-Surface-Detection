@@ -1,7 +1,7 @@
 project_name: vesurvius-challenge
-exp_name: deform-dynunet-k${kernel_size}-s${sigma}-full-depth-rand-thr-aug
+exp_name: IC-Deformnet-k${kernel_size}-s${sigma}-v${max_delta_v}-p160-rand-thr-aug
 data_path: ./data/vesuvius-challenge-surface-detection
-oof_path : ./data/prob_predictions
+oof_path : ./data/nnunet_oof/oof
 oof_path2: ''
 nnunet_path: ./nnunet
 petrained_ckpt_path: ''
@@ -13,28 +13,29 @@ offline: true
 fold_id: 0
 n_splits: 5
 seed: 42
-input_size: [-1, 128, 128]
+input_size: [160, 160, 160]
 threshold: 0.5
-selected_fold: 0
-is_prob_oof_mask: true
+selected_fold: 1
+is_prob_oof_mask: false
 apply_gaussian: true
 
 #model config
-use_resenc: true
-max_v: 3.0 #Max instantaneous displacement ≈ v voxels
-n_steps: 5
-lambda_jac: 1.0
-lambda_smooth: 0.1
+use_resenc: false
 lambda_ce: 1
 lambda_dice: 1
-alpha: 0.3
-beta: 0.7
 kernel_size: 3
 sigma: 10
-
+num_iters: 2
+n_steps: 3
+max_delta_v: 0.3
+#1, 2, 3
+lambda_jac: 1.0
+lambda_smooth_ic: 0.05
+lambda_smooth: 0.1
+lambda_iter: 0.05
 
 defaults:
-  - models: deform_dynunet
+  - models: ic_deform_dynunet
   - optimizers: AdamW
   - data: data_deform
   - trainer: deformSegTrainer

@@ -1,0 +1,128 @@
+transforms:
+  train:
+    - EnsureChannelFirstd:
+        keys: [ "Image", "Mask", "Mask_OOF", "Skel" ]
+        channel_dim: "no_channel"
+
+    - EnsureTyped:
+        keys: [ "Image", "Mask", "Mask_OOF", "Skel" ]
+        dtype: float32
+
+    - ScaleIntensityRanged:
+        keys: [ "Image" ]
+        a_min: 0.0
+        a_max: 255.0
+        b_min: 0.0
+        b_max: 1.0
+        clip: true
+
+    - RandCropByPosNegLabeld:
+        keys: [ "Image", "Mask", "Mask_OOF", "Skel" ]
+        label_key: "Mask"
+        spatial_size: ${input_size}
+        pos: 2
+        neg: 0
+        num_samples: 2
+        image_key: "Image"
+        image_threshold: 0.0
+
+    # Spatial augmentations
+    - RandFlipd:
+        keys: [ "Image", "Mask", "Mask_OOF", "Skel" ]
+        prob: 0.5
+        spatial_axis: 0
+    - RandFlipd:
+        keys: [ "Image", "Mask", "Mask_OOF", "Skel" ]
+        prob: 0.5
+        spatial_axis: 1
+    - RandFlipd:
+        keys: [ "Image", "Mask", "Mask_OOF", "Skel" ]
+        prob: 0.5
+        spatial_axis: 2
+
+    - RandRotate90d:
+        keys: [ "Image", "Mask", "Mask_OOF", "Skel" ]
+        prob: 0.2
+        max_k: 3
+        spatial_axes: [ 1, 2 ]
+
+    - RandZoomd:
+        keys: [ "Image", "Mask", "Mask_OOF", "Skel" ]
+        prob: 0.2
+        min_zoom: 1.0
+        max_zoom: 1.2
+        mode: [ "bilinear","nearest","bilinear","nearest" ]
+
+    - RandCoarseDropoutd:
+        keys: [ "Mask_OOF" ]
+        prob: 0.2
+        holes: 12
+        spatial_size: [15, 15, 15]
+        fill_value: 0.0
+
+    # Intensity augmentations (image only)
+    - RandGaussianNoised:
+        keys: [ "Image" ]
+        prob: 0.1
+        std: 0.1
+    - RandGaussianSmoothd:
+        keys: [ "Image" ]
+        sigma_x: [ 0.5, 1.0 ]
+        sigma_y: [ 0.5, 1.0 ]
+        sigma_z: [ 0.5, 1.0 ]
+        prob: 0.2
+    - RandScaleIntensityd:
+        keys: [ "Image" ]
+        factors: 0.25
+        prob: 0.15
+    - RandAdjustContrastd:
+        keys: [ "Image" ]
+        gamma: [ 0.75, 1.25 ]
+        prob: 0.15
+    - RandShiftIntensityd:
+        keys: [ "Image" ]
+        offsets: 0.1
+        prob: 0.3
+
+    - ToTensord:
+        keys: [ "Image", "Mask", "Mask_OOF", "Skel" ]
+
+  val:
+    - EnsureChannelFirstd:
+        keys: ["Image", "Mask", "Mask_OOF", "Skel"]
+        channel_dim: "no_channel"
+
+    - EnsureTyped:
+        keys: ["Image", "Mask", "Mask_OOF", "Skel"]
+        dtype: float32
+
+    - ScaleIntensityRanged:
+        keys: ["Image"]
+        a_min: 0.0
+        a_max: 213.0
+        b_min: -5.0
+        b_max: 5.0
+        clip: true
+
+    - ToTensord:
+        keys: ["Image", "Mask", "Mask_OOF", "Skel"]
+
+  test:
+    - EnsureChannelFirstd:
+        keys: ["Image", "Mask_OOF"]
+        channel_dim: "no_channel"
+
+    - EnsureTyped:
+        keys: ["Image", "Mask_OOF"]
+        dtype: float32
+
+    - ScaleIntensityRanged:
+        keys: ["Image"]
+        a_min: 0.0
+        a_max: 213.0
+        b_min: -5.0
+        b_max: 5.0
+        clip: true
+
+    - ToTensord:
+        keys: ["Image", "Mask_OOF"]

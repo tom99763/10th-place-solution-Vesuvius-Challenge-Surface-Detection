@@ -3,6 +3,11 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from hydra.utils import instantiate
+from dynamic_network_architectures.architectures.unet import ResidualEncoderUNet
+from dynamic_network_architectures.architectures.primus import PrimusB
+
+from src.models.custom_architecture import CustomUNet, CustomUNetV2
+
 
 # Diffeo exponentiation and warper (same as before)
 def make_base_grid(B, D, H, W, device):
@@ -43,10 +48,45 @@ def scaling_and_squaring(v: torch.Tensor, n_steps:int=6) -> torch.Tensor:
     return flow
 
 
+def create_residual_unet(
+        in_channels=2,
+        out_channels=3,
+        channels=(32, 64, 128, 256, 320, 320),
+        strides=(1, 2, 2, 2, 2, 2),
+        n_blocks_per_stage=(1, 3, 4, 6, 6, 6),
+        deep_supervision=False,
+):
+    # Number of stages in decoder is len(channels) - 1
+    n_conv_per_stage_decoder = [1] * (len(channels) - 1)
+
+    model = ResidualEncoderUNet(
+        input_channels=in_channels,
+        n_stages=len(channels),
+        features_per_stage=channels,
+        conv_op=nn.Conv3d,
+        kernel_sizes=3,
+        strides=strides,
+        n_blocks_per_stage=n_blocks_per_stage,
+        num_classes=out_channels,
+        n_conv_per_stage_decoder=n_conv_per_stage_decoder,
+        conv_bias=True,
+        norm_op=nn.InstanceNorm3d,
+        norm_op_kwargs={},
+        dropout_op=None,
+        nonlin=nn.LeakyReLU,
+        nonlin_kwargs={'inplace': True},
+        deep_supervision=deep_supervision,
+    )
+    return model
+
+
 class DeformDynUnet(nn.Module):
     def __init__(self, cfg):
         super().__init__()
-        self.predictor = instantiate(cfg.models)
+        if cfg.use_resenc:
+            self.predictor = create_residual_unet()
+        else:
+            self.predictor = instantiate(cfg.models)
         self.cfg = cfg
 
     def forward(self, x, return_params = False):
@@ -66,113 +106,233 @@ class DeformDynUnet(nn.Module):
 # --------------------
 # --------------------
 class ICDeformDynUnet(DeformDynUnet):
-    """
-    Iterative inverse-compositional deformable warper for 3D masks.
-    Predictor: shared network that predicts a small SVF (B,3,D,H,W) given [vol, warped_mask]
-    At each iteration:
-      - delta_v = predictor([vol, warped_mask])  (small SVF)
-      - delta_phi = exp(delta_v)  (scaling-and-squaring)
-      - inv_delta_phi = exp(-delta_v)  (exact inverse in SVF group)
-      - phi <- inv_delta_phi + warp(phi, inv_delta_phi)  (IC composition: phi <- phi ∘ Δφ^{-1})
-      - warped_mask = warp(orig_mask, phi)
-    Notes:
-      - We always sample the mask from the original template (deferred warping).
-      - warp_displacement(field, by_disp) warps `field` by `by_disp`.
-    """
-    def __init__(self, cfg, predictor=None):
+    def __init__(self, cfg):
         super().__init__(cfg)
-        # predictor already set by parent (instantiate(cfg.models))
-        self.num_iters = getattr(cfg, "num_iters", 3)
-        self.max_delta_v = getattr(cfg, "max_delta_v", cfg.max_v if hasattr(cfg, "max_v") else 1.0)
-        self.n_steps = getattr(cfg, "n_steps", cfg.n_steps if hasattr(cfg, "n_steps") else 6)
+        self.num_iters = getattr(cfg, "num_iters", 2)
+        self.max_delta_v = getattr(cfg, "max_delta_v", 0.6)
+        self.n_steps = getattr(cfg, "n_steps", 4)  # ↓ from 6
 
     def forward(self, x, return_params=False):
         """
-        x is concatenation of vol and mask: B, 2, D, H, W
-        returns warped_mask; if return_params=True also returns list of phis and final phi
+        Optimized IC forward:
+        - Incremental mask warping
+        - Fewer exp calls
+        - No redundant recomputation
         """
         vol, mask = x[:, 0:1], x[:, 1:2]
         B, _, D, H, W = mask.shape
         device = mask.device
 
-        # initialize phi = zero displacement (identity)
+        # identity deformation
         phi = torch.zeros(B, 3, D, H, W, device=device, dtype=mask.dtype)
 
-        orig_mask = mask
-        warped_mask = orig_mask  # initial
-
+        warped_mask = mask  # incremental warp
         phis = []
 
-        for it in range(self.num_iters):
-            # predictor input: volume and current warped mask
-            inp = torch.cat([vol, warped_mask], dim=1)  # B, C_img + C_mask, D,H,W
-            raw_delta_v = self.predictor(inp)  # expected B,3,D,H,W
+        for _ in range(self.num_iters):
+            # predictor input
+            inp = torch.cat([vol, warped_mask], dim=1)
 
-            if raw_delta_v.shape[1] != 3:
-                raise RuntimeError(f"predictor must output 3 channels for voxel SVF, got {raw_delta_v.shape}")
+            # predict incremental SVF
+            delta_v = torch.tanh(self.predictor(inp)) * self.max_delta_v
 
-            # small incremental SVF
-            delta_v = torch.tanh(raw_delta_v) * self.max_delta_v  # keep small
+            # exp(-Δv)
+            inv_delta_phi = scaling_and_squaring(
+                -delta_v, n_steps=self.n_steps
+            )
 
-            # exponentiate to delta_phi and inverse via -delta_v
-            # Δφ = exp(Δv); Δφ^{-1} = exp(-Δv) exactly in SVF paramization
-            # We compute only inv_delta_phi explicitly (that's what IC uses)
-            inv_delta_phi = scaling_and_squaring(-delta_v, n_steps=self.n_steps)
+            # φ ← Δφ⁻¹ ∘ φ
+            phi = inv_delta_phi + warp_displacement(phi, inv_delta_phi)
 
-            # INVERSE-COMPOSITION (left composition by inv_delta_phi):
-            # phi_new = inv_delta_phi + warp(phi, inv_delta_phi)
-            warped_phi = warp_displacement(phi, inv_delta_phi)  # sample phi at positions after inv_delta_phi
-            phi = inv_delta_phi + warped_phi
+            # incremental mask warp (FAST)
+            warped_mask = warp_vol_using_disp(warped_mask, inv_delta_phi)
 
-            # update the warped mask by applying updated phi to the original mask (deferred warping)
-            warped_mask = warp_vol_using_disp(orig_mask, phi)
-
-            phis.append(phi)
+            if return_params:
+                phis.append(phi)
 
         if return_params:
             return warped_mask, phis, phi
         return warped_mask
 
+
+def create_primus(
+        in_channels=2,
+        out_channels=4,
+        input_shape = 160,
+        patch_embed_size = 8
+):
+    model = PrimusB(in_channels,
+                    out_channels,
+                    (patch_embed_size, patch_embed_size, patch_embed_size),
+                    (input_shape, input_shape, input_shape))
+    return model
+
 # ---------------------------
-# Quick test
+# defromnetv2
 # ---------------------------
-if __name__ == "__main__":
-    from omegaconf import OmegaConf
 
-    cfg_model = OmegaConf.create({
-        "_target_": "monai.networks.nets.DynUNet",
-        "in_channels": 2,   # will be concatenated vol + mask per iteration
-        "out_channels": 3,  # predict 3D velocity (SVF)
-        "spatial_dims": 3,
-        "strides": [[1, 1, 1], [2, 2, 2], [2, 2, 2], [2, 2, 2], [2, 2, 2]],
-        "kernel_size": [[3, 3, 3], [3, 3, 3], [3, 3, 3], [3, 3, 3], [3, 3, 3]],
-        "upsample_kernel_size": [[2, 2, 2], [2, 2, 2], [2, 2, 2], [2, 2, 2]],
-        "filters": [32, 64, 128, 256, 320],
-        "res_block": True,
-        "norm_name": "INSTANCE",
-        "deep_supervision": True,
-        "deep_supr_num": 2
-    })
-    cfg = OmegaConf.create({
-        "models": cfg_model,
-        "max_v": 3.0,
-        "n_steps": 5,
-        "num_iters": 3,
-        "max_delta_v": 0.6,
-    })
+def soft_sdf(x, eps=1e-4):
+    # x in [0,1]
+    return torch.log(x + eps) - torch.log(1 - x + eps)
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model = DeformDynUnet(cfg).to(device)
-    #model.eval()
-    model.train()
+class TopoFix(nn.Module):
+    def __init__(self, max_offset=2.0):
+        super().__init__()
+        self.max_offset = max_offset
 
-    # fake data (use soft mask values in [0,1])
-    x_img = torch.randn(1, 1, 64, 128, 128, device=device)
-    soft_mask = torch.rand(1, 1, 64, 128, 128, device=device)  # soft mask in [0,1]
-    x = torch.cat([x_img, soft_mask], dim=1)
+    def forward(self, warped_mask, raw_t):
+        """
+        warped_mask: (B,1,D,H,W) in [0,1]
+        raw_t: network raw 4th channel (B,1,D,H,W), can be positive or negative
+        """
+        sdf = soft_sdf(warped_mask)          # convert to SDF
+        t = torch.sigmoid(raw_t)             # gate: where to apply
+        delta = self.max_offset * torch.tanh(raw_t)  # signed magnitude
+        sdf_corr = sdf + delta * t            # apply offset only where t>0
+        corrected = torch.sigmoid(sdf_corr)  # back to probability
+        return corrected, t, delta
 
-    with torch.no_grad():
-        warped_mask, phis, final_phi = model(x, return_params=True)
+class DeformDynUnetV2(nn.Module):
+    def __init__(self, cfg):
+        super().__init__()
+        self.cfg = cfg
+        if cfg.model_type == 'resenc':
+            self.predictor = create_residual_unet(
+                in_channels=2,
+                out_channels=4
+            )
+        elif cfg.model_type == 'primus':
+            self.predictor = create_primus(
+                in_channels=2,
+                out_channels=4
+            )
+        self.max_v = cfg.max_v
+        self.topofix = TopoFix(max_offset=cfg.max_topo_offset)
 
-    print("warped_mask:", warped_mask.shape)
-    print("num phis:", len(phis), "final_phi:", final_phi.shape)
+    def forward(self, x, return_params=False):
+        if self.cfg.custom:
+            raw = self.predictor(x[:, :-1], x[:, -1:])
+        else:
+            raw = self.predictor(x)
+        # raw = self.predictor(x)
+        raw_v = raw[:, :3]
+        raw_t = raw[:, 3:4]
+
+        # SVF
+        v = torch.tanh(raw_v) * self.max_v
+        phi = scaling_and_squaring(v)
+
+        # warp
+        warped = warp_vol_using_disp(x[:, 1:2], phi)
+
+        # topo fix
+        corrected, t, delta = self.topofix(warped, raw_t)
+
+        if return_params:
+            return corrected, v, phi, t
+        return corrected
+
+# -----------------------------------
+# diffeomorphic network V3
+# (image, prior_mask)
+#         │
+#         ▼
+#    Shared Encoder
+#         │
+#         ├── SVF Head → v → φ (diffeomorphic warp)
+#         │
+#         └── SDF Residual Head → Δd
+#         │
+# Warp prior SDF by φ → d_warp
+#         │
+#         ▼
+# TopoFix-SDF (learned correction)
+#         │
+#         ▼
+# Final SDF → sigmoid(optional) → probability
+# -----------------------------------
+
+class TopoFixSDF(nn.Module):
+    """
+    Local SDF correction with learned gating.
+    """
+    def __init__(self, max_offset=2.0):
+        super().__init__()
+        self.max_offset = max_offset
+
+    def forward(self, sdf_warped, raw_t):
+        """
+        sdf_warped: (B,1,D,H,W) signed distance
+        raw_t:      (B,1,D,H,W) unconstrained
+        """
+        gate = torch.sigmoid(raw_t)                  # where to apply correction
+        delta = self.max_offset * torch.tanh(raw_t)  # signed offset
+        sdf_corr = sdf_warped + gate * delta
+        return sdf_corr, gate, delta
+
+
+class DeformNetV3(nn.Module):
+    """
+    Diffeomorphic deformation + explicit SDF prediction.
+    Designed for SignedDistanceLoss.
+    """
+    def __init__(self, cfg):
+        super().__init__()
+        self.cfg = cfg
+
+        # backbone
+        if cfg.model_type == "resenc":
+            self.backbone = create_residual_unet(
+                in_channels=2,    # image + prior
+                out_channels=5    # 3 SVF + 1 sdf_res + 1 topo_gate
+            )
+        elif cfg.model_type == "primus":
+            self.backbone = create_primus(
+                in_channels=2,
+                out_channels=5
+            )
+
+        self.max_v = cfg.max_v
+        self.topofix = TopoFixSDF(max_offset=cfg.max_topo_offset)
+
+    def forward(self, x, return_params=False):
+        """
+        x:
+          channel 0: image
+          channel 1: prior SDF (NOT probability!)
+        """
+        img  = x[:, 0:1]
+        prob_mask = x[:, 1:2]
+        sdf_input = soft_sdf(prob_mask)  # OOF prob -> SDF-like
+        sdf0 = 2.0 * sdf_input - 1.0  # scale to [-1,1] if needed
+
+        raw = self.backbone(torch.cat([img, sdf0], dim=1))
+
+        raw_v   = raw[:, :3]     # SVF
+        raw_ds  = raw[:, 3:4]    # residual SDF
+        raw_t   = raw[:, 4:5]    # topo gate
+
+        # ---- deformation ----
+        v = torch.tanh(raw_v) * self.max_v
+        phi = scaling_and_squaring(v, n_steps=self.cfg.n_steps)
+
+        sdf_warped = warp_vol_using_disp(sdf0, phi, mode="bilinear")
+
+        # ---- SDF refinement ----
+        sdf_warped = sdf_warped + raw_ds
+
+        sdf_final, gate, delta = self.topofix(sdf_warped, raw_t)
+
+        prob = torch.sigmoid(-sdf_final)  # optional segmentation output
+
+        if return_params:
+            return {
+                "sdf": sdf_final,
+                "prob": prob,
+                "phi": phi,
+                "v": v,
+                "gate": gate,
+                "delta": delta,
+            }
+
+        return prob

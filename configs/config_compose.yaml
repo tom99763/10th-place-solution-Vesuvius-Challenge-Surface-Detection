@@ -6,7 +6,7 @@ oof_path1 : ./nnunet/nnUNet_results/Dataset900_VesuviusScroll/nnUNetTrainer__nnU
 oof_path2: ''
 oof_path3: ''
 nnunet_path: ./nnunet
-petrained_ckpt_path: ''
+petrained_ckpt_path: ./models/last-v3.ckpt
 data_split_path: ./splits_final.json
 batch_size: 1
 num_workers: 4

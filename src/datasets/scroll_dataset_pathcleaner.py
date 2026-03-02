@@ -4,11 +4,8 @@ import torch
 import pytorch_lightning as pl
 from ..procs.proc_data import *
 from pathlib import Path
-import random
 
-
-
-class DeformDataset(Dataset):
+class CleanerDataset(Dataset):
     def __init__(self, cfg, id_list, train):
         super().__init__()
         self.cfg = cfg
@@ -23,34 +20,21 @@ class DeformDataset(Dataset):
 
     def __getitem__(self, idx):
         idx = self.id_list[idx]
-        vol = np.load(f'{self.cfg.data_npy_path}/train_images_npy/{idx}.npy')
-        mask = np.load(Path(f'{self.cfg.data_npy_path}/train_labels_npy/{idx}.npy'))
-        #sdf = np.load(Path(f'{self.cfg.data_path}/new_labels_sdf/{idx}.npy'))
-        skel = np.load(f'{self.cfg.data_npy_path}/train_skeletons_npy/{idx}.npy')
-        if self.cfg.is_prob_oof_mask:
-            # pred_mask = np.load(f'{self.cfg.oof_path}/{idx}.npz', mmap_mode='r')
-            # pred_mask = pred_mask['prob'] #(d, h, w)
-            pred_mask = np.load(f'{self.cfg.oof_path}/{idx}_probs.npy', mmap_mode='r')
-        else:
-            pred_mask = load_volume(Path(f'{self.cfg.oof_path}/{idx}.tif'))
-            #pred_mask = np.load(Path(f'{self.cfg.oof_path}/{idx}.npy'))
+        vol = np.load(f'../../vesuvius_challenge/vesuvius_challenge/train_images_npy/{idx}.npy')
+        mask = np.load(f'../../vesuvius_challenge/vesuvius_challenge/train_labels_npy/{idx}.npy')
+        invalid_mask = np.load(f'{self.cfg.oof_path}/invalid_labels/{idx}.npy')
+        pred_mask = load_volume(Path(f'{self.cfg.oof_path}/oof/{idx}.tif'))
 
-        #pred_mask = pad_skeleton_3d(pred_mask)
-        # if self.cfg.apply_topo_proc:
-        #     pred_mask = topo_postprocess(pred_mask)
-
-        raw = {"Image": vol, "Mask": mask, "Mask_OOF": pred_mask, "Skel": skel}
+        raw = {"Image": vol, "Mask": mask, "Mask_OOF": pred_mask, "Invalid_Mask": invalid_mask}
         data = self.proc_data(raw)
         if self.train:
             vol = torch.stack([_data['Image'] for _data in data], dim=0)
             mask = torch.stack([_data['Mask'] for _data in data], dim=0)
             mask_oof = torch.stack([_data['Mask_OOF'] for _data in data], dim=0)
-            skel = torch.stack([_data['Skel'] for _data in data], dim=0)
-            #sdf = torch.stack([_data['SDF'] for _data in data], dim=0)
-            return vol, mask, mask_oof, skel
+            invalid_mask = torch.stack([_data['Invalid_Mask'] for _data in data], dim=0)
         else:
-            vol, mask, mask_oof, skel = data['Image'], data['Mask'], data['Mask_OOF'], data['Skel']
-        return vol, mask, mask_oof, skel
+            vol, mask, mask_oof, invalid_mask = data['Image'], data['Mask'], data['Mask_OOF'], data['Invalid_Mask']
+        return vol, mask, mask_oof, invalid_mask
 
 
 def collate_fn_train(batch):
@@ -60,13 +44,13 @@ def collate_fn_train(batch):
     images = torch.cat([item[0] for item in batch], dim=0)
     masks = torch.cat([item[1] for item in batch], dim=0)
     mask_oof = torch.cat([item[2] for item in batch], dim=0)
-    skel = torch.cat([item[3] for item in batch], dim=0)
+    invalid_mask = torch.cat([item[3] for item in batch], dim=0)
 
     return {
         "Image": images,
         "Mask": masks,
         "Mask_OOF": mask_oof,
-        "Skel": skel
+        "Invalid_Mask": invalid_mask
     }
 
 
@@ -77,13 +61,13 @@ def collate_fn_val(batch):
     images = torch.stack([item[0] for item in batch], dim=0)
     masks = torch.stack([item[1] for item in batch], dim=0)
     mask_oof = torch.stack([item[2] for item in batch], dim=0)
-    skel = torch.stack([item[3] for item in batch], dim=0)
+    invalid_mask = torch.stack([item[3] for item in batch], dim=0)
 
     return {
         "Image": images,
         "Mask": masks,
         "Mask_OOF": mask_oof,
-        "Skel": skel
+        "Invalid_Mask": invalid_mask
     }
 
 
@@ -100,11 +84,11 @@ class TomoDataModule(pl.LightningDataModule):
                 val_ids.remove(idx)
 
         self.train_ids = train_ids
-        self.val_ids = val_ids[:10]
+        self.val_ids = val_ids[:5]
 
     def setup(self, stage: str = None):
-        self.train_dataset = DeformDataset(self.cfg, self.train_ids, True)
-        self.val_dataset = DeformDataset(self.cfg, self.val_ids, False)
+        self.train_dataset = CleanerDataset(self.cfg, self.train_ids, True)
+        self.val_dataset = CleanerDataset(self.cfg, self.val_ids, False)
 
     def train_dataloader(self):
         return DataLoader(
@@ -120,7 +104,7 @@ class TomoDataModule(pl.LightningDataModule):
     def val_dataloader(self):
         return DataLoader(
             self.val_dataset,
-            batch_size=1,
+            batch_size=self.cfg.batch_size,
             shuffle=False,
             num_workers=self.cfg.num_workers,
             pin_memory=True,
