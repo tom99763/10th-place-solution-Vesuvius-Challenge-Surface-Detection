@@ -1,6 +1,11 @@
 ## Diffeomorphic Network Part of 10th-place solution (Vesuvius Challenge - Surface Detection)
 
 
+### Environment 
+| Hardware Setup | GPU | CPU | RAM | Time per Fold | Total (5 folds) |
+| --- | --- | --- | --- | --- | --- |
+| @Tom | RTX 4090 | 12th Gen Intel(R) Core(TM) i7-12700  @ 2.10 GHz | 24GB | 8-12 hours | 1.5 days |
+
 ### Installing topometrics
 
 1. Download the dataset using `kaggle datasets download sohier/vesuvius-metric-resources`
