@@ -22,4 +22,16 @@ chmod +x scripts/setup_submodules.sh scripts/build_betti.sh && make build-betti
 pip install -e . --no-deps --no-index --no-build-isolation -v
 ```
 
+### Run Training 
+You can change config setup in `configs/config_deform_v2.yaml`. for assigning data path, please setup in yaml file.
+Since we use pre-saved npy file, you have to save data as npy file first.
+```
+data_path: {your data path}
+data_npy_path: {your npy data path}
+oof_path : {your oof data path}
+```
+
+```bash
+python train_deformnet.py 
+```
 
