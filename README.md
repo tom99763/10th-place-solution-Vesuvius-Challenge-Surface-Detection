@@ -15,10 +15,8 @@ pip3 install -r requirements.txt
 
 ### Installing topometrics
 
-1. Download the dataset using `kaggle datasets download sohier/vesuvius-metric-resources`
-2. Then run the following commands:
-
 ```bash
+kaggle datasets download sohier/vesuvius-metric-resources
 cd vesuvius-metric-resources/topological-metrics-kaggle 
 pip install -r requirements.txt
 chmod +x scripts/setup_submodules.sh scripts/build_betti.sh && make build-betti
