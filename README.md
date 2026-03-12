@@ -115,3 +115,19 @@ python train_deformnet.py
 │       └── tools.py
 ```
 
+## References
+
+- Isensee et al. **Primus: Enforcing Attention Usage for 3D Medical Image Segmentation** — [openreview.net](https://openreview.net/forum?id=YWwGmmObri)
+- Lamm et al. **MemBrain v2: An end-to-end tool for the analysis of membranes in cryo-electron tomography** *(Surface Dice Loss)* — [biorxiv.org](https://www.biorxiv.org/content/10.1101/2024.01.05.574336v1.full.pdf)
+- Shit et al. **Skeleton Recall Loss for Connectivity Conserving and Resource Efficient Segmentation of Thin Tubular Structures** — [ECCV 2024](https://www.ecva.net/papers/eccv_2024/papers_ECCV/papers/09904.pdf)
+- MIC-DKFZ **dynamic-network-architectures** library — [github.com/MIC-DKFZ/dynamic-network-architectures](https://github.com/MIC-DKFZ/dynamic-network-architectures)
+- Wald et al. **PrimusV2** *(unmerged fork)* — [github.com/TaWald/dynamic-network-architectures](https://github.com/TaWald/dynamic-network-architectures/blob/main/dynamic_network_architectures/architectures/primus.py)
+- Chen et al. **Perceptual Contrastive Generative Adversarial Network based on image warping for unsupervised image-to-image translation** — [sciencedirect.com](https://www.sciencedirect.com/science/article/abs/pii/S0893608023003684)
+- Ilg et al. **FlowNet 2.0: Evolution of Optical Flow Estimation with Deep Networks** — [arxiv.org/abs/1612.01925](https://arxiv.org/abs/1612.01925)
+
+---
+
+## Contact
+
+For any questions, feel free to reach out: tom99763@gmail.com
+
