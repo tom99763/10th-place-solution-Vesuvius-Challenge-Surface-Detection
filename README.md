@@ -46,20 +46,9 @@ python train_deformnet.py
 ├── LICENSE
 ├── .gitignore
 ├── requirements.txt
-│
 ├── train_deformnet.py
-├── train_ICDeformnet.py
-│
-├── convert_after_proc.py
-├── convert_label_to_sdf.py
-├── convert_npz_to_npy.py
 ├── cv.py
 ├── official_validate.py
-│
-├── generate_oof_1st_stage.py
-├── generate_oof_2st_stage.py
-├── generate_oof_2st_stage_v2.py
-│
 ├── configs/
 │   ├── config_ICDeformnet.yaml
 │   ├── config_deform.yaml
