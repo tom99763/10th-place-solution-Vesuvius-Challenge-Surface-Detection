@@ -1,7 +1,10 @@
 ## Diffeomorphic Network Part of 10th-place solution (Vesuvius Challenge - Surface Detection)
 
-## Install Dependencies
+## Setup
 ```bash
+# Create conda environment
+conda create -n vesuvius python=3.10
+conda activate vesuvius
 pip3 install -r requirements.txt
 ```
 
